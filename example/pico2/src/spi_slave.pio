@@ -1,0 +1,60 @@
+; SPI slave receiver for ST7789 (Mode 0, MSB first) with D/CX capture.
+;
+; Pin mapping (configure SM before enabling):
+;   IN_BASE  = PIN_SPI_MOSI  (GPIO 3)
+;   JMP_PIN  = PIN_SPI_DCX   (GPIO 4)
+;   SCK and CS referenced by absolute GPIO number via 'wait gpio'.
+;
+; ISR shift direction: LEFT  (MSB arrives first → data ends up in bits[7:0])
+; AUTOPUSH: disabled  (manual push after each 9-bit word)
+; FIFO join: RX only  (8-deep receive FIFO)
+;
+; Output word layout (32-bit):
+;   bits[31:9] = 0
+;   bit [8]    = DCX  (0 = command, 1 = data)
+;   bits[7:0]  = received byte (MSB first)
+;
+; Throughput note:
+;   At system clock 252 MHz and SPI SCK 62.5 MHz (ratio 4.03:1) this program
+;   is at the theoretical minimum margin.  The bit_loop body uses 4 PIO cycles
+;   per bit which exactly matches the SCK period of 4.03 system clocks.
+
+.define public SPI_SCK_PIN  2
+.define public SPI_CS_PIN   5
+
+.program spi_slave_with_dcx
+
+; ---- per-byte loop ----------------------------------------------------------
+.wrap_target
+    ; Wait until CS is asserted (active low).
+    ; If CS is permanently tied to GND this completes immediately every time,
+    ; giving the same continuous-receive behaviour.
+    wait 0 gpio SPI_CS_PIN
+
+    ; Sample DCX before the first SCK edge of this byte.
+    ; JMP_PIN is configured to PIN_SPI_DCX.
+    set  y, 0
+    jmp  pin, dcx_high          ; DCX = 1 → jump
+    jmp  do_recv                ; DCX = 0, y = 0
+dcx_high:
+    set  y, 1
+
+do_recv:
+    ; Shift the DCX flag into ISR as bit 8.
+    ; After 8 more left-shifts (one per MOSI bit) it will sit at bit 8.
+    in   y, 1
+
+    ; Receive 8 data bits, MSB first (SPI Mode 0: sample on rising SCK edge).
+    set  x, 7
+bit_loop:
+    wait 0 gpio SPI_SCK_PIN     ; wait for SCK falling edge (idle)
+    wait 1 gpio SPI_SCK_PIN     ; wait for SCK rising edge  (sample)
+    in   pins, 1                ; sample MOSI (IN_BASE = PIN_SPI_MOSI)
+    jmp  x--, bit_loop
+
+    ; Push the completed 9-bit word.  noblock drops the word if the FIFO is
+    ; full rather than stalling, which prevents the PIO from falling behind
+    ; the SPI clock under heavy DVI load (tolerable given the "momentary
+    ; corruption is acceptable" requirement).
+    push noblock
+.wrap

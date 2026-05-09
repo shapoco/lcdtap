@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(spilcd2dvi STATIC
-    # TODO: add source files under src/
+    src/spilcd2dvi.cpp
 )
 
 target_include_directories(spilcd2dvi
