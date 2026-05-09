@@ -5,4 +5,5 @@ set -eux
 mkdir -p build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DPICO_COPY_TO_RAM=1 -DPICO_BOARD=pico2
+#cmake .. -DPICO_BOARD=pico2 -DCMAKE_BUILD_TYPE=Release
 make -j

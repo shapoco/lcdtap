@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <cstdint>
+#include <cstring>
 #include <initializer_list>
 
 #include "pico/stdlib.h"
@@ -181,16 +182,6 @@ static void process_spi_ring_buf() {
 }
 
 // =============================================================================
-// RGB888 → RGB565 inline conversion
-// =============================================================================
-static inline uint16_t rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b) {
-    return static_cast<uint16_t>(
-        ((static_cast<uint16_t>(r) & 0xF8u) << 8) |
-        ((static_cast<uint16_t>(g) & 0xFCu) << 3) |
-         (static_cast<uint16_t>(b)           >> 3));
-}
-
-// =============================================================================
 // main
 // =============================================================================
 int main() {
@@ -239,11 +230,15 @@ int main() {
     stdio_init_all();
 
     // -------------------------------------------------------------------------
-    // 3. LED
+    // 3. LED + debug probe
     // -------------------------------------------------------------------------
     gpio_init(PIN_LED);
     gpio_set_dir(PIN_LED, GPIO_OUT);
     gpio_put(PIN_LED, 0);
+
+    gpio_init(PIN_DBG_FRAME);
+    gpio_set_dir(PIN_DBG_FRAME, GPIO_OUT);
+    gpio_put(PIN_DBG_FRAME, 0);
 
     // -------------------------------------------------------------------------
     // 4. RESX input (pull-up; active low from SPI master)
@@ -307,6 +302,25 @@ int main() {
     if (sl2d_inst.getStatus() != sl2d::Status::OK)
         panic("SpiLcd2Dvi init failed");
 
+    // Fill framebuffer with 8-bar test pattern so the DVI output pipeline can
+    // be verified before the SPI master sends SLPOUT + DISPON.
+    // The pattern is replaced by real SPI content once the master initialises.
+    // Bar order (left→right): black blue green cyan red magenta yellow white
+    {
+        static const uint16_t kBars[8] = {
+            0x0000u, 0x001Fu, 0x07E0u, 0x07FFu,
+            0xF800u, 0xF81Fu, 0xFFE0u, 0xFFFFu,
+        };
+        uint16_t* fb = sl2d_inst.getFramebuf();
+        for (uint16_t y = 0; y < lcd_h; ++y) {
+            for (uint16_t x = 0; x < lcd_w; ++x) {
+                fb[(uint32_t)y * lcd_w + x] =
+                    kBars[(uint32_t)x * 8u / lcd_w];
+            }
+        }
+        sl2d_inst.setDisplayOn(true);
+    }
+
     g_sl2d = &sl2d_inst;  // expose to IRQ handler
 
     // -------------------------------------------------------------------------
@@ -352,14 +366,9 @@ int main() {
             process_spi_ring_buf();
         }
 
-        // Convert one scanline from RGB888 to RGB565.
-        const uint8_t *rgb888 = g_sl2d->getScanline(static_cast<uint16_t>(scan_y));
-        for (uint32_t x = 0; x < dvi_w; ++x) {
-            buf[x] = rgb888_to_rgb565(
-                rgb888[x * 3u],
-                rgb888[x * 3u + 1u],
-                rgb888[x * 3u + 2u]);
-        }
+        // Copy one RGB565 scanline directly into the DVI buffer.
+        const uint16_t *rgb565 = g_sl2d->getScanline(static_cast<uint16_t>(scan_y));
+        memcpy(buf, rgb565, dvi_w * sizeof(uint16_t));
 
         // Hand the filled scanline to DVI Core 1.
         queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);
@@ -367,6 +376,10 @@ int main() {
         // Advance scanline counter; detect frame boundary.
         if (++scan_y >= dvi_h) {
             scan_y = 0;
+            // Pulse PIN_DBG_FRAME once per frame — measure ~60 Hz on a scope
+            // to confirm the DVI output loop is running at the correct rate.
+            gpio_put(PIN_DBG_FRAME, 1);
+            gpio_put(PIN_DBG_FRAME, 0);
             if (++frame % LED_TOGGLE_FRAMES == 0u) {
                 led = !led;
                 gpio_put(PIN_LED, led ? 1 : 0);

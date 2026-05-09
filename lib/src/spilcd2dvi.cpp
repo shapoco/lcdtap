@@ -51,8 +51,8 @@ struct Impl {
     Status        status;
     bool          hwReset;
 
-    uint8_t* framebuf;    // lcdWidth × lcdHeight × 3 バイトの RGB888 フレームバッファ
-    uint8_t* scanlineBuf; // dviTiming.h.active × 3 バイトの出力ラインバッファ
+    uint16_t* framebuf;    // lcdWidth × lcdHeight × sizeof(uint16_t) の RGB565 フレームバッファ
+    uint16_t* scanlineBuf; // dviTiming.h.active × sizeof(uint16_t) の出力ラインバッファ
 
     // ST7789 レジスタ
     bool        sleeping;
@@ -154,25 +154,33 @@ struct Impl {
         cmdDataLen  = 0;
         ramwrPos    = 0;
         ramwrBufLen = 0;
-        memset(framebuf, 0, (size_t)config.lcdWidth * config.lcdHeight * 3);
+        memset(framebuf, 0, (size_t)config.lcdWidth * config.lcdHeight * sizeof(uint16_t));
     }
 
     // --- ピクセル書き込み ---
 
+    // RGB565 値を 1 ピクセルとしてフレームバッファに書く (MADCTL BGR 考慮)
+    void writePixelRgb565(uint16_t px) {
+        if ((madctl >> 3) & 1) {  // BGR: R[15:11] と B[4:0] を入れ替える
+            uint16_t r = (px >> 11) & 0x1Fu;
+            uint16_t g = (px >>  5) & 0x3Fu;
+            uint16_t b =  px        & 0x1Fu;
+            px = static_cast<uint16_t>((b << 11) | (g << 5) | r);
+        }
+        uint32_t lw = logicalWidth();
+        framebuf[physIndex(ramwrPos % lw, ramwrPos / lw)] = px;
+        if (++ramwrPos >= lw * logicalHeight()) ramwrPos = 0;
+    }
+
     // RGB888 チャンネル値で 1 ピクセルをフレームバッファに書く
     void writePixel(uint8_t r, uint8_t g, uint8_t b) {
-        // MADCTL BGR: R と B を入れ替える
         if ((madctl >> 3) & 1) {
             uint8_t tmp = r; r = b; b = tmp;
         }
-
-        uint32_t lw    = logicalWidth();
-        uint32_t total = lw * logicalHeight();
-        uint32_t idx   = physIndex(ramwrPos % lw, ramwrPos / lw) * 3;
-        framebuf[idx    ] = r;
-        framebuf[idx + 1] = g;
-        framebuf[idx + 2] = b;
-        if (++ramwrPos >= total) ramwrPos = 0;
+        writePixelRgb565(static_cast<uint16_t>(
+            ((uint16_t)(r & 0xF8u) << 8) |
+            ((uint16_t)(g & 0xFCu) << 3) |
+                        (b          >> 3)));
     }
 
     // RAMWR の 1 バイトを処理し、ピクセルが揃ったら書き込む
@@ -198,13 +206,10 @@ struct Impl {
 
         case PixelFormat::RGB565:
             // 2 バイトで 1 ピクセル (ビッグエンディアン)
+            // フレームバッファも RGB565 なので変換なしで直接書き込む
             if (ramwrBufLen == 2) {
-                uint16_t px = static_cast<uint16_t>((ramwrBuf[0] << 8) | ramwrBuf[1]);
-                uint8_t r = (px >> 11) & 0x1F;
-                uint8_t g = (px >>  5) & 0x3F;
-                uint8_t b = (px      ) & 0x1F;
-                // 5/6bit → 8bit: 上位ビットを下位へ複製して拡張
-                writePixel((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+                writePixelRgb565(
+                    static_cast<uint16_t>((ramwrBuf[0] << 8) | ramwrBuf[1]));
                 ramwrBufLen = 0;
             }
             break;
@@ -294,8 +299,8 @@ struct Impl {
 // calcRequiredMemory
 //=============================================================================
 size_t calcRequiredMemory(const Sl2dConfig& config) {
-    size_t fbSize = (size_t)config.lcdWidth * config.lcdHeight * 3;
-    size_t slSize = (size_t)config.dviTiming.h.active * 3;
+    size_t fbSize = (size_t)config.lcdWidth * config.lcdHeight * sizeof(uint16_t);
+    size_t slSize = (size_t)config.dviTiming.h.active * sizeof(uint16_t);
     return sizeof(Impl) + fbSize + slSize;
 }
 
@@ -322,16 +327,16 @@ SpiLcd2Dvi::SpiLcd2Dvi(const Sl2dConfig& config, const HostInterface& host)
         return;
     }
 
-    size_t fbSize = (size_t)config.lcdWidth * config.lcdHeight * 3;
-    p->framebuf = static_cast<uint8_t*>(host.alloc(fbSize));
+    size_t fbSize = (size_t)config.lcdWidth * config.lcdHeight * sizeof(uint16_t);
+    p->framebuf = static_cast<uint16_t*>(host.alloc(fbSize));
     if (!p->framebuf) {
         p->status = Status::OUT_OF_MEMORY;
         impl_ = mem;
         return;
     }
 
-    size_t slSize = (size_t)config.dviTiming.h.active * 3;
-    p->scanlineBuf = static_cast<uint8_t*>(host.alloc(slSize));
+    size_t slSize = (size_t)config.dviTiming.h.active * sizeof(uint16_t);
+    p->scanlineBuf = static_cast<uint16_t*>(host.alloc(slSize));
     if (!p->scanlineBuf) {
         p->status = Status::OUT_OF_MEMORY;
         impl_ = mem;
@@ -383,57 +388,65 @@ void SpiLcd2Dvi::inputData(const uint8_t* data, size_t length) {
     }
 }
 
-const uint8_t* SpiLcd2Dvi::getScanline(uint16_t dviLine) const {
+const uint16_t* SpiLcd2Dvi::getScanline(uint16_t dviLine) const {
     if (!impl_) return nullptr;
     Impl* p = static_cast<Impl*>(impl_);  // scanlineBuf への書き込みが必要なため非 const
     if (p->status != Status::OK || !p->framebuf || !p->scanlineBuf) return nullptr;
 
-    const uint16_t dviW = p->config.dviTiming.h.active;
-    const uint16_t lcdW = p->config.lcdWidth;
-    const uint16_t lcdH = p->config.lcdHeight;
-    uint8_t*       dst  = p->scanlineBuf;
+    const uint16_t  dviW = p->config.dviTiming.h.active;
+    const uint16_t  lcdW = p->config.lcdWidth;
+    const uint16_t  lcdH = p->config.lcdHeight;
+    uint16_t*       dst  = p->scanlineBuf;
 
     // 表示オフ・スリープ中、または垂直方向の黒帯
     if (p->sleeping || !p->displayOn ||
         dviLine < p->displayY || dviLine >= p->displayY + p->displayH) {
-        memset(dst, 0, dviW * 3);
+        memset(dst, 0, dviW * sizeof(uint16_t));
         return dst;
     }
 
     // 垂直マッピング: DVI 行 → LCD 行
     uint16_t lcdRow = (uint32_t)(dviLine - p->displayY) * lcdH / p->displayH;
-    const uint8_t* srcRow = p->framebuf + (uint32_t)lcdRow * lcdW * 3;
+    const uint16_t* srcRow = p->framebuf + (uint32_t)lcdRow * lcdW;
 
-    uint8_t* d = dst;
+    uint16_t* d = dst;
 
     // 左の黒帯
-    memset(d, 0, (size_t)p->displayX * 3);
-    d += p->displayX * 3;
+    memset(d, 0, (size_t)p->displayX * sizeof(uint16_t));
+    d += p->displayX;
 
     // アクティブ領域: 水平スケーリング + 輝度反転
+    // 反転: RGB565 全ビット XOR → (31-R, 63-G, 31-B) で各チャネル反転
     uint32_t hAccum = 0;
     if (p->inverted) {
         for (uint16_t x = 0; x < p->displayW; ++x) {
-            const uint8_t* src = srcRow + (hAccum >> 16) * 3;
-            *d++ = src[0] ^ 0xFF;
-            *d++ = src[1] ^ 0xFF;
-            *d++ = src[2] ^ 0xFF;
+            *d++ = srcRow[hAccum >> 16] ^ 0xFFFFu;
             hAccum += p->hStep;
         }
     } else {
         for (uint16_t x = 0; x < p->displayW; ++x) {
-            const uint8_t* src = srcRow + (hAccum >> 16) * 3;
-            *d++ = src[0];
-            *d++ = src[1];
-            *d++ = src[2];
+            *d++ = srcRow[hAccum >> 16];
             hAccum += p->hStep;
         }
     }
 
     // 右の黒帯
-    memset(d, 0, (size_t)(dviW - p->displayX - p->displayW) * 3);
+    memset(d, 0, (size_t)(dviW - p->displayX - p->displayW) * sizeof(uint16_t));
 
     return dst;
+}
+
+uint16_t* SpiLcd2Dvi::getFramebuf() {
+    if (!impl_) return nullptr;
+    return static_cast<Impl*>(impl_)->framebuf;
+}
+
+void SpiLcd2Dvi::setDisplayOn(bool on) {
+    if (!impl_) return;
+    Impl* p = static_cast<Impl*>(impl_);
+    if (p->status != Status::OK) return;
+    p->sleeping  = !on;
+    p->displayOn = on;
 }
 
 } // namespace sl2d

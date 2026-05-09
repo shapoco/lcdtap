@@ -47,13 +47,6 @@ enum class ScaleMode : uint8_t {
 };
 
 //=============================================================================
-// フレームバッファのピクセル型 (RGB 各 1 バイト)
-//=============================================================================
-struct Rgb888 {
-    uint8_t r, g, b;
-};
-
-//=============================================================================
 // DVI タイミング
 //=============================================================================
 struct DviTiming {
@@ -138,11 +131,25 @@ public:
     //--- DVI 出力 ---
 
     // 指定ライン番号のピクセルデータへのポインタを返す。
-    // フォーマット: RGB888 (1 ピクセル = R, G, B 各 1 バイトの計 3 バイト)
+    // フォーマット: RGB565 (1 ピクセル = uint16_t、R[15:11] G[10:5] B[4:0])
     // line の範囲: 0 .. dviTiming.v.active - 1 (DVI 座標系)
     // スケーリングはライブラリ内部で処理済み。
     // DVI ドライバから割り込みまたは DMA 転送の契機に呼び出す想定。
-    const uint8_t* getScanline(uint16_t line) const;
+    const uint16_t* getScanline(uint16_t line) const;
+
+    //--- テスト / デバッグ用 ---
+
+    // フレームバッファへの直接書き込みポインタを返す。
+    // フォーマット: lcdWidth × lcdHeight × sizeof(uint16_t) バイト
+    //              (行優先 RGB565、MADCTL 変換なし)。
+    // getScanline() はこのバッファを参照するため、書き込み内容はすぐに反映される。
+    uint16_t* getFramebuf();
+
+    // スリープ/表示オン状態を強制設定する。
+    // on=true: sleeping=false かつ displayOn=true にして getScanline() を黒以外にする。
+    // on=false: sleeping=true にして黒画面に戻す。
+    // SPI マスターから SLPOUT/DISPON を受け取る前にテストパターンを表示したい場合に使用。
+    void setDisplayOn(bool on);
 
 private:
     SpiLcd2Dvi(const SpiLcd2Dvi&) = delete;

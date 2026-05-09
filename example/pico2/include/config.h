@@ -17,13 +17,21 @@ static constexpr uint PIN_SPI_RESX = 6u;  // Hardware reset, active low (input)
 // =============================================================================
 static constexpr uint PIN_CFG_LCD_SIZE    = 20u; // LOW=240x240 / HIGH=240x320
 static constexpr uint PIN_CFG_DVI_RES     = 21u; // LOW=640x480@60Hz / HIGH=1280x720@30Hz(reduced)
-static constexpr uint PIN_CFG_SCALE_MODE0 = 22u; // \__ scale mode bits
-static constexpr uint PIN_CFG_SCALE_MODE1 = 23u; // /   00=STRETCH 01=FIT 10=PIXEL_PERFECT
+static constexpr uint PIN_CFG_SCALE_MODE0 = 10u; // \__ scale mode bits
+static constexpr uint PIN_CFG_SCALE_MODE1 = 11u; // /   00=STRETCH 01=FIT 10=PIXEL_PERFECT
 
 // =============================================================================
 // Onboard LED
 // =============================================================================
 static constexpr uint PIN_LED = 25u;
+
+// =============================================================================
+// Debug probe GPIO (optional — connect to oscilloscope / logic analyser)
+//   PIN_DBG_FRAME: pulses once per DVI frame (scan_y == 0).
+//                 Expected frequency: ~60 Hz (640x480) or ~30 Hz (1280x720).
+//                 Seeing this signal confirms the DVI main loop is running.
+// =============================================================================
+static constexpr uint PIN_DBG_FRAME = 7u;
 
 // =============================================================================
 // PIO / DMA resource assignment
@@ -57,9 +65,10 @@ static constexpr uint32_t LED_TOGGLE_FRAMES = 30u;
 
 // =============================================================================
 // Memory pool for SpiLcd2Dvi internal allocations (bump allocator)
-// 240x320 framebuffer = 230 400 bytes; leave headroom for scanline buf.
+// 240x320 RGB565 framebuffer = 153 600 bytes
+// + scanline buf (1280x2 = 2560) + DVI bufs (4x1280x2 = 10240) + Impl (~256)
 // =============================================================================
-static constexpr size_t MEM_POOL_SIZE = 280u * 1024u;
+static constexpr size_t MEM_POOL_SIZE = 200u * 1024u;
 
 // =============================================================================
 // Data batching buffer for inputData() calls
