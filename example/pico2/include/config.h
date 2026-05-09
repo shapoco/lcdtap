@@ -66,7 +66,7 @@ static constexpr uint32_t LED_TOGGLE_FRAMES = 30u;
 // =============================================================================
 // Memory pool for SpiLcd2Dvi internal allocations (bump allocator)
 // 240x320 RGB565 framebuffer = 153 600 bytes
-// + scanline buf (1280x2 = 2560) + DVI bufs (4x1280x2 = 10240) + Impl (~256)
+// + scanline buf (320x2 = 640) + DVI bufs (4x320x2 = 2560) + Impl (~256)
 // =============================================================================
 static constexpr size_t MEM_POOL_SIZE = 200u * 1024u;
 

@@ -226,9 +226,6 @@ int main() {
     sleep_ms(10);
     set_sys_clock_khz(timing->bit_clk_khz, /*required=*/true);
 
-    // stdio after clock change
-    stdio_init_all();
-
     // -------------------------------------------------------------------------
     // 3. LED + debug probe
     // -------------------------------------------------------------------------
@@ -256,9 +253,14 @@ int main() {
              next_striped_spin_lock_num(),
              next_striped_spin_lock_num());
 
-    // Pre-allocate scanline buffers and populate q_colour_free.
-    const uint32_t dvi_w = timing->h_active_pixels;
-    const uint32_t dvi_h = timing->v_active_lines;
+    // Effective colour buffer dimensions for dvi_scanbuf_main_16bpp:
+    //   Horizontal: tmds_encode_data_channel_16bpp doubles each pixel, so the
+    //               colour buffer is h_active_pixels/2 pixels wide.
+    //   Vertical:   DVI_VERTICAL_REPEAT reuses each TMDS buffer for REPEAT
+    //               consecutive physical lines, so only v_active_lines/REPEAT
+    //               unique colour buffers are consumed per DVI frame.
+    const uint32_t dvi_w = timing->h_active_pixels / 2;
+    const uint32_t dvi_h = timing->v_active_lines / DVI_VERTICAL_REPEAT;
 
     for (int i = 0; i < N_SCANLINE_BUFS; ++i) {
         scanline_bufs[i] = static_cast<uint16_t *>(
@@ -280,13 +282,14 @@ int main() {
     // Pixel clock = TMDS bit clock / 10
     sl2d_cfg.dviTiming.pixelClockKhz = timing->bit_clk_khz / 10u;
 
-    sl2d_cfg.dviTiming.h.active      = static_cast<uint16_t>(timing->h_active_pixels);
+    // Use effective (colour-buffer) dimensions, not physical DVI dimensions.
+    sl2d_cfg.dviTiming.h.active      = static_cast<uint16_t>(dvi_w);
     sl2d_cfg.dviTiming.h.frontPorch  = static_cast<uint16_t>(timing->h_front_porch);
     sl2d_cfg.dviTiming.h.syncWidth   = static_cast<uint16_t>(timing->h_sync_width);
     sl2d_cfg.dviTiming.h.backPorch   = static_cast<uint16_t>(timing->h_back_porch);
     sl2d_cfg.dviTiming.h.syncPolarity = timing->h_sync_polarity;
 
-    sl2d_cfg.dviTiming.v.active      = static_cast<uint16_t>(timing->v_active_lines);
+    sl2d_cfg.dviTiming.v.active      = static_cast<uint16_t>(dvi_h);
     sl2d_cfg.dviTiming.v.frontPorch  = static_cast<uint16_t>(timing->v_front_porch);
     sl2d_cfg.dviTiming.v.syncWidth   = static_cast<uint16_t>(timing->v_sync_width);
     sl2d_cfg.dviTiming.v.backPorch   = static_cast<uint16_t>(timing->v_back_porch);
