@@ -5,6 +5,11 @@
 SPI 入力が 60Hz フレームレートの場合に DVI 出力が全面赤になる。
 Core0 が DVI スキャンライン生成と SPI リングバッファのドレインを同時に担っており、処理が追いつかないことが原因と判断した。
 
+## 経緯
+
+- 最適化 1〜5 を実施した結果、全面赤は解消しほぼ半分の内容が読み取れる程度まで改善した。
+- 引き続き最適化を検討中。
+
 ## 実施した最適化
 
 ### 1. `fillScanline` — memcpy の排除
@@ -54,14 +59,58 @@ MV/MX/MY 各組み合わせの `cachedHStep` / `cachedVLineStep`:
 
 ### 4. ホットパス関数への `[[gnu::always_inline]]` 付与
 
-`writePixelRgb565` / `writePixel` / `processRamwrByte` / `feedData` にインライン展開を強制し、関数呼び出しのオーバーヘッドを排除した。
+`writePixelRgb565` / `writePixel` / `feedData` にインライン展開を強制し、関数呼び出しのオーバーヘッドを排除した。
+
+### 5. `inputData` ホットループの再構築
+
+**変更前**: 1 バイトごとに `feedData(byte)` → `switch(currentCmd)` → `processRamwrByte(byte)` → `switch(pixelFormat)` の呼び出し連鎖を繰り返していた。
+
+**変更後**: `currentCmd` と `pixelFormat` の switch をループ外に追い出した。
+
+```
+【変更前】
+inputData(data, len)
+  for i in 0..len-1:
+    feedData(data[i])         ← per-byte
+      switch(currentCmd)      ← per-byte
+        processRamwrByte()    ← per-byte
+          switch(pixelFormat) ← per-byte
+
+【変更後】
+inputData(data, len)
+  feedData(data, len)
+    switch(currentCmd)        ← 一度だけ
+      CMD_RAMWR →
+        processRamwrData(data, len)
+          switch(pixelFormat) ← 一度だけ
+            タイトループ
+```
+
+`processRamwrData` は各ピクセルフォーマットごとに:
+1. 前回呼び出しからの端数バイト (`ramwrBuf`) を drain
+2. 揃ったバイトをタイトループで一括処理
+3. 残った端数バイトを `ramwrBuf` に保存
+
+RGB565 のタイトループ（正常系）:
+```cpp
+while (i + 2 <= length) {
+    writePixelRgb565((data[i] << 8) | data[i + 1]);
+    i += 2;
+}
+```
+
+また、`example/pico2/src/main.cpp` において以下の変更も行った（ユーザーによる）:
+- `process_spi_ring_buf()` の予備的な呼び出しを削除し、DVI キューへの応答レイテンシを削減
+- `flush_data_batch` のインライン化と `g_sl2d` のヌルチェックを冒頭に集約
+
+**効果**: `switch` の評価をデータバイト数分から 1 回に削減。
 
 ## 変更ファイル
 
 - `lib/include/spilcd2dvi/spilcd2dvi.hpp`: `getScanline` → `fillScanline(line, dst)` に API 変更
 - `lib/src/spilcd2dvi.cpp`: 上記最適化の実装
-- `example/pico2/src/main.cpp`: `fillScanline` への呼び出し変更
+- `example/pico2/src/main.cpp`: `fillScanline` への呼び出し変更、`process_spi_ring_buf` の改善
 
 ## 検証
 
-ビルドは通過。実機での 60Hz 動作確認は別途実施予定。
+ビルドは通過。実機では全面赤は解消し半分程度が読み取れる状態に改善。引き続き最適化を継続予定。

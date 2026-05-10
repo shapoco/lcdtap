@@ -143,13 +143,6 @@ static void spi_dma_init() {
 static uint8_t data_batch[DATA_BATCH_CAP];
 static size_t  data_batch_len = 0;
 
-static void flush_data_batch() {
-    if (data_batch_len > 0 && g_sl2d) {
-        g_sl2d->inputData(data_batch, data_batch_len);
-        data_batch_len = 0;
-    }
-}
-
 static void process_spi_ring_buf() {
     // Current write position from the DMA controller.
     uint32_t write_addr =
@@ -159,26 +152,33 @@ static void process_spi_ring_buf() {
         / sizeof(uint32_t);
     write_idx &= (SPI_RING_BUF_WORDS - 1u);
 
+    if (!g_sl2d) {
+        // No SpiLcd2Dvi instance to feed; just advance the read index to "consume" the data.
+        spi_read_idx = write_idx;
+        return;
+    }
+
     while (spi_read_idx != write_idx) {
         uint32_t word = spi_ring_buf[spi_read_idx];
         spi_read_idx  = (spi_read_idx + 1u) & (SPI_RING_BUF_WORDS - 1u);
 
-        const bool  is_data = (word >> 8u) & 1u;
-        const uint8_t byte  = static_cast<uint8_t>(word);
-
-        if (is_data) {
-            data_batch[data_batch_len++] = byte;
-            if (data_batch_len >= DATA_BATCH_CAP)
-                flush_data_batch();
+        if (word & 0x100u) {  
+            // data byte
+            data_batch[data_batch_len++] = static_cast<uint8_t>(word);
+            if (data_batch_len >= DATA_BATCH_CAP)  {
+                g_sl2d->inputData(data_batch, data_batch_len);
+                data_batch_len = 0;
+                break;
+            }
         } else {
-            flush_data_batch();
-            if (g_sl2d)
-                g_sl2d->inputCommand(byte);
+            // command byte
+            if (data_batch_len != 0) {
+                g_sl2d->inputData(data_batch, data_batch_len);
+                data_batch_len = 0;
+            }
+            g_sl2d->inputCommand(static_cast<uint8_t>(word));
         }
     }
-
-    // Flush any partial data run at the end of the available bytes.
-    flush_data_batch();
 }
 
 // =============================================================================
@@ -366,15 +366,11 @@ int main() {
             process_spi_ring_buf();  // (a) drain while waiting for free buffer
         }
 
-        process_spi_ring_buf();  // (b) drain during scanline preparation
-
         // Fill the DVI buffer directly — no intermediate copy needed.
         g_sl2d->fillScanline(static_cast<uint16_t>(scan_y), buf);
 
         // Hand the filled scanline to DVI Core 1.
         queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);
-
-        process_spi_ring_buf();  // (c) drain after handing off
 
         // Advance scanline counter; detect frame boundary.
         if (++scan_y >= dvi_h) {

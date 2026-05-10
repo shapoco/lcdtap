@@ -56,7 +56,7 @@ static constexpr uint SPI_SM = 0u;
 // Must be a power-of-two number of bytes and aligned to its own size.
 // Each element is one uint32_t word: bit[8]=DCX, bits[7:0]=data byte.
 // =============================================================================
-static constexpr uint32_t SPI_RING_BUF_LOG2     = 12u;
+static constexpr uint32_t SPI_RING_BUF_LOG2     = 14u;
 static constexpr uint32_t SPI_RING_BUF_BYTES    = 1u << SPI_RING_BUF_LOG2;
 static constexpr uint32_t SPI_RING_BUF_WORDS    = SPI_RING_BUF_BYTES / sizeof(uint32_t);
 
