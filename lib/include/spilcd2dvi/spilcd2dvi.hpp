@@ -80,6 +80,8 @@ struct Sl2dConfig {
     // --- DVI 出力側 ---
     DviTiming dviTiming;
     ScaleMode scaleMode;
+
+    bool invertInvPolarity;  // true: INVON→非反転 / INVOFF→反転
 };
 
 //=============================================================================

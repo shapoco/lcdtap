@@ -34,12 +34,10 @@ static constexpr uint PIN_CFG_SCALE_MODE1 = 27u; // /   00=STRETCH 01=FIT 10=PIX
 static constexpr uint PIN_LED = 25u;
 
 // =============================================================================
-// Debug probe GPIO (optional — connect to oscilloscope / logic analyser)
-//   PIN_DBG_FRAME: pulses once per DVI frame (scan_y == 0).
-//                 Expected frequency: ~60 Hz (640x480) or ~30 Hz (1280x720).
-//                 Seeing this signal confirms the DVI main loop is running.
+// Boot-time inversion polarity GPIO (read once at startup)
+// Pull LOW = default (INVON→反転), pull HIGH = polarity inverted (INVON→非反転)
 // =============================================================================
-static constexpr uint PIN_DBG_FRAME = 28u;
+static constexpr uint PIN_CFG_INV_POL = 28u;
 
 // =============================================================================
 // PIO / DMA resource assignment
@@ -81,4 +79,4 @@ static constexpr size_t MEM_POOL_SIZE = 200u * 1024u;
 // =============================================================================
 // Data batching buffer for inputData() calls
 // =============================================================================
-static constexpr size_t DATA_BATCH_CAP = 256u;
+static constexpr size_t DATA_BATCH_CAP = 1024u;

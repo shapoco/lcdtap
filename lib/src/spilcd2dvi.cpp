@@ -38,6 +38,8 @@ static constexpr uint8_t CMD_SLPOUT  = 0x11;
 static constexpr uint8_t CMD_INVOFF  = 0x20;
 static constexpr uint8_t CMD_INVON   = 0x21;
 static constexpr uint8_t CMD_DISPON  = 0x29;
+static constexpr uint8_t CMD_CASET   = 0x2A;
+static constexpr uint8_t CMD_RASET   = 0x2B;
 static constexpr uint8_t CMD_RAMWR   = 0x2C;
 static constexpr uint8_t CMD_MADCTL  = 0x36;
 static constexpr uint8_t CMD_COLMOD  = 0x3A;
@@ -65,6 +67,10 @@ struct Impl {
     uint8_t  cmdDataLen;  // 現コマンドで受け取ったデータバイト数
 
     // RAMWR 状態
+    uint16_t casetXS;     // CASET 開始列 (論理座標)
+    uint16_t casetXE;     // CASET 終了列 (論理座標、inclusive)
+    uint16_t rasetYS;     // RASET 開始行 (論理座標)
+    uint16_t rasetYE;     // RASET 終了行 (論理座標、inclusive)
     uint16_t ramwrX;      // 現在の書き込み位置 X (論理座標)
     uint16_t ramwrY;      // 現在の書き込み位置 Y (論理座標)
     uint8_t  ramwrBuf[3]; // 半端バイト蓄積 (最大 3 バイト)
@@ -187,6 +193,10 @@ struct Impl {
         madctl      = 0;
         currentCmd  = CMD_NOP;
         cmdDataLen  = 0;
+        casetXS     = 0;
+        casetXE     = config.lcdWidth  - 1;
+        rasetYS     = 0;
+        rasetYE     = config.lcdHeight - 1;
         ramwrX      = 0;
         ramwrY      = 0;
         ramwrBufLen = 0;
@@ -206,13 +216,12 @@ struct Impl {
         }
         *writePtr = px;
         writePtr += cachedHStep;
-        if (++ramwrX >= cachedLogW) {
-            ramwrX = 0;
-            writePtr += cachedVLineStep;
-            if (++ramwrY >= cachedLogH) {
-                ramwrY  = 0;
-                writePtr = framebuf + physIndex(0, 0);
+        if (++ramwrX > casetXE) {
+            ramwrX = casetXS;
+            if (++ramwrY > rasetYE) {
+                ramwrY = rasetYS;
             }
+            writePtr = framebuf + physIndex(ramwrX, ramwrY);
         }
     }
 
@@ -315,11 +324,11 @@ struct Impl {
             log("SLPOUT");
             break;
         case CMD_INVOFF:
-            inverted = false;
+            inverted = config.invertInvPolarity;
             log("INVOFF");
             break;
         case CMD_INVON:
-            inverted = true;
+            inverted = !config.invertInvPolarity;
             log("INVON");
             break;
         case CMD_DISPON:
@@ -327,12 +336,12 @@ struct Impl {
             log("DISPON");
             break;
         case CMD_RAMWR:
-            ramwrX      = 0;
-            ramwrY      = 0;
+            ramwrX      = casetXS;
+            ramwrY      = rasetYS;
             ramwrBufLen = 0;
             updateWriteCache();
             break;
-        // CMD_MADCTL / CMD_COLMOD はデータバイトを待つ
+        // CMD_MADCTL / CMD_COLMOD / CMD_CASET / CMD_RASET はデータバイトを待つ
         default:
             break;
         }
@@ -357,6 +366,26 @@ struct Impl {
                 else if (fmt == 0x06) pixelFormat = PixelFormat::RGB666;
                 ramwrBufLen = 0;  // フォーマット変更でバッファリセット
                 log("COLMOD");
+            }
+            ++cmdDataLen;
+            break;
+        case CMD_CASET:
+            switch (cmdDataLen) {
+            case 0: ramwrBuf[0] = byte; break;
+            case 1: casetXS = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte); break;
+            case 2: ramwrBuf[0] = byte; break;
+            case 3: casetXE = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte); log("CASET"); break;
+            default: break;
+            }
+            ++cmdDataLen;
+            break;
+        case CMD_RASET:
+            switch (cmdDataLen) {
+            case 0: ramwrBuf[0] = byte; break;
+            case 1: rasetYS = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte); break;
+            case 2: ramwrBuf[0] = byte; break;
+            case 3: rasetYE = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte); log("RASET"); break;
+            default: break;
             }
             ++cmdDataLen;
             break;

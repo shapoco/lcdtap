@@ -168,7 +168,6 @@ static void process_spi_ring_buf() {
             if (data_batch_len >= DATA_BATCH_CAP)  {
                 g_sl2d->inputData(data_batch, data_batch_len);
                 data_batch_len = 0;
-                break;
             }
         } else {
             // command byte
@@ -191,16 +190,18 @@ int main() {
     //    125 MHz clock is running and the GPIO input synchronisers are stable.
     // -------------------------------------------------------------------------
     for (uint pin : {PIN_CFG_LCD_SIZE, PIN_CFG_DVI_RES,
-                     PIN_CFG_SCALE_MODE0, PIN_CFG_SCALE_MODE1}) {
+                     PIN_CFG_SCALE_MODE0, PIN_CFG_SCALE_MODE1,
+                     PIN_CFG_INV_POL}) {
         gpio_init(pin);
         gpio_set_dir(pin, GPIO_IN);
         gpio_pull_down(pin);
     }
     sleep_ms(1);  // allow pull-downs to settle
 
-    const bool lcd_320   = gpio_get(PIN_CFG_LCD_SIZE);
-    const bool dvi_720p  = gpio_get(PIN_CFG_DVI_RES);
-    const uint8_t scale  =
+    const bool lcd_320      = gpio_get(PIN_CFG_LCD_SIZE);
+    const bool dvi_720p     = gpio_get(PIN_CFG_DVI_RES);
+    const bool inv_polarity = gpio_get(PIN_CFG_INV_POL);
+    const uint8_t scale     =
         static_cast<uint8_t>(
             (gpio_get(PIN_CFG_SCALE_MODE1) << 1u) |
              gpio_get(PIN_CFG_SCALE_MODE0));
@@ -227,15 +228,11 @@ int main() {
     set_sys_clock_khz(timing->bit_clk_khz, /*required=*/true);
 
     // -------------------------------------------------------------------------
-    // 3. LED + debug probe
+    // 3. LED
     // -------------------------------------------------------------------------
     gpio_init(PIN_LED);
     gpio_set_dir(PIN_LED, GPIO_OUT);
     gpio_put(PIN_LED, 0);
-
-    gpio_init(PIN_DBG_FRAME);
-    gpio_set_dir(PIN_DBG_FRAME, GPIO_OUT);
-    gpio_put(PIN_DBG_FRAME, 0);
 
     // -------------------------------------------------------------------------
     // 4. RESX input (pull-up; active low from SPI master)
@@ -274,10 +271,11 @@ int main() {
     // 6. SpiLcd2Dvi init
     // -------------------------------------------------------------------------
     sl2d::Sl2dConfig sl2d_cfg;
-    sl2d_cfg.lcdWidth   = lcd_w;
-    sl2d_cfg.lcdHeight  = lcd_h;
-    sl2d_cfg.pixelFormat = sl2d::PixelFormat::RGB565;
-    sl2d_cfg.scaleMode  = scale_mode;
+    sl2d_cfg.lcdWidth          = lcd_w;
+    sl2d_cfg.lcdHeight         = lcd_h;
+    sl2d_cfg.pixelFormat       = sl2d::PixelFormat::RGB565;
+    sl2d_cfg.scaleMode         = scale_mode;
+    sl2d_cfg.invertInvPolarity = inv_polarity;
 
     // Pixel clock = TMDS bit clock / 10
     sl2d_cfg.dviTiming.pixelClockKhz = timing->bit_clk_khz / 10u;
@@ -375,10 +373,6 @@ int main() {
         // Advance scanline counter; detect frame boundary.
         if (++scan_y >= dvi_h) {
             scan_y = 0;
-            // Pulse PIN_DBG_FRAME once per frame — measure ~60 Hz on a scope
-            // to confirm the DVI output loop is running at the correct rate.
-            gpio_put(PIN_DBG_FRAME, 1);
-            gpio_put(PIN_DBG_FRAME, 0);
             if (++frame % LED_TOGGLE_FRAMES == 0u) {
                 led = !led;
                 gpio_put(PIN_LED, led ? 1 : 0);
