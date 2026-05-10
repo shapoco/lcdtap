@@ -350,24 +350,25 @@ int main() {
 
     // -------------------------------------------------------------------------
     // 10. Main loop (Core 0)
-    //     SPI processing runs while WAITING for a free DVI buffer so that
-    //     it never delays scanline delivery to Core 1.  If process_spi_ring_buf()
-    //     were called after queue_add_blocking_u32 instead, heavy SPI traffic
-    //     would starve Core 1 of colour buffers and produce a solid-red error
-    //     frame from PicoDVI's late-scanline fallback.
+    //     process_spi_ring_buf() is called at three points per iteration:
+    //       (a) inside the q_colour_free spin — drains while waiting
+    //       (b) just before getScanline — drains during scanline preparation
+    //       (c) after queue_add_blocking_u32 — drains after handing off
+    //     This prevents the SPI ring buffer from overrunning: with N_SCANLINE_BUFS=4
+    //     in the pipeline, the brief (b)/(c) processing windows do not starve
+    //     Core 1 of colour buffers.
     // -------------------------------------------------------------------------
     uint32_t scan_y = 0;
     uint32_t frame  = 0;
     bool     led    = false;
 
     while (true) {
-        // Drain the SPI ring buffer while waiting for a free DVI scanline
-        // buffer.  queue_try_remove_u32 returns immediately without blocking,
-        // so Core 0 does useful SPI work instead of spinning idle.
         uint16_t *buf;
         while (!queue_try_remove_u32(&dvi0.q_colour_free, &buf)) {
-            process_spi_ring_buf();
+            process_spi_ring_buf();  // (a) drain while waiting for free buffer
         }
+
+        process_spi_ring_buf();  // (b) drain during scanline preparation
 
         // Copy one RGB565 scanline directly into the DVI buffer.
         const uint16_t *rgb565 = g_sl2d->getScanline(static_cast<uint16_t>(scan_y));
@@ -375,6 +376,8 @@ int main() {
 
         // Hand the filled scanline to DVI Core 1.
         queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);
+
+        process_spi_ring_buf();  // (c) drain after handing off
 
         // Advance scanline counter; detect frame boundary.
         if (++scan_y >= dvi_h) {

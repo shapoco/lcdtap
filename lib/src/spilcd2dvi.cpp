@@ -66,7 +66,8 @@ struct Impl {
     uint8_t  cmdDataLen;  // 現コマンドで受け取ったデータバイト数
 
     // RAMWR 状態
-    uint32_t ramwrPos;    // フレームバッファ内の書き込み位置 (ピクセル単位)
+    uint16_t ramwrX;      // 現在の書き込み位置 X (論理座標)
+    uint16_t ramwrY;      // 現在の書き込み位置 Y (論理座標)
     uint8_t  ramwrBuf[3]; // 半端バイト蓄積 (最大 3 バイト)
     uint8_t  ramwrBufLen;
 
@@ -152,7 +153,8 @@ struct Impl {
         madctl      = 0;
         currentCmd  = CMD_NOP;
         cmdDataLen  = 0;
-        ramwrPos    = 0;
+        ramwrX      = 0;
+        ramwrY      = 0;
         ramwrBufLen = 0;
         memset(framebuf, 0, (size_t)config.lcdWidth * config.lcdHeight * sizeof(uint16_t));
     }
@@ -167,9 +169,11 @@ struct Impl {
             uint16_t b =  px        & 0x1Fu;
             px = static_cast<uint16_t>((b << 11) | (g << 5) | r);
         }
-        uint32_t lw = logicalWidth();
-        framebuf[physIndex(ramwrPos % lw, ramwrPos / lw)] = px;
-        if (++ramwrPos >= lw * logicalHeight()) ramwrPos = 0;
+        framebuf[physIndex(ramwrX, ramwrY)] = px;
+        if (++ramwrX >= logicalWidth()) {
+            ramwrX = 0;
+            if (++ramwrY >= logicalHeight()) ramwrY = 0;
+        }
     }
 
     // RGB888 チャンネル値で 1 ピクセルをフレームバッファに書く
@@ -248,16 +252,19 @@ struct Impl {
             break;
         case CMD_INVOFF:
             inverted = false;
+            log("INVOFF");
             break;
         case CMD_INVON:
             inverted = true;
+            log("INVON");
             break;
         case CMD_DISPON:
             displayOn = true;
             log("DISPON");
             break;
         case CMD_RAMWR:
-            ramwrPos    = 0;
+            ramwrX      = 0;
+            ramwrY      = 0;
             ramwrBufLen = 0;
             break;
         // CMD_MADCTL / CMD_COLMOD はデータバイトを待つ
