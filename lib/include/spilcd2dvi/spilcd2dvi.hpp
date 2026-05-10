@@ -130,19 +130,19 @@ public:
 
     //--- DVI 出力 ---
 
-    // 指定ライン番号のピクセルデータへのポインタを返す。
+    // 指定ライン番号のピクセルデータを dst に書き込む。
     // フォーマット: RGB565 (1 ピクセル = uint16_t、R[15:11] G[10:5] B[4:0])
     // line の範囲: 0 .. dviTiming.v.active - 1 (DVI 座標系)
     // スケーリングはライブラリ内部で処理済み。
-    // DVI ドライバから割り込みまたは DMA 転送の契機に呼び出す想定。
-    const uint16_t* getScanline(uint16_t line) const;
+    // dst は dviTiming.h.active 個の uint16_t を格納できる領域を指すこと。
+    void fillScanline(uint16_t line, uint16_t* dst) const;
 
     //--- テスト / デバッグ用 ---
 
     // フレームバッファへの直接書き込みポインタを返す。
     // フォーマット: lcdWidth × lcdHeight × sizeof(uint16_t) バイト
     //              (行優先 RGB565、MADCTL 変換なし)。
-    // getScanline() はこのバッファを参照するため、書き込み内容はすぐに反映される。
+    // fillScanline() はこのバッファを参照するため、書き込み内容はすぐに反映される。
     uint16_t* getFramebuf();
 
     // スリープ/表示オン状態を強制設定する。

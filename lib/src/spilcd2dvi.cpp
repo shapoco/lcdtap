@@ -52,7 +52,6 @@ struct Impl {
     bool          hwReset;
 
     uint16_t* framebuf;    // lcdWidth × lcdHeight × sizeof(uint16_t) の RGB565 フレームバッファ
-    uint16_t* scanlineBuf; // dviTiming.h.active × sizeof(uint16_t) の出力ラインバッファ
 
     // ST7789 レジスタ
     bool        sleeping;
@@ -77,6 +76,15 @@ struct Impl {
     uint16_t displayW;  // DVI上のLCD表示領域の幅
     uint16_t displayH;  // DVI上のLCD表示領域の高さ
     uint32_t hStep;     // 水平固定小数点ステップ (16.16形式: lcdW<<16 / displayW)
+    uint32_t vStep;     // 垂直固定小数点ステップ (16.16形式: lcdH<<16 / displayH)
+
+    // MADCTL 確定時にキャッシュする値 (updateWriteCache() で更新)
+    bool      cachedBGR;
+    uint16_t  cachedLogW;
+    uint16_t  cachedLogH;
+    int32_t   cachedHStep;
+    int32_t   cachedVLineStep;
+    uint16_t* writePtr;
 
     // --- ヘルパー ---
 
@@ -98,6 +106,31 @@ struct Impl {
         if (mx) px = config.lcdWidth  - 1 - px;
         if (my) py = config.lcdHeight - 1 - py;
         return py * config.lcdWidth + px;
+    }
+
+    // MADCTL 変更・RAMWR 開始時にキャッシュを更新する
+    void updateWriteCache() {
+        bool mv = (madctl >> 5) & 1;
+        bool mx = (madctl >> 6) & 1;
+        bool my = (madctl >> 7) & 1;
+        cachedBGR  = (madctl >> 3) & 1;
+        cachedLogW = mv ? config.lcdHeight : config.lcdWidth;
+        cachedLogH = mv ? config.lcdWidth  : config.lcdHeight;
+        int32_t W  = static_cast<int32_t>(config.lcdWidth);
+        int32_t H  = static_cast<int32_t>(config.lcdHeight);
+        if (!mv) {
+            cachedHStep     = mx ? -1 : +1;
+            cachedVLineStep = (mx == my) ? 0 : (mx ? +2 * W : -2 * W);
+        } else {
+            cachedHStep     = my ? -W : +W;
+            int32_t prod    = W * H;
+            if      (!mx && !my) cachedVLineStep = 1 - prod;
+            else if ( mx && !my) cachedVLineStep = -1 - prod;
+            else if (!mx &&  my) cachedVLineStep = 1 + prod;
+            else                 cachedVLineStep = prod - 1;
+        }
+        if (framebuf)
+            writePtr = framebuf + physIndex(ramwrX, ramwrY);
     }
 
     void calcScaleParams() {
@@ -139,6 +172,7 @@ struct Impl {
         }
 
         hStep = ((uint32_t)lcdW << 16) / displayW;
+        vStep = ((uint32_t)lcdH << 16) / displayH;
     }
 
     void log(const char* msg) const {
@@ -157,28 +191,34 @@ struct Impl {
         ramwrY      = 0;
         ramwrBufLen = 0;
         memset(framebuf, 0, (size_t)config.lcdWidth * config.lcdHeight * sizeof(uint16_t));
+        updateWriteCache();
     }
 
     // --- ピクセル書き込み ---
 
     // RGB565 値を 1 ピクセルとしてフレームバッファに書く (MADCTL BGR 考慮)
-    void writePixelRgb565(uint16_t px) {
-        if ((madctl >> 3) & 1) {  // BGR: R[15:11] と B[4:0] を入れ替える
+    [[gnu::always_inline]] void writePixelRgb565(uint16_t px) {
+        if (cachedBGR) {  // BGR: R[15:11] と B[4:0] を入れ替える
             uint16_t r = (px >> 11) & 0x1Fu;
             uint16_t g = (px >>  5) & 0x3Fu;
             uint16_t b =  px        & 0x1Fu;
             px = static_cast<uint16_t>((b << 11) | (g << 5) | r);
         }
-        framebuf[physIndex(ramwrX, ramwrY)] = px;
-        if (++ramwrX >= logicalWidth()) {
+        *writePtr = px;
+        writePtr += cachedHStep;
+        if (++ramwrX >= cachedLogW) {
             ramwrX = 0;
-            if (++ramwrY >= logicalHeight()) ramwrY = 0;
+            writePtr += cachedVLineStep;
+            if (++ramwrY >= cachedLogH) {
+                ramwrY  = 0;
+                writePtr = framebuf + physIndex(0, 0);
+            }
         }
     }
 
     // RGB888 チャンネル値で 1 ピクセルをフレームバッファに書く
-    void writePixel(uint8_t r, uint8_t g, uint8_t b) {
-        if ((madctl >> 3) & 1) {
+    [[gnu::always_inline]] void writePixel(uint8_t r, uint8_t g, uint8_t b) {
+        if (cachedBGR) {
             uint8_t tmp = r; r = b; b = tmp;
         }
         writePixelRgb565(static_cast<uint16_t>(
@@ -188,7 +228,7 @@ struct Impl {
     }
 
     // RAMWR の 1 バイトを処理し、ピクセルが揃ったら書き込む
-    void processRamwrByte(uint8_t byte) {
+    [[gnu::always_inline]] void processRamwrByte(uint8_t byte) {
         ramwrBuf[ramwrBufLen++] = byte;
 
         switch (pixelFormat) {
@@ -266,6 +306,7 @@ struct Impl {
             ramwrX      = 0;
             ramwrY      = 0;
             ramwrBufLen = 0;
+            updateWriteCache();
             break;
         // CMD_MADCTL / CMD_COLMOD はデータバイトを待つ
         default:
@@ -273,7 +314,7 @@ struct Impl {
         }
     }
 
-    void feedData(uint8_t byte) {
+    [[gnu::always_inline]] void feedData(uint8_t byte) {
         switch (currentCmd) {
         case CMD_RAMWR:
             processRamwrByte(byte);
@@ -281,6 +322,7 @@ struct Impl {
         case CMD_MADCTL:
             if (cmdDataLen == 0) {
                 madctl = byte;
+                updateWriteCache();
                 log("MADCTL");
             }
             ++cmdDataLen;
@@ -307,8 +349,7 @@ struct Impl {
 //=============================================================================
 size_t calcRequiredMemory(const Sl2dConfig& config) {
     size_t fbSize = (size_t)config.lcdWidth * config.lcdHeight * sizeof(uint16_t);
-    size_t slSize = (size_t)config.dviTiming.h.active * sizeof(uint16_t);
-    return sizeof(Impl) + fbSize + slSize;
+    return sizeof(Impl) + fbSize;
 }
 
 //=============================================================================
@@ -342,14 +383,6 @@ SpiLcd2Dvi::SpiLcd2Dvi(const Sl2dConfig& config, const HostInterface& host)
         return;
     }
 
-    size_t slSize = (size_t)config.dviTiming.h.active * sizeof(uint16_t);
-    p->scanlineBuf = static_cast<uint16_t*>(host.alloc(slSize));
-    if (!p->scanlineBuf) {
-        p->status = Status::OUT_OF_MEMORY;
-        impl_ = mem;
-        return;
-    }
-
     impl_ = mem;
     p->calcScaleParams();
     p->softReset();
@@ -358,7 +391,6 @@ SpiLcd2Dvi::SpiLcd2Dvi(const Sl2dConfig& config, const HostInterface& host)
 SpiLcd2Dvi::~SpiLcd2Dvi() {
     if (!impl_) return;
     Impl* p = static_cast<Impl*>(impl_);
-    if (p->scanlineBuf) p->host.free(p->scanlineBuf);
     if (p->framebuf) p->host.free(p->framebuf);
     p->host.free(impl_);
 }
@@ -395,25 +427,24 @@ void SpiLcd2Dvi::inputData(const uint8_t* data, size_t length) {
     }
 }
 
-const uint16_t* SpiLcd2Dvi::getScanline(uint16_t dviLine) const {
-    if (!impl_) return nullptr;
-    Impl* p = static_cast<Impl*>(impl_);  // scanlineBuf への書き込みが必要なため非 const
-    if (p->status != Status::OK || !p->framebuf || !p->scanlineBuf) return nullptr;
+void SpiLcd2Dvi::fillScanline(uint16_t dviLine, uint16_t* dst) const {
+    if (!impl_) return;
+    Impl* p = static_cast<Impl*>(impl_);
+    if (p->status != Status::OK || !p->framebuf) return;
 
-    const uint16_t  dviW = p->config.dviTiming.h.active;
-    const uint16_t  lcdW = p->config.lcdWidth;
-    const uint16_t  lcdH = p->config.lcdHeight;
-    uint16_t*       dst  = p->scanlineBuf;
+    const uint16_t dviW = p->config.dviTiming.h.active;
+    const uint16_t lcdW = p->config.lcdWidth;
 
     // 表示オフ・スリープ中、または垂直方向の黒帯
     if (p->sleeping || !p->displayOn ||
         dviLine < p->displayY || dviLine >= p->displayY + p->displayH) {
         memset(dst, 0, dviW * sizeof(uint16_t));
-        return dst;
+        return;
     }
 
-    // 垂直マッピング: DVI 行 → LCD 行
-    uint16_t lcdRow = (uint32_t)(dviLine - p->displayY) * lcdH / p->displayH;
+    // 垂直マッピング: 固定小数点乗算で LCD 行を求める
+    uint16_t lcdRow = static_cast<uint16_t>(
+        ((uint32_t)(dviLine - p->displayY) * p->vStep) >> 16);
     const uint16_t* srcRow = p->framebuf + (uint32_t)lcdRow * lcdW;
 
     uint16_t* d = dst;
@@ -439,8 +470,6 @@ const uint16_t* SpiLcd2Dvi::getScanline(uint16_t dviLine) const {
 
     // 右の黒帯
     memset(d, 0, (size_t)(dviW - p->displayX - p->displayW) * sizeof(uint16_t));
-
-    return dst;
 }
 
 uint16_t* SpiLcd2Dvi::getFramebuf() {

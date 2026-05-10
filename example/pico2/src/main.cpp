@@ -368,9 +368,8 @@ int main() {
 
         process_spi_ring_buf();  // (b) drain during scanline preparation
 
-        // Copy one RGB565 scanline directly into the DVI buffer.
-        const uint16_t *rgb565 = g_sl2d->getScanline(static_cast<uint16_t>(scan_y));
-        memcpy(buf, rgb565, dvi_w * sizeof(uint16_t));
+        // Fill the DVI buffer directly — no intermediate copy needed.
+        g_sl2d->fillScanline(static_cast<uint16_t>(scan_y), buf);
 
         // Hand the filled scanline to DVI Core 1.
         queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);
