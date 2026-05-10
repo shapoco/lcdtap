@@ -216,17 +216,6 @@ struct Impl {
         }
     }
 
-    // RGB888 チャンネル値で 1 ピクセルをフレームバッファに書く
-    [[gnu::always_inline]] void writePixel(uint8_t r, uint8_t g, uint8_t b) {
-        if (cachedBGR) {
-            uint8_t tmp = r; r = b; b = tmp;
-        }
-        writePixelRgb565(static_cast<uint16_t>(
-            ((uint16_t)(r & 0xF8u) << 8) |
-            ((uint16_t)(g & 0xFCu) << 3) |
-                        (b          >> 3)));
-    }
-
     // RAMWR データをまとめて処理する (switch(pixelFormat) をループ外に出す)
     void processRamwrData(const uint8_t* data, size_t length) {
         size_t i = 0;
@@ -249,49 +238,57 @@ struct Impl {
             break;
 
         case PixelFormat::RGB444:
-            // 残余 (0〜2 バイト) の drain
             // byte0: R1[3:0] G1[3:0]  byte1: B1[3:0] R2[3:0]  byte2: G2[3:0] B2[3:0]
+            // 4bit → 5bit: (x<<1)|(x>>3)  4bit → 6bit: (x<<2)|(x>>2)
+            // 残余 (0〜2 バイト) の drain
             while (ramwrBufLen > 0 && i < length) {
                 ramwrBuf[ramwrBufLen++] = data[i++];
                 if (ramwrBufLen == 3) {
-                    uint8_t r1 = ramwrBuf[0] >> 4, g1 = ramwrBuf[0] & 0x0Fu;
-                    uint8_t b1 = ramwrBuf[1] >> 4, r2 = ramwrBuf[1] & 0x0Fu;
-                    uint8_t g2 = ramwrBuf[2] >> 4, b2 = ramwrBuf[2] & 0x0Fu;
-                    writePixel((r1 << 4) | r1, (g1 << 4) | g1, (b1 << 4) | b1);
-                    writePixel((r2 << 4) | r2, (g2 << 4) | g2, (b2 << 4) | b2);
+                    uint8_t b0=ramwrBuf[0], b1=ramwrBuf[1], b2=ramwrBuf[2];
+                    uint8_t r1=b0>>4, g1=b0&0xFu, b1v=b1>>4;
+                    uint8_t r2=b1&0xFu, g2=b2>>4, b2v=b2&0xFu;
+                    writePixelRgb565(static_cast<uint16_t>(
+                        ((uint16_t)(r1<<1|r1>>3)<<11)|((uint16_t)(g1<<2|g1>>2)<<5)|(b1v<<1|b1v>>3)));
+                    writePixelRgb565(static_cast<uint16_t>(
+                        ((uint16_t)(r2<<1|r2>>3)<<11)|((uint16_t)(g2<<2|g2>>2)<<5)|(b2v<<1|b2v>>3)));
                     ramwrBufLen = 0;
                 }
             }
             // タイトループ: 3 バイト → 2 ピクセル
             while (i + 3 <= length) {
-                uint8_t b0 = data[i], b1 = data[i + 1], b2 = data[i + 2]; i += 3;
-                uint8_t r1 = b0 >> 4, g1 = b0 & 0x0Fu;
-                uint8_t b1v= b1 >> 4, r2 = b1 & 0x0Fu;
-                uint8_t g2 = b2 >> 4, b2v= b2 & 0x0Fu;
-                writePixel((r1 << 4) | r1, (g1 << 4) | g1, (b1v << 4) | b1v);
-                writePixel((r2 << 4) | r2, (g2 << 4) | g2, (b2v << 4) | b2v);
+                uint8_t b0=data[i], b1=data[i+1], b2=data[i+2]; i+=3;
+                uint8_t r1=b0>>4, g1=b0&0xFu, b1v=b1>>4;
+                uint8_t r2=b1&0xFu, g2=b2>>4, b2v=b2&0xFu;
+                writePixelRgb565(static_cast<uint16_t>(
+                    ((uint16_t)(r1<<1|r1>>3)<<11)|((uint16_t)(g1<<2|g1>>2)<<5)|(b1v<<1|b1v>>3)));
+                writePixelRgb565(static_cast<uint16_t>(
+                    ((uint16_t)(r2<<1|r2>>3)<<11)|((uint16_t)(g2<<2|g2>>2)<<5)|(b2v<<1|b2v>>3)));
             }
             // 端数保存
             while (i < length) ramwrBuf[ramwrBufLen++] = data[i++];
             break;
 
         case PixelFormat::RGB666:
+            // 各バイト上位 6bit が有効 (下位 2bit = 0)
+            // R5 = byte0>>3, G6 = byte1>>2, B5 = byte2>>3 で直接 RGB565 に変換できる
             // 残余 (0〜2 バイト) の drain
-            // 各バイト上位 6bit が有効
             while (ramwrBufLen > 0 && i < length) {
                 ramwrBuf[ramwrBufLen++] = data[i++];
                 if (ramwrBufLen == 3) {
-                    uint8_t r = ramwrBuf[0] >> 2;
-                    uint8_t g = ramwrBuf[1] >> 2;
-                    uint8_t b = ramwrBuf[2] >> 2;
-                    writePixel((r << 2) | (r >> 4), (g << 2) | (g >> 4), (b << 2) | (b >> 4));
+                    writePixelRgb565(static_cast<uint16_t>(
+                        ((uint16_t)(ramwrBuf[0] & 0xF8u) << 8) |
+                        ((uint16_t)(ramwrBuf[1] & 0xFCu) << 3) |
+                                   (ramwrBuf[2] >> 3)));
                     ramwrBufLen = 0;
                 }
             }
             // タイトループ: 3 バイト → 1 ピクセル
             while (i + 3 <= length) {
-                uint8_t r = data[i] >> 2, g = data[i + 1] >> 2, b = data[i + 2] >> 2; i += 3;
-                writePixel((r << 2) | (r >> 4), (g << 2) | (g >> 4), (b << 2) | (b >> 4));
+                writePixelRgb565(static_cast<uint16_t>(
+                    ((uint16_t)(data[i]   & 0xF8u) << 8) |
+                    ((uint16_t)(data[i+1] & 0xFCu) << 3) |
+                               (data[i+2] >> 3)));
+                i += 3;
             }
             // 端数保存
             while (i < length) ramwrBuf[ramwrBufLen++] = data[i++];
