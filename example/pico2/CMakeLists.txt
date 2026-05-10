@@ -25,9 +25,9 @@ add_executable(spilcd2dvi_pico2
     src/main.cpp
 )
 
-# Generate the PIO header from spi_slave.pio
+# Generate the PIO header from par_slave.pio
 pico_generate_pio_header(spilcd2dvi_pico2
-    ${CMAKE_CURRENT_LIST_DIR}/src/spi_slave.pio
+    ${CMAKE_CURRENT_LIST_DIR}/src/par_slave.pio
 )
 
 target_include_directories(spilcd2dvi_pico2 PRIVATE

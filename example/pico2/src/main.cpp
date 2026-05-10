@@ -19,7 +19,7 @@
 #include "spilcd2dvi/spilcd2dvi.hpp"
 
 #include "config.h"
-#include "spi_slave.pio.h"
+#include "par_slave.pio.h"
 
 // =============================================================================
 // Memory pool (bump allocator for SpiLcd2Dvi)
@@ -38,7 +38,7 @@ static void *pool_alloc(size_t size) {
 }
 
 // =============================================================================
-// SPI ring buffer  (word = [bit8: DCX, bits7:0: data byte])
+// Ring buffer  (word = [bit8: DCX, bits7:0: data byte])
 // =============================================================================
 static uint32_t __attribute__((aligned(SPI_RING_BUF_BYTES)))
     spi_ring_buf[SPI_RING_BUF_WORDS];
@@ -63,7 +63,7 @@ static sl2d::SpiLcd2Dvi *g_sl2d = nullptr;
 // GPIO interrupt handler  (RESX pin)
 // =============================================================================
 static void gpio_irq_handler(uint gpio, uint32_t events) {
-    if (gpio == PIN_SPI_RESX && g_sl2d) {
+    if (gpio == PIN_PAR_RESX && g_sl2d) {
         g_sl2d->inputReset((events & GPIO_IRQ_EDGE_FALL) != 0u);
     }
 }
@@ -84,24 +84,26 @@ static void core1_main() {
 }
 
 // =============================================================================
-// SPI slave init  (PIO1 SM0)
+// Parallel slave init  (PIO1 SM0)
 // =============================================================================
-static void spi_slave_init(uint prog_offset) {
-    // All SPI pins are inputs.
-    gpio_init(PIN_SPI_SCK);  gpio_set_dir(PIN_SPI_SCK,  GPIO_IN);
-    gpio_init(PIN_SPI_MOSI); gpio_set_dir(PIN_SPI_MOSI, GPIO_IN);
-    gpio_init(PIN_SPI_DCX);  gpio_set_dir(PIN_SPI_DCX,  GPIO_IN);
-    gpio_init(PIN_SPI_CS);   gpio_set_dir(PIN_SPI_CS,   GPIO_IN);
-    // CS and RESX pulled high so the line reads "deasserted" when unconnected.
-    gpio_pull_up(PIN_SPI_CS);
-    gpio_pull_up(PIN_SPI_RESX);
+static void par_slave_init(uint prog_offset) {
+    // BCLK and DCX are inputs.
+    gpio_init(PIN_PAR_BCLK); gpio_set_dir(PIN_PAR_BCLK, GPIO_IN);
+    gpio_init(PIN_PAR_DCX);  gpio_set_dir(PIN_PAR_DCX,  GPIO_IN);
+    // D[0..7] = GPIO 4-11 are all inputs.
+    for (uint pin = PIN_PAR_DATA_BASE; pin < PIN_PAR_DATA_BASE + 8u; ++pin) {
+        gpio_init(pin);
+        gpio_set_dir(pin, GPIO_IN);
+    }
+    // RESX pulled high so the line reads "deasserted" when unconnected.
+    gpio_pull_up(PIN_PAR_RESX);
 
-    pio_sm_config c = spi_slave_with_dcx_program_get_default_config(prog_offset);
-    // MOSI is the IN base pin; 'in pins, 1' samples from here.
-    sm_config_set_in_pins(&c, PIN_SPI_MOSI);
+    pio_sm_config c = par_slave_with_dcx_program_get_default_config(prog_offset);
+    // D[0] is the IN base pin; 'in pins, 8' samples GPIO 4-11.
+    sm_config_set_in_pins(&c, PIN_PAR_DATA_BASE);
     // DCX is the JMP_PIN; 'jmp pin' branches on its state.
-    sm_config_set_jmp_pin(&c, PIN_SPI_DCX);
-    // Shift left so MSB-first bits accumulate in [7:0] after 8 shifts.
+    sm_config_set_jmp_pin(&c, PIN_PAR_DCX);
+    // Shift left so D7..D0 accumulate in bits[7:0] after 8 shifts.
     // AUTOPUSH disabled; we push manually after each 9-bit word.
     sm_config_set_in_shift(&c, /*shift_direction=*/false,
                                /*autopush=*/false,
@@ -114,7 +116,7 @@ static void spi_slave_init(uint prog_offset) {
 }
 
 // =============================================================================
-// SPI DMA init  (call AFTER dvi_init so DVI has already claimed its channels)
+// DMA init  (call AFTER dvi_init so DVI has already claimed its channels)
 // =============================================================================
 static void spi_dma_init() {
     spi_dma_ch = dma_claim_unused_channel(true);
@@ -136,7 +138,7 @@ static void spi_dma_init() {
 }
 
 // =============================================================================
-// Drain the SPI ring buffer and feed bytes to SpiLcd2Dvi
+// Drain the ring buffer and feed bytes to SpiLcd2Dvi
 // =============================================================================
 static uint8_t data_batch[DATA_BATCH_CAP];
 static size_t  data_batch_len = 0;
@@ -155,8 +157,6 @@ static void process_spi_ring_buf() {
     uint32_t write_idx =
         (write_addr - reinterpret_cast<uint32_t>(spi_ring_buf))
         / sizeof(uint32_t);
-    // Mask to ring size (the ring wrapping keeps the address in range,
-    // but recalculate the index defensively).
     write_idx &= (SPI_RING_BUF_WORDS - 1u);
 
     while (spi_read_idx != write_idx) {
@@ -240,9 +240,9 @@ int main() {
     // -------------------------------------------------------------------------
     // 4. RESX input (pull-up; active low from SPI master)
     // -------------------------------------------------------------------------
-    gpio_init(PIN_SPI_RESX);
-    gpio_set_dir(PIN_SPI_RESX, GPIO_IN);
-    gpio_pull_up(PIN_SPI_RESX);
+    gpio_init(PIN_PAR_RESX);
+    gpio_set_dir(PIN_PAR_RESX, GPIO_IN);
+    gpio_pull_up(PIN_PAR_RESX);
 
     // -------------------------------------------------------------------------
     // 5. DVI init (claims DMA channels and PIO0 state machines)
@@ -330,17 +330,17 @@ int main() {
     // 7. RESX interrupt
     // -------------------------------------------------------------------------
     gpio_set_irq_enabled_with_callback(
-        PIN_SPI_RESX,
+        PIN_PAR_RESX,
         GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
         /*enabled=*/true,
         &gpio_irq_handler);
 
     // -------------------------------------------------------------------------
-    // 8. SPI slave PIO + DMA
+    // 8. Parallel slave PIO + DMA
     //    Must come after dvi_init() so DVI claims its DMA channels first.
     // -------------------------------------------------------------------------
-    uint pio_prog_offset = pio_add_program(SPI_PIO, &spi_slave_with_dcx_program);
-    spi_slave_init(pio_prog_offset);
+    uint pio_prog_offset = pio_add_program(SPI_PIO, &par_slave_with_dcx_program);
+    par_slave_init(pio_prog_offset);
     spi_dma_init();
 
     // -------------------------------------------------------------------------
@@ -354,9 +354,7 @@ int main() {
     //       (a) inside the q_colour_free spin — drains while waiting
     //       (b) just before getScanline — drains during scanline preparation
     //       (c) after queue_add_blocking_u32 — drains after handing off
-    //     This prevents the SPI ring buffer from overrunning: with N_SCANLINE_BUFS=4
-    //     in the pipeline, the brief (b)/(c) processing windows do not starve
-    //     Core 1 of colour buffers.
+    //     This prevents the ring buffer from overrunning.
     // -------------------------------------------------------------------------
     uint32_t scan_y = 0;
     uint32_t frame  = 0;
