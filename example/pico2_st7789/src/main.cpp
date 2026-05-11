@@ -263,9 +263,8 @@ int main() {
   // 6. SpiLcd2Dvi init
   // -------------------------------------------------------------------------
   sl2d::Sl2dConfig sl2dCfg;
-  sl2dCfg.lcdWidth = lcdW;
-  sl2dCfg.lcdHeight = lcdH;
-  sl2dCfg.pixelFormat = sl2d::PixelFormat::RGB565;
+  sl2d::getDefaultConfig(sl2d::Controller::ST7789, &sl2dCfg);
+  sl2dCfg.lcdHeight = lcdH;  // 240 or 320 selected by PIN_CFG_LCD_SIZE
   sl2dCfg.scaleMode = scaleMode;
   sl2dCfg.invertInvPolarity = invPolarity;
 

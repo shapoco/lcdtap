@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(spilcd2dvi STATIC
     src/spilcd2dvi.cpp
+    src/st7789_controller.cpp
 )
 
 target_include_directories(spilcd2dvi

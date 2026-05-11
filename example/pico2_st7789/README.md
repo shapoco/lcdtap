@@ -3,7 +3,7 @@
 ## Build instructions
 
 ```bash
-cd example/pico2
+cd example/pico2_st7789
 mkdir build && cd build
 cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk
 make -j4

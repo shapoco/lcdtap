@@ -1,6 +1,6 @@
 # SpiLcd2Dvi
 
-A library and example that receives ST7789 SPI LCD commands as an SPI slave
+A library and example that receives SPI LCD commands as an SPI slave
 and outputs the framebuffer as a DVI-D signal.
 
 ## Library: SpiLcd2Dvi
@@ -13,19 +13,29 @@ Include the library header:
 
 All symbols live in the `sl2d` namespace.
 
+### `Controller` — LCD controller type
+
+```cpp
+enum class Controller : uint8_t {
+  ST7789,
+};
+```
+
 ### `Sl2dConfig` — configuration
 
 ```cpp
 struct Sl2dConfig {
+  // LCD controller
+  Controller controller;
+
   // SPI input (LCD) side
   uint16_t lcdWidth;          // LCD horizontal resolution
   uint16_t lcdHeight;         // LCD vertical resolution
-  PixelFormat pixelFormat;    // RGB444 / RGB565 / RGB666 (match ST7789 COLMOD)
+  PixelFormat pixelFormat;    // RGB444 / RGB565 / RGB666 (initial; changed by COLMOD)
 
   // DVI output side
   uint16_t dviWidth;          // DVI active-area width in pixels
   uint16_t dviHeight;         // DVI active-area height in lines
-
   ScaleMode scaleMode;        // STRETCH / FIT / PIXEL_PERFECT
 
   bool invertInvPolarity;     // true: INVON → normal, INVOFF → inverted
@@ -49,24 +59,42 @@ struct Sl2dConfig {
 | `FIT`           | Scale preserving aspect ratio; letterbox/pillarbox black bars  |
 | `PIXEL_PERFECT` | Integer scale factor; black borders on all sides               |
 
+### `getDefaultConfig` — default configuration
+
+```cpp
+void getDefaultConfig(Controller type, Sl2dConfig* cfg);
+```
+
+Fills `*cfg` with sensible defaults for the specified controller.
+Override individual fields as needed before constructing `SpiLcd2Dvi`.
+
+Default values for `Controller::ST7789`:
+
+| Field              | Default value        |
+|--------------------|----------------------|
+| `lcdWidth`         | 240                  |
+| `lcdHeight`        | 320                  |
+| `pixelFormat`      | `RGB565`             |
+| `dviWidth`         | 640                  |
+| `dviHeight`        | 480                  |
+| `scaleMode`        | `FIT`                |
+| `invertInvPolarity`| `false`              |
+
 ### `HostInterface` — platform callbacks
 
 ```cpp
 struct HostInterface {
-  void* (*alloc)(size_t size);              // required: allocate memory
-  void  (*free)(void* ptr);                 // required: free memory
+  void* (*alloc)(size_t size);              // required: allocate framebuffer memory
+  void  (*free)(void* ptr);                 // required: free framebuffer memory
   void  (*log)(void* userData,
                const char* message);        // optional: debug log (nullptr = off)
   void* userData;                           // passed back to log()
 };
 ```
 
-The library never calls `malloc` internally; all allocations go through
-`alloc`/`free`.  On MCUs with scratchpad SRAM, point `alloc` to a bump
-allocator over that region for best performance.
-
-Use `calcRequiredMemory(config)` to determine the total bytes needed before
-constructing the instance.
+`alloc`/`free` are used exclusively for the framebuffer.
+On MCUs with external PSRAM, point `alloc` to an allocator over that region
+to keep the large framebuffer out of internal SRAM.
 
 ### `SpiLcd2Dvi` — main class
 
@@ -100,24 +128,22 @@ public:
 ### Typical usage
 
 ```cpp
-// 1. Configure
+// 1. Configure — start from controller defaults, then override as needed
 sl2d::Sl2dConfig cfg;
-cfg.lcdWidth         = 240;
-cfg.lcdHeight        = 320;
-cfg.pixelFormat      = sl2d::PixelFormat::RGB565;
+sl2d::getDefaultConfig(sl2d::Controller::ST7789, &cfg);
+cfg.lcdHeight        = 240;               // override for 240×240 variant
 cfg.dviWidth         = 640;
 cfg.dviHeight        = 480;
 cfg.scaleMode        = sl2d::ScaleMode::FIT;
-cfg.invertInvPolarity = false;
 
-// 2. Provide platform callbacks
+// 2. Provide platform callbacks (alloc/free used for framebuffer only)
 sl2d::HostInterface host;
-host.alloc    = myAlloc;   // e.g. bump allocator over SRAM
+host.alloc    = myAlloc;   // e.g. bump allocator over PSRAM
 host.free     = myFree;
 host.log      = nullptr;
 host.userData = nullptr;
 
-// 3. Construct (allocates framebuffer via host.alloc)
+// 3. Construct
 sl2d::SpiLcd2Dvi inst(cfg, host);
 if (inst.getStatus() != sl2d::Status::OK) { /* handle error */ }
 
@@ -133,10 +159,21 @@ for (uint16_t y = 0; y < 480; ++y) {
 }
 ```
 
-## Example: Raspberry Pi Pico2
+### ST7789 device header
 
-See [example/pico2/README.md](example/pico2/README.md) for build instructions,
-pin assignment, and configuration details.
+ST7789 command code constants are available in a separate header:
+
+```cpp
+#include <spilcd2dvi/devices/st7789.hpp>
+
+// sl2d::st7789::CMD_NOP, CMD_SWRESET, CMD_SLPOUT, CMD_INVOFF, CMD_INVON,
+// CMD_DISPON, CMD_CASET, CMD_RASET, CMD_RAMWR, CMD_MADCTL, CMD_COLMOD
+```
+
+## Example: Raspberry Pi Pico2 (ST7789)
+
+See [example/pico2_st7789/README.md](example/pico2_st7789/README.md) for build
+instructions, pin assignment, and configuration details.
 
 ## License
 

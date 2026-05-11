@@ -1,7 +1,7 @@
 #pragma once
 
 // SpiLcd2Dvi — Core Library
-// Interprets SPI LCD (ST7789) commands and generates DVI-D signal content.
+// Interprets SPI LCD commands and generates DVI-D signal content.
 //
 // Usage:
 //   #include <spilcd2dvi/spilcd2dvi.hpp>
@@ -22,7 +22,14 @@ enum class Status : int {
 };
 
 //=============================================================================
-// ピクセルフォーマット (SPI 入力側 — ST7789 COLMOD 相当)
+// LCDコントローラの種類
+//=============================================================================
+enum class Controller : uint8_t {
+  ST7789,
+};
+
+//=============================================================================
+// ピクセルフォーマット (SPI 入力側 — COLMOD 相当)
 //=============================================================================
 enum class PixelFormat : uint8_t {
   RGB444 = 0x03,  // 12bpp
@@ -43,10 +50,13 @@ enum class ScaleMode : uint8_t {
 // 設定構造体
 //=============================================================================
 struct Sl2dConfig {
+  // --- LCDコントローラ ---
+  Controller controller;
+
   // --- SPI 入力 (LCD) 側 ---
   uint16_t lcdWidth;
   uint16_t lcdHeight;
-  PixelFormat pixelFormat;  // ST7789 の COLMOD 設定に合わせる
+  PixelFormat pixelFormat;  // 初期ピクセルフォーマット (COLMOD で変更可)
 
   // --- DVI 出力側 ---
   uint16_t dviWidth;   // DVI アクティブ領域の幅 (ピクセル)
@@ -61,7 +71,8 @@ struct Sl2dConfig {
 //=============================================================================
 struct HostInterface {
   // --- メモリ管理 (必須) ---
-  // MCU 固有のメモリアーキテクチャに合わせた確保/解放関数を渡す。
+  // フレームバッファの確保/解放に使用する。
+  // PSRAM 等の外部メモリに確保したい場合に独自のアロケータを渡す。
   void* (*alloc)(size_t size);
   void (*free)(void* ptr);
 
@@ -74,10 +85,11 @@ struct HostInterface {
 };
 
 //=============================================================================
-// メモリ使用量の事前計算
-// コンストラクタを呼ぶ前に必要メモリ量を確認するためのユーティリティ。
+// デフォルト設定の取得
+// 指定したコントローラ向けのデフォルト値を cfg に書き込む。
+// 必要に応じてフィールドを上書きして SpiLcd2Dvi のコンストラクタに渡す。
 //=============================================================================
-size_t calcRequiredMemory(const Sl2dConfig& config);
+void getDefaultConfig(Controller type, Sl2dConfig* cfg);
 
 //=============================================================================
 // メインクラス
@@ -92,14 +104,14 @@ class SpiLcd2Dvi {
 
   //--- SPI 入力 ---
 
-  // ハードウェアリセット信号入力 (ST7789 の RESX ピン相当)
+  // ハードウェアリセット信号入力 (RESX ピン相当)
   // assert=true でリセット状態、false で解除
   void inputReset(bool assert);
 
-  // コマンドバイト入力 (ST7789 の D/CX=Low)
+  // コマンドバイト入力 (D/CX=Low)
   void inputCommand(uint8_t byte);
 
-  // データバイト列入力 (ST7789 の D/CX=High)
+  // データバイト列入力 (D/CX=High)
   void inputData(const uint8_t* data, size_t length);
 
   //--- DVI 出力 ---
@@ -116,12 +128,10 @@ class SpiLcd2Dvi {
   // フレームバッファへの直接書き込みポインタを返す。
   // フォーマット: lcdWidth × lcdHeight × sizeof(uint16_t) バイト
   //              (行優先 RGB565、MADCTL 変換なし)。
-  // fillScanline()
-  // はこのバッファを参照するため、書き込み内容はすぐに反映される。
   uint16_t* getFramebuf();
 
   // スリープ/表示オン状態を強制設定する。
-  // on=true: sleeping=false かつ displayOn=true にして getScanline()
+  // on=true: sleeping=false かつ displayOn=true にして fillScanline()
   // を黒以外にする。 on=false: sleeping=true にして黒画面に戻す。 SPI
   // マスターから SLPOUT/DISPON
   // を受け取る前にテストパターンを表示したい場合に使用。
