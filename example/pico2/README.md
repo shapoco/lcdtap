@@ -34,6 +34,9 @@ parallel byte interface:
   one pulse per complete byte. CS (active-high) holds the counter in reset while
   the SPI master is idle, keeping BCLK low.
 
+For clock frequencies exceeding 30 MHz, high-speed IC variants (e.g., 74HCT or
+74LVC series) are recommended to ensure reliable operation.
+
 ## Configuration GPIOs
 
 All configuration pins are read once at startup with internal pull-downs

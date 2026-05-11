@@ -68,6 +68,12 @@ do_sample:
     ; Shift the DCX flag into ISR.  After 8 more left-shifts it sits at bit[8].
     in   y, 1
 
+    ; The 74HC4094 outputs are guaranteed to be stable at the BCLK falling edge
+    nop
+    nop
+    nop
+    nop
+
     ; Sample all 8 parallel data bits in one instruction.
     ; With LEFT shift and IN_BASE = GPIO 4:
     ;   GPIO 4  (Q1, D0) → ISR bit[0]
