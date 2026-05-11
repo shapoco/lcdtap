@@ -14,19 +14,22 @@
 //   DCX       → GPIO 3   (D/C# signal, direct from SPI master)
 //   RESX      → GPIO 22  (hardware reset, active low)
 // =============================================================================
-static constexpr uint PIN_PAR_BCLK      = 2u;   // SCLK/8 byte clock (input)
-static constexpr uint PIN_PAR_DCX       = 3u;   // D/C#      (input, PIO JMP_PIN)
-static constexpr uint PIN_PAR_DATA_BASE = 4u;   // D[0..7]   (input, PIO IN_BASE; GPIO 4-11)
-static constexpr uint PIN_PAR_RESX      = 22u;  // Hardware reset, active low (input)
+static constexpr uint PIN_PAR_BCLK = 2u;  // SCLK/8 byte clock (input)
+static constexpr uint PIN_PAR_DCX = 3u;   // D/C#      (input, PIO JMP_PIN)
+static constexpr uint PIN_PAR_DATA_BASE =
+    4u;  // D[0..7]   (input, PIO IN_BASE; GPIO 4-11)
+static constexpr uint PIN_PAR_RESX = 22u;  // Hardware reset, active low (input)
 
 // =============================================================================
 // Boot-time configuration GPIOs (read once at startup)
 // Pull LOW = default, pull HIGH = alternate
 // =============================================================================
-static constexpr uint PIN_CFG_LCD_SIZE    = 20u; // LOW=240x240 / HIGH=240x320
-static constexpr uint PIN_CFG_DVI_RES     = 21u; // LOW=640x480@60Hz / HIGH=1280x720@30Hz(reduced)
-static constexpr uint PIN_CFG_SCALE_MODE0 = 26u; // \__ scale mode bits
-static constexpr uint PIN_CFG_SCALE_MODE1 = 27u; // /   00=STRETCH 01=FIT 10=PIXEL_PERFECT
+static constexpr uint PIN_CFG_LCD_SIZE = 20u;  // LOW=240x240 / HIGH=240x320
+static constexpr uint PIN_CFG_DVI_RES =
+    21u;  // LOW=640x480@60Hz / HIGH=1280x720@30Hz(reduced)
+static constexpr uint PIN_CFG_SCALE_MODE0 = 26u;  // \__ scale mode bits
+static constexpr uint PIN_CFG_SCALE_MODE1 =
+    27u;  // /   00=STRETCH 01=FIT 10=PIXEL_PERFECT
 
 // =============================================================================
 // Onboard LED
@@ -44,9 +47,9 @@ static constexpr uint PIN_CFG_INV_POL = 28u;
 // pio0 is reserved for PicoDVI (libdvi uses DVI_DEFAULT_PIO_INST = pio0).
 // pio1 is used for the parallel slave.
 // DMA channels are claimed dynamically; DVI claims its channels inside
-// dvi_init(), so spi_dma_init() must be called after dvi_init().
+// dvi_init(), so spiDmaInit() must be called after dvi_init().
 // =============================================================================
-#define SPI_PIO  pio1
+#define SPI_PIO pio1
 static constexpr uint SPI_SM = 0u;
 
 // =============================================================================
@@ -54,9 +57,10 @@ static constexpr uint SPI_SM = 0u;
 // Must be a power-of-two number of bytes and aligned to its own size.
 // Each element is one uint32_t word: bit[8]=DCX, bits[7:0]=data byte.
 // =============================================================================
-static constexpr uint32_t SPI_RING_BUF_LOG2     = 14u;
-static constexpr uint32_t SPI_RING_BUF_BYTES    = 1u << SPI_RING_BUF_LOG2;
-static constexpr uint32_t SPI_RING_BUF_WORDS    = SPI_RING_BUF_BYTES / sizeof(uint32_t);
+static constexpr uint32_t SPI_RING_BUF_LOG2 = 14u;
+static constexpr uint32_t SPI_RING_BUF_BYTES = 1u << SPI_RING_BUF_LOG2;
+static constexpr uint32_t SPI_RING_BUF_WORDS =
+    SPI_RING_BUF_BYTES / sizeof(uint32_t);
 
 // =============================================================================
 // DVI scanline buffers (RGB565, fed to PicoDVI q_colour_valid)

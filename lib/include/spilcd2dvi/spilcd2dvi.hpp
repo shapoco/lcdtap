@@ -12,93 +12,65 @@
 namespace sl2d {
 
 //=============================================================================
-// バージョン
-//=============================================================================
-inline constexpr int VERSION_MAJOR = 0;
-inline constexpr int VERSION_MINOR = 1;
-inline constexpr int VERSION_PATCH = 0;
-
-//=============================================================================
 // ステータスコード
 //=============================================================================
 enum class Status : int {
-    OK = 0,
-    INVALID_PARAM,  // config に不正な値がある
-    OUT_OF_MEMORY,  // alloc() が nullptr を返した
-    NOT_READY,      // コンストラクタ失敗後に操作を呼んだ
+  OK = 0,
+  INVALID_PARAM,  // config に不正な値がある
+  OUT_OF_MEMORY,  // alloc() が nullptr を返した
+  NOT_READY,      // コンストラクタ失敗後に操作を呼んだ
 };
 
 //=============================================================================
 // ピクセルフォーマット (SPI 入力側 — ST7789 COLMOD 相当)
 //=============================================================================
 enum class PixelFormat : uint8_t {
-    RGB444 = 0x03,  // 12bpp
-    RGB565 = 0x05,  // 16bpp
-    RGB666 = 0x06,  // 18bpp
+  RGB444 = 0x03,  // 12bpp
+  RGB565 = 0x05,  // 16bpp
+  RGB666 = 0x06,  // 18bpp
 };
 
 //=============================================================================
 // スケーリングモード (LCD 解像度 ≠ DVI アクティブ領域の場合)
 //=============================================================================
 enum class ScaleMode : uint8_t {
-    STRETCH,       // DVI 全体に引き伸ばす (アスペクト比無視)
-    FIT,           // アスペクト比を保ってレターボックス/ピラーボックス表示
-    PIXEL_PERFECT, // 整数倍で拡大、余白は黒
+  STRETCH,  // DVI 全体に引き伸ばす (アスペクト比無視)
+  FIT,  // アスペクト比を保ってレターボックス/ピラーボックス表示
+  PIXEL_PERFECT,  // 整数倍で拡大、余白は黒
 };
-
-//=============================================================================
-// DVI タイミング
-//=============================================================================
-struct DviTiming {
-    uint32_t pixelClockKhz;
-
-    struct Axis {
-        uint16_t active;
-        uint16_t frontPorch;
-        uint16_t syncWidth;
-        uint16_t backPorch;
-        bool     syncPolarity; // true = positive
-    } h, v;
-};
-
-// よく使うタイミングのプリセット
-namespace timing {
-    extern const DviTiming VGA_640X480_60HZ;    //  25.175 MHz
-    extern const DviTiming SVGA_800X600_60HZ;   //  40.000 MHz
-    extern const DviTiming HD_720P_60HZ;        //  74.250 MHz
-} // namespace timing
 
 //=============================================================================
 // 設定構造体
 //=============================================================================
 struct Sl2dConfig {
-    // --- SPI 入力 (LCD) 側 ---
-    uint16_t    lcdWidth;
-    uint16_t    lcdHeight;
-    PixelFormat pixelFormat;  // ST7789 の COLMOD 設定に合わせる
+  // --- SPI 入力 (LCD) 側 ---
+  uint16_t lcdWidth;
+  uint16_t lcdHeight;
+  PixelFormat pixelFormat;  // ST7789 の COLMOD 設定に合わせる
 
-    // --- DVI 出力側 ---
-    DviTiming dviTiming;
-    ScaleMode scaleMode;
+  // --- DVI 出力側 ---
+  uint16_t dviWidth;   // DVI アクティブ領域の幅 (ピクセル)
+  uint16_t dviHeight;  // DVI アクティブ領域の高さ (ライン)
+  ScaleMode scaleMode;
 
-    bool invertInvPolarity;  // true: INVON→非反転 / INVOFF→反転
+  bool invertInvPolarity;  // true: INVON→非反転 / INVOFF→反転
 };
 
 //=============================================================================
 // ホストインタフェース
 //=============================================================================
 struct HostInterface {
-    // --- メモリ管理 (必須) ---
-    // MCU 固有のメモリアーキテクチャに合わせた確保/解放関数を渡す。
-    void* (*alloc)(size_t size);
-    void  (*free)(void* ptr);
+  // --- メモリ管理 (必須) ---
+  // MCU 固有のメモリアーキテクチャに合わせた確保/解放関数を渡す。
+  void* (*alloc)(size_t size);
+  void (*free)(void* ptr);
 
-    // --- 通知コールバック (省略可、nullptr 可) ---
+  // --- 通知コールバック (省略可、nullptr 可) ---
 
-    // デバッグログ出力 (nullptr なら無効)
-    void (*log)(void* userData, const char* message);
+  // デバッグログ出力 (nullptr なら無効)
+  void (*log)(void* userData, const char* message);
 
-    void* userData;
+  void* userData;
 };
 
 //=============================================================================
@@ -111,53 +83,55 @@ size_t calcRequiredMemory(const Sl2dConfig& config);
 // メインクラス
 //=============================================================================
 class SpiLcd2Dvi {
-public:
-    SpiLcd2Dvi(const Sl2dConfig& config, const HostInterface& host);
-    ~SpiLcd2Dvi();
+ public:
+  SpiLcd2Dvi(const Sl2dConfig& config, const HostInterface& host);
+  ~SpiLcd2Dvi();
 
-    // コンストラクタ失敗時の状態確認
-    Status getStatus() const;
+  // コンストラクタ失敗時の状態確認
+  Status getStatus() const;
 
-    //--- SPI 入力 ---
+  //--- SPI 入力 ---
 
-    // ハードウェアリセット信号入力 (ST7789 の RESX ピン相当)
-    // assert=true でリセット状態、false で解除
-    void inputReset(bool assert);
+  // ハードウェアリセット信号入力 (ST7789 の RESX ピン相当)
+  // assert=true でリセット状態、false で解除
+  void inputReset(bool assert);
 
-    // コマンドバイト入力 (ST7789 の D/CX=Low)
-    void inputCommand(uint8_t byte);
+  // コマンドバイト入力 (ST7789 の D/CX=Low)
+  void inputCommand(uint8_t byte);
 
-    // データバイト列入力 (ST7789 の D/CX=High)
-    void inputData(const uint8_t* data, size_t length);
+  // データバイト列入力 (ST7789 の D/CX=High)
+  void inputData(const uint8_t* data, size_t length);
 
-    //--- DVI 出力 ---
+  //--- DVI 出力 ---
 
-    // 指定ライン番号のピクセルデータを dst に書き込む。
-    // フォーマット: RGB565 (1 ピクセル = uint16_t、R[15:11] G[10:5] B[4:0])
-    // line の範囲: 0 .. dviTiming.v.active - 1 (DVI 座標系)
-    // スケーリングはライブラリ内部で処理済み。
-    // dst は dviTiming.h.active 個の uint16_t を格納できる領域を指すこと。
-    void fillScanline(uint16_t line, uint16_t* dst) const;
+  // 指定ライン番号のピクセルデータを dst に書き込む。
+  // フォーマット: RGB565 (1 ピクセル = uint16_t、R[15:11] G[10:5] B[4:0])
+  // line の範囲: 0 .. dviHeight - 1 (DVI 座標系)
+  // スケーリングはライブラリ内部で処理済み。
+  // dst は dviWidth 個の uint16_t を格納できる領域を指すこと。
+  void fillScanline(uint16_t line, uint16_t* dst) const;
 
-    //--- テスト / デバッグ用 ---
+  //--- テスト / デバッグ用 ---
 
-    // フレームバッファへの直接書き込みポインタを返す。
-    // フォーマット: lcdWidth × lcdHeight × sizeof(uint16_t) バイト
-    //              (行優先 RGB565、MADCTL 変換なし)。
-    // fillScanline() はこのバッファを参照するため、書き込み内容はすぐに反映される。
-    uint16_t* getFramebuf();
+  // フレームバッファへの直接書き込みポインタを返す。
+  // フォーマット: lcdWidth × lcdHeight × sizeof(uint16_t) バイト
+  //              (行優先 RGB565、MADCTL 変換なし)。
+  // fillScanline()
+  // はこのバッファを参照するため、書き込み内容はすぐに反映される。
+  uint16_t* getFramebuf();
 
-    // スリープ/表示オン状態を強制設定する。
-    // on=true: sleeping=false かつ displayOn=true にして getScanline() を黒以外にする。
-    // on=false: sleeping=true にして黒画面に戻す。
-    // SPI マスターから SLPOUT/DISPON を受け取る前にテストパターンを表示したい場合に使用。
-    void setDisplayOn(bool on);
+  // スリープ/表示オン状態を強制設定する。
+  // on=true: sleeping=false かつ displayOn=true にして getScanline()
+  // を黒以外にする。 on=false: sleeping=true にして黒画面に戻す。 SPI
+  // マスターから SLPOUT/DISPON
+  // を受け取る前にテストパターンを表示したい場合に使用。
+  void setDisplayOn(bool on);
 
-private:
-    SpiLcd2Dvi(const SpiLcd2Dvi&) = delete;
-    SpiLcd2Dvi& operator=(const SpiLcd2Dvi&) = delete;
+ private:
+  SpiLcd2Dvi(const SpiLcd2Dvi&) = delete;
+  SpiLcd2Dvi& operator=(const SpiLcd2Dvi&) = delete;
 
-    void* impl_; // 内部実装を隠蔽 (PIMPL)
+  void* impl_;  // 内部実装を隠蔽 (PIMPL)
 };
 
-} // namespace sl2d
+}  // namespace sl2d

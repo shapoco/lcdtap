@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c 'import json,sys; d=json.load(sys.stdin); f=d.get(\"tool_input\",{}).get(\"file_path\",\"\"); import subprocess,re; re.search(r\"\\.(c|cpp|h|hpp)$\",f) and subprocess.run([\"clang-format\",\"-i\",f])' 2>/dev/null || true",
+            "statusMessage": "Running clang-format..."
+          }
+        ]
+      }
+    ]
+  }
+}
