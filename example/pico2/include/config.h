@@ -14,22 +14,32 @@
 //   DCX       → GPIO 3   (D/C# signal, direct from SPI master)
 //   RESX      → GPIO 22  (hardware reset, active low)
 // =============================================================================
-static constexpr uint PIN_PAR_BCLK = 2u;  // SCLK/8 byte clock (input)
-static constexpr uint PIN_PAR_DCX = 3u;   // D/C#      (input, PIO JMP_PIN)
-static constexpr uint PIN_PAR_DATA_BASE =
-    4u;  // D[0..7]   (input, PIO IN_BASE; GPIO 4-11)
-static constexpr uint PIN_PAR_RESX = 22u;  // Hardware reset, active low (input)
+// SCLK/8 byte clock (input)
+static constexpr uint PIN_PAR_BCLK = 2u;
+
+// D/C# (input, PIO JMP_PIN)
+static constexpr uint PIN_PAR_DCX = 3u;
+
+// D[0..7] (input, PIO IN_BASE; GPIO 4-11)
+static constexpr uint PIN_PAR_DATA_BASE = 4u;
+
+// Hardware reset, active low (input)
+static constexpr uint PIN_PAR_RESX = 22u;
 
 // =============================================================================
 // Boot-time configuration GPIOs (read once at startup)
 // Pull LOW = default, pull HIGH = alternate
 // =============================================================================
-static constexpr uint PIN_CFG_LCD_SIZE = 20u;  // LOW=240x240 / HIGH=240x320
-static constexpr uint PIN_CFG_DVI_RES =
-    21u;  // LOW=640x480@60Hz / HIGH=1280x720@30Hz(reduced)
-static constexpr uint PIN_CFG_SCALE_MODE0 = 26u;  // \__ scale mode bits
-static constexpr uint PIN_CFG_SCALE_MODE1 =
-    27u;  // /   00=STRETCH 01=FIT 10=PIXEL_PERFECT
+
+// LOW=240x240 / HIGH=240x320
+static constexpr uint PIN_CFG_LCD_SIZE = 20u;
+
+// LOW=640x480@60Hz / HIGH=1280x720@30Hz(reduced)
+static constexpr uint PIN_CFG_DVI_RES = 21u;
+
+// scale mode bits: 00=STRETCH 01=FIT 10=PIXEL_PERFECT
+static constexpr uint PIN_CFG_SCALE_MODE0 = 26u;
+static constexpr uint PIN_CFG_SCALE_MODE1 = 27u;
 
 // =============================================================================
 // Onboard LED
