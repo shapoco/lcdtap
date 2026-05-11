@@ -4,6 +4,7 @@
 #include <new>
 
 #include "controller_base.hpp"
+#include "ssd1309_controller.hpp"
 #include "st7789_controller.hpp"
 
 namespace sl2d {
@@ -19,6 +20,16 @@ void getDefaultConfig(Controller type, Sl2dConfig* cfg) {
       cfg->lcdWidth = 240;
       cfg->lcdHeight = 320;
       cfg->pixelFormat = PixelFormat::RGB565;
+      cfg->dviWidth = 640;
+      cfg->dviHeight = 480;
+      cfg->scaleMode = ScaleMode::FIT;
+      cfg->invertInvPolarity = false;
+      break;
+    case Controller::SSD1309:
+      cfg->controller = Controller::SSD1309;
+      cfg->lcdWidth = 128;
+      cfg->lcdHeight = 64;
+      cfg->pixelFormat = PixelFormat::MONO_VPACK;
       cfg->dviWidth = 640;
       cfg->dviHeight = 480;
       cfg->scaleMode = ScaleMode::FIT;
@@ -224,6 +235,9 @@ SpiLcd2Dvi::SpiLcd2Dvi(const Sl2dConfig& config, const HostInterface& host)
   switch (config.controller) {
     case Controller::ST7789:
       ctrl = new (std::nothrow) St7789Controller();
+      break;
+    case Controller::SSD1309:
+      ctrl = new (std::nothrow) Ssd1309Controller();
       break;
   }
   if (!ctrl) return;

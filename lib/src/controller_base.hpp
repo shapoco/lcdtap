@@ -96,7 +96,8 @@ class ControllerBase {
   void writePixelRgb565(uint16_t px);
 
   // RAMWR データをまとめて処理する (switch(pixelFormat) をループ外に出す)
-  void processRamwrData(const uint8_t* data, size_t length);
+  // 派生クラスで独自フォーマットを処理する場合はオーバーライドする
+  virtual void processRamwrData(const uint8_t* data, size_t length);
 
   // データバイト列の処理: RAMWR は一括、それ以外は 1 バイトずつ
   void feedData(const uint8_t* data, size_t length);
