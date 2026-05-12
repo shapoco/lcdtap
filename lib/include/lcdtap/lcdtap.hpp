@@ -24,7 +24,7 @@ enum class Status : int {
 //=============================================================================
 // LCDコントローラの種類
 //=============================================================================
-enum class Controller : uint8_t {
+enum class ControllerType : uint8_t {
   ST7789,
   SSD1309,
 };
@@ -53,7 +53,7 @@ enum class ScaleMode : uint8_t {
 //=============================================================================
 struct LcdTapConfig {
   // --- LCDコントローラ ---
-  Controller controller;
+  ControllerType controller;
 
   // --- SPI 入力 (LCD) 側 ---
   uint16_t lcdWidth;
@@ -91,7 +91,7 @@ struct HostInterface {
 // 指定したコントローラ向けのデフォルト値を cfg に書き込む。
 // 必要に応じてフィールドを上書きして LcdTap のコンストラクタに渡す。
 //=============================================================================
-void getDefaultConfig(Controller type, LcdTapConfig* cfg);
+void getDefaultConfig(ControllerType type, LcdTapConfig* cfg);
 
 //=============================================================================
 // メインクラス

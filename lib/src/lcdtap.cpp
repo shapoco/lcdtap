@@ -12,11 +12,11 @@ namespace lcdtap {
 //=============================================================================
 // getDefaultConfig
 //=============================================================================
-void getDefaultConfig(Controller type, LcdTapConfig* cfg) {
+void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
   *cfg = {};
   switch (type) {
-    case Controller::ST7789:
-      cfg->controller = Controller::ST7789;
+    case ControllerType::ST7789:
+      cfg->controller = ControllerType::ST7789;
       cfg->lcdWidth = 240;
       cfg->lcdHeight = 320;
       cfg->pixelFormat = PixelFormat::RGB565;
@@ -25,8 +25,8 @@ void getDefaultConfig(Controller type, LcdTapConfig* cfg) {
       cfg->scaleMode = ScaleMode::FIT;
       cfg->invertInvPolarity = false;
       break;
-    case Controller::SSD1309:
-      cfg->controller = Controller::SSD1309;
+    case ControllerType::SSD1309:
+      cfg->controller = ControllerType::SSD1309;
       cfg->lcdWidth = 128;
       cfg->lcdHeight = 64;
       cfg->pixelFormat = PixelFormat::MONO_VPACK;
@@ -233,10 +233,10 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
 
   ControllerBase* ctrl = nullptr;
   switch (config.controller) {
-    case Controller::ST7789:
+    case ControllerType::ST7789:
       ctrl = new (std::nothrow) St7789Controller();
       break;
-    case Controller::SSD1309:
+    case ControllerType::SSD1309:
       ctrl = new (std::nothrow) Ssd1309Controller();
       break;
   }

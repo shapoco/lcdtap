@@ -13,10 +13,10 @@ Include the library header:
 
 All symbols live in the `lcdtap` namespace.
 
-### `Controller` — LCD controller type
+### `ControllerType` — LCD controller type
 
 ```cpp
-enum class Controller : uint8_t {
+enum class ControllerType : uint8_t {
   ST7789,
   SSD1309,
 };
@@ -27,7 +27,7 @@ enum class Controller : uint8_t {
 ```cpp
 struct LcdTapConfig {
   // LCD controller
-  Controller controller;
+  ControllerType controller;
 
   // SPI input (LCD) side
   uint16_t lcdWidth;          // LCD horizontal resolution
@@ -63,13 +63,13 @@ struct LcdTapConfig {
 ### `getDefaultConfig` — default configuration
 
 ```cpp
-void getDefaultConfig(Controller type, LcdTapConfig* cfg);
+void getDefaultConfig(ControllerType type, LcdTapConfig* cfg);
 ```
 
 Fills `*cfg` with sensible defaults for the specified controller.
 Override individual fields as needed before constructing `LcdTap`.
 
-Default values for `Controller::ST7789`:
+Default values for `ControllerType::ST7789`:
 
 | Field              | Default value        |
 |--------------------|----------------------|
@@ -131,7 +131,7 @@ public:
 ```cpp
 // 1. Configure — start from controller defaults, then override as needed
 lcdtap::LcdTapConfig cfg;
-lcdtap::getDefaultConfig(lcdtap::Controller::ST7789, &cfg);
+lcdtap::getDefaultConfig(lcdtap::ControllerType::ST7789, &cfg);
 cfg.lcdHeight        = 240;               // override for 240×240 variant
 cfg.dviWidth         = 640;
 cfg.dviHeight        = 480;

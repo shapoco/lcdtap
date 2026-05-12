@@ -263,7 +263,7 @@ int main() {
   // 6. LcdTap init
   // -------------------------------------------------------------------------
   lcdtap::LcdTapConfig cfg;
-  lcdtap::getDefaultConfig(lcdtap::Controller::ST7789, &cfg);
+  lcdtap::getDefaultConfig(lcdtap::ControllerType::ST7789, &cfg);
   cfg.lcdHeight = lcdH;  // 240 or 320 selected by PIN_CFG_LCD_SIZE
   cfg.scaleMode = scaleMode;
   cfg.invertInvPolarity = invPolarity;

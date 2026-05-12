@@ -311,7 +311,7 @@ int main() {
   // 5. LcdTap init (SSD1309, 128x64 fixed)
   // -------------------------------------------------------------------------
   lcdtap::LcdTapConfig cfg;
-  lcdtap::getDefaultConfig(lcdtap::Controller::SSD1309, &cfg);
+  lcdtap::getDefaultConfig(lcdtap::ControllerType::SSD1309, &cfg);
   cfg.scaleMode = scaleMode;
   cfg.invertInvPolarity = false;  // fixed
   cfg.dviWidth = static_cast<uint16_t>(dviW);
