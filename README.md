@@ -118,6 +118,17 @@ public:
     // Scaling, letterboxing, and colour inversion are applied internally.
     // Call this for every line 0 .. dviHeight-1 each frame.
 
+  void setOutputRotation(int rot);
+    // Rotate the DVI output image. Default is 0 (no rotation).
+    // Does NOT affect controller state or command processing;
+    // only the readout pattern of fillScanline() changes.
+    // The setting is preserved across inputReset() / softReset().
+    //
+    // rot=0  no rotation
+    // rot=1  90° clockwise   — aspect ratio swapped for FIT / PIXEL_PERFECT
+    // rot=2  180° (flip)     — aspect ratio unchanged
+    // rot=3  270° clockwise  — aspect ratio swapped for FIT / PIXEL_PERFECT
+
   // Debug / test
   uint16_t* getFramebuf();            // direct access to the internal framebuffer
   void setDisplayOn(bool on);         // force display on/off before SLPOUT+DISPON
@@ -148,12 +159,15 @@ host.userData = nullptr;
 lcdtap::LcdTap inst(cfg, host);
 if (inst.getStatus() != lcdtap::Status::OK) { /* handle error */ }
 
-// 4. Feed incoming SPI bytes (call from SPI interrupt / DMA handler)
+// 4. (Optional) Rotate the output image 90° clockwise
+inst.setOutputRotation(1);
+
+// 5. Feed incoming SPI bytes (call from SPI interrupt / DMA handler)
 inst.inputReset(false);                   // RESX de-asserted
 inst.inputCommand(0x29);                  // DISPON
 inst.inputData(pixelData, byteCount);     // RAMWR payload
 
-// 5. Output DVI scanlines (call from DVI scanline loop)
+// 6. Output DVI scanlines (call from DVI scanline loop)
 for (uint16_t y = 0; y < 480; ++y) {
     inst.fillScanline(y, scanlineBuf);
     // hand scanlineBuf to the DVI output layer

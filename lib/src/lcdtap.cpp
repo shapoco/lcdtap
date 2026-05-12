@@ -45,8 +45,9 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
 void ControllerBase::calcScaleParams() {
   uint16_t dviW = config.dviWidth;
   uint16_t dviH = config.dviHeight;
-  uint16_t lcdW = config.lcdWidth;
-  uint16_t lcdH = config.lcdHeight;
+  // rot=1,3 では LCD の縦横が入れ替わって見える
+  uint16_t lcdW = ((outputRotation & 1) ? config.lcdHeight : config.lcdWidth);
+  uint16_t lcdH = ((outputRotation & 1) ? config.lcdWidth : config.lcdHeight);
 
   switch (config.scaleMode) {
     case ScaleMode::STRETCH:
@@ -247,6 +248,7 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
   ctrl->status = Status::OK;
   ctrl->hwReset = false;
   ctrl->framebuf = nullptr;
+  ctrl->outputRotation = 0;
 
   if (config.lcdWidth == 0 || config.lcdHeight == 0 || config.dviWidth == 0 ||
       config.dviHeight == 0) {
@@ -311,7 +313,6 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   if (ctrl->status != Status::OK || !ctrl->framebuf) return;
 
   const uint16_t dviW = ctrl->config.dviWidth;
-  const uint16_t lcdW = ctrl->config.lcdWidth;
 
   // 表示オフ・スリープ中、または垂直方向の黒帯
   if (ctrl->sleeping || !ctrl->displayOn || dviLine < ctrl->displayY ||
@@ -321,9 +322,8 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   }
 
   // 垂直マッピング: 固定小数点乗算で LCD 行を求める
-  uint16_t lcdRow = static_cast<uint16_t>(
+  const uint16_t lcdRowOut = static_cast<uint16_t>(
       ((uint32_t)(dviLine - ctrl->displayY) * ctrl->vStep) >> 16);
-  const uint16_t* srcRow = ctrl->framebuf + (uint32_t)lcdRow * lcdW;
 
   uint16_t* d = dst;
 
@@ -331,18 +331,55 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   memset(d, 0, (size_t)ctrl->displayX * sizeof(uint16_t));
   d += ctrl->displayX;
 
-  // アクティブ領域: 水平スケーリング + 輝度反転
+  // アクティブ領域: 水平スケーリング + 輝度反転 + 回転
   // 反転: RGB565 全ビット XOR → (31-R, 63-G, 31-B) で各チャネル反転
+  const uint16_t inv = ctrl->inverted ? 0xFFFFu : 0u;
+  const uint16_t* fb = ctrl->framebuf;
+  const uint16_t physW = ctrl->config.lcdWidth;
+  const uint16_t physH = ctrl->config.lcdHeight;
   uint32_t hAccum = 0;
-  if (ctrl->inverted) {
-    for (uint16_t x = 0; x < ctrl->displayW; ++x) {
-      *d++ = srcRow[hAccum >> 16] ^ 0xFFFFu;
-      hAccum += ctrl->hStep;
+
+  switch (ctrl->outputRotation) {
+    default:
+    case 0: {
+      // rot=0: 通常 (行優先読み出し)
+      const uint16_t* srcRow = fb + (uint32_t)lcdRowOut * physW;
+      for (uint16_t x = 0; x < ctrl->displayW; ++x) {
+        *d++ = srcRow[hAccum >> 16] ^ inv;
+        hAccum += ctrl->hStep;
+      }
+      break;
     }
-  } else {
-    for (uint16_t x = 0; x < ctrl->displayW; ++x) {
-      *d++ = srcRow[hAccum >> 16];
-      hAccum += ctrl->hStep;
+    case 1: {
+      // rot=1: 90° CW  — (lcdRowOut, lcdColOut) → ((physH-1-lcdColOut),
+      // lcdRowOut)
+      for (uint16_t x = 0; x < ctrl->displayW; ++x) {
+        uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
+        *d++ = fb[(uint32_t)(physH - 1u - lcdColOut) * physW + lcdRowOut] ^ inv;
+        hAccum += ctrl->hStep;
+      }
+      break;
+    }
+    case 2: {
+      // rot=2: 180° — (lcdRowOut, lcdColOut) → ((physH-1-lcdRowOut),
+      // (physW-1-lcdColOut))
+      const uint16_t* srcRow = fb + (uint32_t)(physH - 1u - lcdRowOut) * physW;
+      for (uint16_t x = 0; x < ctrl->displayW; ++x) {
+        uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
+        *d++ = srcRow[physW - 1u - lcdColOut] ^ inv;
+        hAccum += ctrl->hStep;
+      }
+      break;
+    }
+    case 3: {
+      // rot=3: 270° CW — (lcdRowOut, lcdColOut) → (lcdColOut,
+      // (physW-1-lcdRowOut))
+      for (uint16_t x = 0; x < ctrl->displayW; ++x) {
+        uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
+        *d++ = fb[(uint32_t)lcdColOut * physW + (physW - 1u - lcdRowOut)] ^ inv;
+        hAccum += ctrl->hStep;
+      }
+      break;
     }
   }
 
@@ -362,6 +399,14 @@ void LcdTap::setDisplayOn(bool on) {
   if (ctrl->status != Status::OK) return;
   ctrl->sleeping = !on;
   ctrl->displayOn = on;
+}
+
+void LcdTap::setOutputRotation(int rot) {
+  if (!impl_) return;
+  ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
+  if (ctrl->status != Status::OK) return;
+  ctrl->outputRotation = static_cast<uint8_t>(rot & 3);
+  ctrl->calcScaleParams();
 }
 
 }  // namespace lcdtap

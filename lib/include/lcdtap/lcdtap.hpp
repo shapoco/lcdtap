@@ -125,6 +125,17 @@ class LcdTap {
   // dst は dviWidth 個の uint16_t を格納できる領域を指すこと。
   void fillScanline(uint16_t line, uint16_t* dst) const;
 
+  // ディスプレイ出力の回転設定。
+  // rot=0: 従来通り (デフォルト)
+  // rot=1: 時計回り 90° 回転。FIT/PIXEL_PERFECT ではアスペクト比が
+  // 縦横入れ替わる。
+  // rot=2: 上下左右反転。アスペクト比は変化しない。
+  // rot=3: 時計回り 270° 回転。FIT/PIXEL_PERFECT
+  // ではアスペクト比が縦横入れ替わる。
+  // コントローラの内部状態には影響しない。
+  // fillScanline の読み出しパターンのみ変わる。
+  void setOutputRotation(int rot);
+
   //--- テスト / デバッグ用 ---
 
   // フレームバッファへの直接書き込みポインタを返す。

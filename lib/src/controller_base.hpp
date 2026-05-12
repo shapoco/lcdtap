@@ -50,6 +50,7 @@ class ControllerBase {
   uint16_t displayH;  // DVI 上の LCD 表示領域の高さ
   uint32_t hStep;  // 水平固定小数点ステップ (16.16 形式: lcdW<<16 / displayW)
   uint32_t vStep;  // 垂直固定小数点ステップ (16.16 形式: lcdH<<16 / displayH)
+  uint8_t outputRotation;  // 出力回転 0..3 (0:なし, 1:90°CW, 2:180°, 3:270°CW)
 
   // RAMWR 書き込みキャッシュ (updateWriteCache() で更新)
   bool cachedBGR;
