@@ -261,7 +261,7 @@ int main() {
   }
   sleep_ms(1);
 
-  const bool useI2C = gpio_get(PIN_CFG_INPUT_MODE);
+  const bool useI2C = !gpio_get(PIN_CFG_INPUT_MODE);
   const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
   const int rot = static_cast<int>(
       (gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));

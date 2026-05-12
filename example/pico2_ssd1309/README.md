@@ -13,20 +13,20 @@ make -j4
 
 This example supports two input modes, selectable via GPIO 20 at startup.
 
-### SPI mode (default)
-
-SPI commands are received via a parallel conversion circuit — see
-[example/pico2\_st7789/README.md](../pico2_st7789/README.md) for the full
-description of the 74HC4094 + 74HC4040 wiring and the BCLK/DCX signal path.
-The pin assignment is identical to the ST7789 example.
-
-### I2C mode
+### I2C mode (default)
 
 Connect the SSD1309 SDA and SCL lines directly to GPIO 0 and GPIO 1 with
 4.7 kΩ pull-ups to 3.3 V. The Pico 2 acts as an I2C slave at address
 `0x3C` (SA0 tied low). The SSD1309 I2C control byte (first byte after the
 address phase) is decoded to determine whether subsequent bytes are commands
 or GDDRAM data.
+
+### SPI mode
+
+SPI commands are received via a parallel conversion circuit — see
+[example/pico2\_st7789/README.md](../pico2_st7789/README.md) for the full
+description of the 74HC4094 + 74HC4040 wiring and the BCLK/DCX signal path.
+The pin assignment is identical to the ST7789 example.
 
 ## Pin assignment
 
@@ -55,7 +55,7 @@ next frame without restarting.
 
 | GPIO  | Name          | LOW (default)           | HIGH (alternate)           |
 |-------|---------------|-------------------------|----------------------------|
-| 20    | INPUT\_MODE   | SPI mode                | I2C mode                   |
+| 20    | INPUT\_MODE   | I2C mode (default)      | SPI mode                   |
 | 21    | DVI\_RES      | 640×480 @ 60 Hz         | 1280×720 @ 30 Hz (reduced) |
 | 26+27 | ROT           | 00 = no rotation        | 01/10/11 = see table below |
 

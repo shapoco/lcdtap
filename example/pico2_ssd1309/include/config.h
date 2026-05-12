@@ -41,7 +41,7 @@ static constexpr uint I2C_SLAVE_ADDR = 0x3Cu;
 // Pull LOW = default, pull HIGH = alternate
 // =============================================================================
 
-// LOW=SPI mode / HIGH=I2C mode
+// LOW=I2C mode (default) / HIGH=SPI mode
 static constexpr uint PIN_CFG_INPUT_MODE = 20u;
 
 // LOW=640x480@60Hz / HIGH=1280x720@30Hz(reduced)
