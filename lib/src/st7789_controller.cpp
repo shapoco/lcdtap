@@ -1,6 +1,6 @@
 #include "st7789_controller.hpp"
 
-namespace sl2d {
+namespace lcdtap {
 
 uint16_t St7789Controller::logicalWidth() const {
   return ((madctl >> 5) & 1) ? config.lcdHeight : config.lcdWidth;
@@ -142,4 +142,4 @@ bool St7789Controller::isRamWriteCommand() const {
   return currentCmd == st7789::CMD_RAMWR;
 }
 
-}  // namespace sl2d
+}  // namespace lcdtap

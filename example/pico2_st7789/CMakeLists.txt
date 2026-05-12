@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.20)
 # e.g. cmake -DPICO_SDK_PATH=/path/to/pico-sdk ..
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
-project(spilcd2dvi_pico2_st7789 VERSION 0.1.0 LANGUAGES C CXX ASM)
+project(lcdtap_pico2_st7789 VERSION 0.1.0 LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -21,28 +21,28 @@ add_subdirectory(
     libdvi
 )
 
-add_executable(spilcd2dvi_pico2_st7789
+add_executable(lcdtap_pico2_st7789
     src/main.cpp
 )
 
 # Generate the PIO header from par_slave.pio
-pico_generate_pio_header(spilcd2dvi_pico2_st7789
+pico_generate_pio_header(lcdtap_pico2_st7789
     ${CMAKE_CURRENT_LIST_DIR}/src/par_slave.pio
 )
 
-target_include_directories(spilcd2dvi_pico2_st7789 PRIVATE
+target_include_directories(lcdtap_pico2_st7789 PRIVATE
     include
     # PicoDVI pin-config header lives here
     ../../submodule/PicoDVI/software/include
 )
 
 # DVI_DEFAULT_PIO_INST must be pio0 so libdvi and pico_sock_cfg agree.
-target_compile_definitions(spilcd2dvi_pico2_st7789 PRIVATE
+target_compile_definitions(lcdtap_pico2_st7789 PRIVATE
     DVI_DEFAULT_PIO_INST=pio0
 )
 
-target_link_libraries(spilcd2dvi_pico2_st7789
-    spilcd2dvi
+target_link_libraries(lcdtap_pico2_st7789
+    lcdtap
     libdvi
     pico_stdlib
     pico_multicore
@@ -55,4 +55,4 @@ target_link_libraries(spilcd2dvi_pico2_st7789
 )
 
 # Generate UF2 for drag-and-drop flashing
-pico_add_extra_outputs(spilcd2dvi_pico2_st7789)
+pico_add_extra_outputs(lcdtap_pico2_st7789)

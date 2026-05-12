@@ -1,30 +1,31 @@
-# SpiLcd2Dvi
+# LcdTap
 
-A library and example that receives SPI LCD commands as an SPI slave
+A library and example that receives LCD controller commands (via SPI or I2C)
 and outputs the framebuffer as a DVI-D signal.
 
-## Library: SpiLcd2Dvi
+## Library: LcdTap
 
 Include the library header:
 
 ```cpp
-#include <spilcd2dvi/spilcd2dvi.hpp>
+#include <lcdtap/lcdtap.hpp>
 ```
 
-All symbols live in the `sl2d` namespace.
+All symbols live in the `lcdtap` namespace.
 
 ### `Controller` — LCD controller type
 
 ```cpp
 enum class Controller : uint8_t {
   ST7789,
+  SSD1309,
 };
 ```
 
-### `Sl2dConfig` — configuration
+### `LcdTapConfig` — configuration
 
 ```cpp
-struct Sl2dConfig {
+struct LcdTapConfig {
   // LCD controller
   Controller controller;
 
@@ -62,11 +63,11 @@ struct Sl2dConfig {
 ### `getDefaultConfig` — default configuration
 
 ```cpp
-void getDefaultConfig(Controller type, Sl2dConfig* cfg);
+void getDefaultConfig(Controller type, LcdTapConfig* cfg);
 ```
 
 Fills `*cfg` with sensible defaults for the specified controller.
-Override individual fields as needed before constructing `SpiLcd2Dvi`.
+Override individual fields as needed before constructing `LcdTap`.
 
 Default values for `Controller::ST7789`:
 
@@ -96,17 +97,17 @@ struct HostInterface {
 On MCUs with external PSRAM, point `alloc` to an allocator over that region
 to keep the large framebuffer out of internal SRAM.
 
-### `SpiLcd2Dvi` — main class
+### `LcdTap` — main class
 
 ```cpp
-class SpiLcd2Dvi {
+class LcdTap {
 public:
-  SpiLcd2Dvi(const Sl2dConfig& config, const HostInterface& host);
-  ~SpiLcd2Dvi();
+  LcdTap(const LcdTapConfig& config, const HostInterface& host);
+  ~LcdTap();
 
   Status getStatus() const;           // check constructor result
 
-  // SPI input
+  // SPI/I2C input
   void inputReset(bool assert);       // drive RESX (true = assert reset)
   void inputCommand(uint8_t byte);    // feed one command byte  (DCX = low)
   void inputData(const uint8_t* data, size_t length); // feed data bytes (DCX = high)
@@ -129,23 +130,23 @@ public:
 
 ```cpp
 // 1. Configure — start from controller defaults, then override as needed
-sl2d::Sl2dConfig cfg;
-sl2d::getDefaultConfig(sl2d::Controller::ST7789, &cfg);
+lcdtap::LcdTapConfig cfg;
+lcdtap::getDefaultConfig(lcdtap::Controller::ST7789, &cfg);
 cfg.lcdHeight        = 240;               // override for 240×240 variant
 cfg.dviWidth         = 640;
 cfg.dviHeight        = 480;
-cfg.scaleMode        = sl2d::ScaleMode::FIT;
+cfg.scaleMode        = lcdtap::ScaleMode::FIT;
 
 // 2. Provide platform callbacks (alloc/free used for framebuffer only)
-sl2d::HostInterface host;
+lcdtap::HostInterface host;
 host.alloc    = myAlloc;   // e.g. bump allocator over PSRAM
 host.free     = myFree;
 host.log      = nullptr;
 host.userData = nullptr;
 
 // 3. Construct
-sl2d::SpiLcd2Dvi inst(cfg, host);
-if (inst.getStatus() != sl2d::Status::OK) { /* handle error */ }
+lcdtap::LcdTap inst(cfg, host);
+if (inst.getStatus() != lcdtap::Status::OK) { /* handle error */ }
 
 // 4. Feed incoming SPI bytes (call from SPI interrupt / DMA handler)
 inst.inputReset(false);                   // RESX de-asserted
@@ -164,9 +165,9 @@ for (uint16_t y = 0; y < 480; ++y) {
 ST7789 command code constants are available in a separate header:
 
 ```cpp
-#include <spilcd2dvi/devices/st7789.hpp>
+#include <lcdtap/devices/st7789.hpp>
 
-// sl2d::st7789::CMD_NOP, CMD_SWRESET, CMD_SLPOUT, CMD_INVOFF, CMD_INVON,
+// lcdtap::st7789::CMD_NOP, CMD_SWRESET, CMD_SLPOUT, CMD_INVOFF, CMD_INVON,
 // CMD_DISPON, CMD_CASET, CMD_RASET, CMD_RAMWR, CMD_MADCTL, CMD_COLMOD
 ```
 

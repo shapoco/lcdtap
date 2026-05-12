@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace sl2d::st7789 {
+namespace lcdtap::st7789 {
 
 static constexpr uint8_t CMD_NOP = 0x00;
 static constexpr uint8_t CMD_SWRESET = 0x01;
@@ -16,4 +16,4 @@ static constexpr uint8_t CMD_RAMWR = 0x2C;
 static constexpr uint8_t CMD_MADCTL = 0x36;
 static constexpr uint8_t CMD_COLMOD = 0x3A;
 
-}  // namespace sl2d::st7789
+}  // namespace lcdtap::st7789

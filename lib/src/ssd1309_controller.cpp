@@ -1,8 +1,8 @@
 #include "ssd1309_controller.hpp"
 
-#include <spilcd2dvi/devices/ssd1309.hpp>
+#include <lcdtap/devices/ssd1309.hpp>
 
-namespace sl2d {
+namespace lcdtap {
 
 uint16_t Ssd1309Controller::logicalWidth() const { return config.lcdWidth; }
 
@@ -216,4 +216,4 @@ void Ssd1309Controller::applyPageModeCol() {
     ramwrX = static_cast<uint16_t>(config.lcdWidth - 1u);
 }
 
-}  // namespace sl2d
+}  // namespace lcdtap

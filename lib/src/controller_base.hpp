@@ -1,9 +1,9 @@
 #pragma once
 
 #include <cstddef>
-#include <spilcd2dvi/spilcd2dvi.hpp>
+#include <lcdtap/lcdtap.hpp>
 
-namespace sl2d {
+namespace lcdtap {
 
 // ControllerBase — 共通内部実装基底クラス (PIMPL 実体)
 //
@@ -15,7 +15,7 @@ class ControllerBase {
   virtual ~ControllerBase() = default;
 
   // --- 共通設定・状態 ---
-  Sl2dConfig config;
+  LcdTapConfig config;
   HostInterface host;
   Status status;
   bool hwReset;
@@ -103,4 +103,4 @@ class ControllerBase {
   void feedData(const uint8_t* data, size_t length);
 };
 
-}  // namespace sl2d
+}  // namespace lcdtap

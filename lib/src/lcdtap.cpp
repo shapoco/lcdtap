@@ -1,4 +1,4 @@
-#include <spilcd2dvi/spilcd2dvi.hpp>
+#include <lcdtap/lcdtap.hpp>
 
 #include <cstring>
 #include <new>
@@ -7,12 +7,12 @@
 #include "ssd1309_controller.hpp"
 #include "st7789_controller.hpp"
 
-namespace sl2d {
+namespace lcdtap {
 
 //=============================================================================
 // getDefaultConfig
 //=============================================================================
-void getDefaultConfig(Controller type, Sl2dConfig* cfg) {
+void getDefaultConfig(Controller type, LcdTapConfig* cfg) {
   *cfg = {};
   switch (type) {
     case Controller::ST7789:
@@ -224,10 +224,10 @@ void ControllerBase::processRamwrData(const uint8_t* data, size_t length) {
 }
 
 //=============================================================================
-// SpiLcd2Dvi
+// LcdTap
 //=============================================================================
 
-SpiLcd2Dvi::SpiLcd2Dvi(const Sl2dConfig& config, const HostInterface& host)
+LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
     : impl_(nullptr) {
   if (!host.alloc || !host.free) return;
 
@@ -268,19 +268,19 @@ SpiLcd2Dvi::SpiLcd2Dvi(const Sl2dConfig& config, const HostInterface& host)
   ctrl->softReset();
 }
 
-SpiLcd2Dvi::~SpiLcd2Dvi() {
+LcdTap::~LcdTap() {
   if (!impl_) return;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->framebuf) ctrl->host.free(ctrl->framebuf);
   delete ctrl;
 }
 
-Status SpiLcd2Dvi::getStatus() const {
+Status LcdTap::getStatus() const {
   if (!impl_) return Status::OUT_OF_MEMORY;
   return static_cast<const ControllerBase*>(impl_)->status;
 }
 
-void SpiLcd2Dvi::inputReset(bool assert) {
+void LcdTap::inputReset(bool assert) {
   if (!impl_) return;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK) return;
@@ -291,21 +291,21 @@ void SpiLcd2Dvi::inputReset(bool assert) {
   }
 }
 
-void SpiLcd2Dvi::inputCommand(uint8_t byte) {
+void LcdTap::inputCommand(uint8_t byte) {
   if (!impl_) return;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || ctrl->hwReset) return;
   ctrl->dispatchCommand(byte);
 }
 
-void SpiLcd2Dvi::inputData(const uint8_t* data, size_t length) {
+void LcdTap::inputData(const uint8_t* data, size_t length) {
   if (!impl_) return;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || ctrl->hwReset) return;
   ctrl->feedData(data, length);
 }
 
-void SpiLcd2Dvi::fillScanline(uint16_t dviLine, uint16_t* dst) const {
+void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   if (!impl_) return;
   const ControllerBase* ctrl = static_cast<const ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || !ctrl->framebuf) return;
@@ -351,12 +351,12 @@ void SpiLcd2Dvi::fillScanline(uint16_t dviLine, uint16_t* dst) const {
          (size_t)(dviW - ctrl->displayX - ctrl->displayW) * sizeof(uint16_t));
 }
 
-uint16_t* SpiLcd2Dvi::getFramebuf() {
+uint16_t* LcdTap::getFramebuf() {
   if (!impl_) return nullptr;
   return static_cast<ControllerBase*>(impl_)->framebuf;
 }
 
-void SpiLcd2Dvi::setDisplayOn(bool on) {
+void LcdTap::setDisplayOn(bool on) {
   if (!impl_) return;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK) return;
@@ -364,4 +364,4 @@ void SpiLcd2Dvi::setDisplayOn(bool on) {
   ctrl->displayOn = on;
 }
 
-}  // namespace sl2d
+}  // namespace lcdtap

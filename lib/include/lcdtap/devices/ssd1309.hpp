@@ -6,7 +6,7 @@
 // 注: パラメータを持つコマンドはすべて DCX=0 バイトとして送られる。
 //     DCX=1 バイトは常に GDDRAM データ (MONO_VPACK)。
 
-namespace sl2d {
+namespace lcdtap {
 namespace ssd1309 {
 
 // 下位列アドレス指定 (ページアドレッシングモード用, 0x00-0x0F)
@@ -84,4 +84,4 @@ static constexpr uint8_t CMD_SET_VCOMH = 0xDB;
 static constexpr uint8_t CMD_NOP = 0xE3;
 
 }  // namespace ssd1309
-}  // namespace sl2d
+}  // namespace lcdtap

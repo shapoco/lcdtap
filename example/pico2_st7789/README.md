@@ -63,7 +63,7 @@ DVI output is handled by [PicoDVI](https://github.com/Wren6991/PicoDVI)
 - **Core 1** runs `dvi_scanbuf_main_16bpp()` in an infinite loop, consuming
   RGB565 scanline buffers from the `q_colour_valid` queue and serialising TMDS
   data to the DVI connector via PIO0 and DMA.
-- **Core 0** (main loop) calls `sl2dInst.fillScanline()` for each line and
+- **Core 0** (main loop) calls `inst.fillScanline()` for each line and
   pushes the filled buffer to `q_colour_valid`.
 
 The system clock is raised to match the TMDS bit-clock requirement (252 MHz for

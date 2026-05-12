@@ -1,15 +1,15 @@
 #pragma once
 
-// SpiLcd2Dvi — Core Library
-// Interprets SPI LCD commands and generates DVI-D signal content.
+// LcdTap — Core Library
+// Interprets LCD controller commands and generates DVI-D signal content.
 //
 // Usage:
-//   #include <spilcd2dvi/spilcd2dvi.hpp>
+//   #include <lcdtap/lcdtap.hpp>
 
 #include <cstddef>
 #include <cstdint>
 
-namespace sl2d {
+namespace lcdtap {
 
 //=============================================================================
 // ステータスコード
@@ -51,7 +51,7 @@ enum class ScaleMode : uint8_t {
 //=============================================================================
 // 設定構造体
 //=============================================================================
-struct Sl2dConfig {
+struct LcdTapConfig {
   // --- LCDコントローラ ---
   Controller controller;
 
@@ -89,17 +89,17 @@ struct HostInterface {
 //=============================================================================
 // デフォルト設定の取得
 // 指定したコントローラ向けのデフォルト値を cfg に書き込む。
-// 必要に応じてフィールドを上書きして SpiLcd2Dvi のコンストラクタに渡す。
+// 必要に応じてフィールドを上書きして LcdTap のコンストラクタに渡す。
 //=============================================================================
-void getDefaultConfig(Controller type, Sl2dConfig* cfg);
+void getDefaultConfig(Controller type, LcdTapConfig* cfg);
 
 //=============================================================================
 // メインクラス
 //=============================================================================
-class SpiLcd2Dvi {
+class LcdTap {
  public:
-  SpiLcd2Dvi(const Sl2dConfig& config, const HostInterface& host);
-  ~SpiLcd2Dvi();
+  LcdTap(const LcdTapConfig& config, const HostInterface& host);
+  ~LcdTap();
 
   // コンストラクタ失敗時の状態確認
   Status getStatus() const;
@@ -140,10 +140,10 @@ class SpiLcd2Dvi {
   void setDisplayOn(bool on);
 
  private:
-  SpiLcd2Dvi(const SpiLcd2Dvi&) = delete;
-  SpiLcd2Dvi& operator=(const SpiLcd2Dvi&) = delete;
+  LcdTap(const LcdTap&) = delete;
+  LcdTap& operator=(const LcdTap&) = delete;
 
   void* impl_;  // 内部実装を隠蔽 (PIMPL)
 };
 
-}  // namespace sl2d
+}  // namespace lcdtap

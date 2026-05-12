@@ -1,6 +1,6 @@
-# SpiLcd2Dvi
+# LcdTap
 
-ST7789 の LCD コマンドを SPI スレーブで受信し、DVI-D 信号として出力するためのライブラリと、Raspberry Pi Pico2 向けの実装例を提供するプロジェクト。
+LCD コントローラコマンドを SPI/I2C スレーブで受信し、DVI-D 信号として出力するためのライブラリと、Raspberry Pi Pico2 向けの実装例を提供するプロジェクト。
 
 ## コーディングスタイル
 
@@ -8,9 +8,9 @@ ST7789 の LCD コマンドを SPI スレーブで受信し、DVI-D 信号とし
 
 ## アーキテクチャ
 
-- `lib/`: コアライブラリ。MCU 非依存で、SPI LCD コマンドの処理と DVI-D 信号の生成を行う。
+- `lib/`: コアライブラリ。MCU 非依存で、LCD コマンドの処理と DVI-D 信号の生成を行う。
 - `example/`: MCU 別の実装例。
-    - `pico2/`: Raspberry Pi Pico2 向けの実装。Pico SDK を使用して、SPI スレーブとしてコマンドを受信し、DVI-D 信号を生成する。
+    - `pico2/`: Raspberry Pi Pico2 向けの実装。Pico SDK を使用して、SPI/I2C スレーブとしてコマンドを受信し、DVI-D 信号を生成する。
 
 ## 問題対応
 

@@ -2,7 +2,7 @@
 
 #include "controller_base.hpp"
 
-namespace sl2d {
+namespace lcdtap {
 
 // SSD1309 コントローラ実装
 //
@@ -34,4 +34,4 @@ class Ssd1309Controller : public ControllerBase {
   void applyPageModeCol();
 };
 
-}  // namespace sl2d
+}  // namespace lcdtap

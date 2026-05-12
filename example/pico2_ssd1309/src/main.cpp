@@ -19,13 +19,13 @@
 #include "dvi.h"
 #include "dvi_timing.h"
 
-#include "spilcd2dvi/spilcd2dvi.hpp"
+#include "lcdtap/lcdtap.hpp"
 
 #include "config.h"
 #include "par_slave.pio.h"
 
 // =============================================================================
-// Memory pool (bump allocator for SpiLcd2Dvi)
+// Memory pool (bump allocator for LcdTap)
 // =============================================================================
 static uint8_t memPool[MEM_POOL_SIZE];
 static size_t memPoolOffset = 0;
@@ -68,16 +68,16 @@ static struct dvi_inst dvi0;
 static uint16_t *scanlineBufs[N_SCANLINE_BUFS];
 
 // =============================================================================
-// SpiLcd2Dvi instance
+// LcdTap instance
 // =============================================================================
-static sl2d::SpiLcd2Dvi *gSl2d = nullptr;
+static lcdtap::LcdTap *gInst = nullptr;
 
 // =============================================================================
 // GPIO interrupt handler (RESX pin, SPI mode)
 // =============================================================================
 static void gpioIrqHandler(uint gpio, uint32_t events) {
-  if (gpio == PIN_PAR_RESX && gSl2d) {
-    gSl2d->inputReset((events & GPIO_IRQ_EDGE_FALL) != 0u);
+  if (gpio == PIN_PAR_RESX && gInst) {
+    gInst->inputReset((events & GPIO_IRQ_EDGE_FALL) != 0u);
   }
 }
 
@@ -199,14 +199,14 @@ static void i2cSlaveInit() {
 }
 
 // =============================================================================
-// Drain SPI ring buffer and feed to SpiLcd2Dvi
+// Drain SPI ring buffer and feed to LcdTap
 // =============================================================================
 static uint8_t dataBatch[DATA_BATCH_CAP];
 static size_t dataBatchLen = 0;
 
 static void flushDataBatch() {
   if (dataBatchLen != 0) {
-    gSl2d->inputData(dataBatch, dataBatchLen);
+    gInst->inputData(dataBatch, dataBatchLen);
     dataBatchLen = 0;
   }
 }
@@ -217,7 +217,7 @@ static inline void processWord(uint32_t word) {
     if (dataBatchLen >= DATA_BATCH_CAP) flushDataBatch();
   } else {
     flushDataBatch();
-    gSl2d->inputCommand(static_cast<uint8_t>(word));
+    gInst->inputCommand(static_cast<uint8_t>(word));
   }
 }
 
@@ -227,7 +227,7 @@ static void processSpiRingBuf() {
       (writeAddr - reinterpret_cast<uint32_t>(spiRingBuf)) / sizeof(uint32_t);
   writeIdx &= (SPI_RING_BUF_WORDS - 1u);
 
-  if (!gSl2d) {
+  if (!gInst) {
     spiReadIdx = writeIdx;
     return;
   }
@@ -238,7 +238,7 @@ static void processSpiRingBuf() {
 }
 
 static void processI2cRingBuf() {
-  if (!gSl2d) return;
+  if (!gInst) return;
   uint32_t writeIdx = i2cWriteIdx;  // snapshot of volatile
   while (i2cReadIdx != writeIdx) {
     processWord(i2cRingBuf[i2cReadIdx & (I2C_RING_BUF_WORDS - 1u)]);
@@ -269,11 +269,11 @@ int main() {
   const struct dvi_timing *timing =
       dvi720p ? &dvi_timing_1280x720p_reduced_30hz : &dvi_timing_640x480p_60hz;
 
-  sl2d::ScaleMode scaleMode;
+  lcdtap::ScaleMode scaleMode;
   switch (scale & 0x3u) {
-    case 1u: scaleMode = sl2d::ScaleMode::FIT; break;
-    case 2u: scaleMode = sl2d::ScaleMode::PIXEL_PERFECT; break;
-    default: scaleMode = sl2d::ScaleMode::STRETCH; break;
+    case 1u: scaleMode = lcdtap::ScaleMode::FIT; break;
+    case 2u: scaleMode = lcdtap::ScaleMode::PIXEL_PERFECT; break;
+    default: scaleMode = lcdtap::ScaleMode::STRETCH; break;
   }
 
   // -------------------------------------------------------------------------
@@ -308,37 +308,37 @@ int main() {
   }
 
   // -------------------------------------------------------------------------
-  // 5. SpiLcd2Dvi init (SSD1309, 128x64 fixed)
+  // 5. LcdTap init (SSD1309, 128x64 fixed)
   // -------------------------------------------------------------------------
-  sl2d::Sl2dConfig sl2dCfg;
-  sl2d::getDefaultConfig(sl2d::Controller::SSD1309, &sl2dCfg);
-  sl2dCfg.scaleMode = scaleMode;
-  sl2dCfg.invertInvPolarity = false;  // fixed
-  sl2dCfg.dviWidth = static_cast<uint16_t>(dviW);
-  sl2dCfg.dviHeight = static_cast<uint16_t>(dviH);
+  lcdtap::LcdTapConfig cfg;
+  lcdtap::getDefaultConfig(lcdtap::Controller::SSD1309, &cfg);
+  cfg.scaleMode = scaleMode;
+  cfg.invertInvPolarity = false;  // fixed
+  cfg.dviWidth = static_cast<uint16_t>(dviW);
+  cfg.dviHeight = static_cast<uint16_t>(dviH);
 
-  sl2d::HostInterface host;
+  lcdtap::HostInterface host;
   host.alloc = poolAlloc;
   host.free = [](void *) {};
   host.log = nullptr;
   host.userData = nullptr;
 
-  sl2d::SpiLcd2Dvi sl2dInst(sl2dCfg, host);
-  if (sl2dInst.getStatus() != sl2d::Status::OK) panic("SpiLcd2Dvi init failed");
+  lcdtap::LcdTap inst(cfg, host);
+  if (inst.getStatus() != lcdtap::Status::OK) panic("LcdTap init failed");
 
   // Checkerboard test pattern (8x8 blocks)
   {
-    uint16_t *fb = sl2dInst.getFramebuf();
-    for (uint16_t y = 0; y < sl2dCfg.lcdHeight; ++y) {
-      for (uint16_t x = 0; x < sl2dCfg.lcdWidth; ++x) {
-        fb[(uint32_t)y * sl2dCfg.lcdWidth + x] =
+    uint16_t *fb = inst.getFramebuf();
+    for (uint16_t y = 0; y < cfg.lcdHeight; ++y) {
+      for (uint16_t x = 0; x < cfg.lcdWidth; ++x) {
+        fb[(uint32_t)y * cfg.lcdWidth + x] =
             (((x / 8u) ^ (y / 8u)) & 1u) ? 0xFFFFu : 0x0000u;
       }
     }
-    sl2dInst.setDisplayOn(true);
+    inst.setDisplayOn(true);
   }
 
-  gSl2d = &sl2dInst;
+  gInst = &inst;
 
   // -------------------------------------------------------------------------
   // 6. Input peripheral init
@@ -382,7 +382,7 @@ int main() {
         processSpiRingBuf();
     }
 
-    gSl2d->fillScanline(static_cast<uint16_t>(scanY), buf);
+    gInst->fillScanline(static_cast<uint16_t>(scanY), buf);
 
     queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);
 

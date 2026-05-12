@@ -1,10 +1,10 @@
 #pragma once
 
-#include <spilcd2dvi/devices/st7789.hpp>
+#include <lcdtap/devices/st7789.hpp>
 
 #include "controller_base.hpp"
 
-namespace sl2d {
+namespace lcdtap {
 
 class St7789Controller final : public ControllerBase {
  public:
@@ -20,4 +20,4 @@ class St7789Controller final : public ControllerBase {
   bool isRamWriteCommand() const override;
 };
 
-}  // namespace sl2d
+}  // namespace lcdtap

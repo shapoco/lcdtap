@@ -16,13 +16,13 @@
 #include "dvi.h"
 #include "dvi_timing.h"
 
-#include "spilcd2dvi/spilcd2dvi.hpp"
+#include "lcdtap/lcdtap.hpp"
 
 #include "config.h"
 #include "par_slave.pio.h"
 
 // =============================================================================
-// Memory pool (bump allocator for SpiLcd2Dvi)
+// Memory pool (bump allocator for LcdTap)
 // =============================================================================
 static uint8_t memPool[MEM_POOL_SIZE];
 static size_t memPoolOffset = 0;
@@ -54,16 +54,16 @@ static struct dvi_inst dvi0;
 static uint16_t *scanlineBufs[N_SCANLINE_BUFS];
 
 // =============================================================================
-// SpiLcd2Dvi instance (set after init so the RESX callback can reach it)
+// LcdTap instance (set after init so the RESX callback can reach it)
 // =============================================================================
-static sl2d::SpiLcd2Dvi *gSl2d = nullptr;
+static lcdtap::LcdTap *gInst = nullptr;
 
 // =============================================================================
 // GPIO interrupt handler  (RESX pin)
 // =============================================================================
 static void gpioIrqHandler(uint gpio, uint32_t events) {
-  if (gpio == PIN_PAR_RESX && gSl2d) {
-    gSl2d->inputReset((events & GPIO_IRQ_EDGE_FALL) != 0u);
+  if (gpio == PIN_PAR_RESX && gInst) {
+    gInst->inputReset((events & GPIO_IRQ_EDGE_FALL) != 0u);
   }
 }
 
@@ -137,7 +137,7 @@ static void spiDmaInit() {
 }
 
 // =============================================================================
-// Drain the ring buffer and feed bytes to SpiLcd2Dvi
+// Drain the ring buffer and feed bytes to LcdTap
 // =============================================================================
 static uint8_t dataBatch[DATA_BATCH_CAP];
 static size_t dataBatchLen = 0;
@@ -149,8 +149,8 @@ static void processSpiRingBuf() {
       (writeAddr - reinterpret_cast<uint32_t>(spiRingBuf)) / sizeof(uint32_t);
   writeIdx &= (SPI_RING_BUF_WORDS - 1u);
 
-  if (!gSl2d) {
-    // No SpiLcd2Dvi instance to feed; just advance the read index to "consume"
+  if (!gInst) {
+    // No LcdTap instance to feed; just advance the read index to "consume"
     // the data.
     spiReadIdx = writeIdx;
     return;
@@ -164,16 +164,16 @@ static void processSpiRingBuf() {
       // data byte
       dataBatch[dataBatchLen++] = static_cast<uint8_t>(word);
       if (dataBatchLen >= DATA_BATCH_CAP) {
-        gSl2d->inputData(dataBatch, dataBatchLen);
+        gInst->inputData(dataBatch, dataBatchLen);
         dataBatchLen = 0;
       }
     } else {
       // command byte
       if (dataBatchLen != 0) {
-        gSl2d->inputData(dataBatch, dataBatchLen);
+        gInst->inputData(dataBatch, dataBatchLen);
         dataBatchLen = 0;
       }
-      gSl2d->inputCommand(static_cast<uint8_t>(word));
+      gInst->inputCommand(static_cast<uint8_t>(word));
     }
   }
 }
@@ -208,11 +208,11 @@ int main() {
       dvi720p ? &dvi_timing_1280x720p_reduced_30hz  // 319.2 MHz bit clock
               : &dvi_timing_640x480p_60hz;          // 252.0 MHz bit clock
 
-  sl2d::ScaleMode scaleMode;
+  lcdtap::ScaleMode scaleMode;
   switch (scale & 0x3u) {
-    case 1u: scaleMode = sl2d::ScaleMode::FIT; break;
-    case 2u: scaleMode = sl2d::ScaleMode::PIXEL_PERFECT; break;
-    default: scaleMode = sl2d::ScaleMode::STRETCH; break;
+    case 1u: scaleMode = lcdtap::ScaleMode::FIT; break;
+    case 2u: scaleMode = lcdtap::ScaleMode::PIXEL_PERFECT; break;
+    default: scaleMode = lcdtap::ScaleMode::STRETCH; break;
   }
 
   // -------------------------------------------------------------------------
@@ -260,26 +260,26 @@ int main() {
   }
 
   // -------------------------------------------------------------------------
-  // 6. SpiLcd2Dvi init
+  // 6. LcdTap init
   // -------------------------------------------------------------------------
-  sl2d::Sl2dConfig sl2dCfg;
-  sl2d::getDefaultConfig(sl2d::Controller::ST7789, &sl2dCfg);
-  sl2dCfg.lcdHeight = lcdH;  // 240 or 320 selected by PIN_CFG_LCD_SIZE
-  sl2dCfg.scaleMode = scaleMode;
-  sl2dCfg.invertInvPolarity = invPolarity;
+  lcdtap::LcdTapConfig cfg;
+  lcdtap::getDefaultConfig(lcdtap::Controller::ST7789, &cfg);
+  cfg.lcdHeight = lcdH;  // 240 or 320 selected by PIN_CFG_LCD_SIZE
+  cfg.scaleMode = scaleMode;
+  cfg.invertInvPolarity = invPolarity;
 
   // Use effective (colour-buffer) dimensions, not physical DVI dimensions.
-  sl2dCfg.dviWidth = static_cast<uint16_t>(dviW);
-  sl2dCfg.dviHeight = static_cast<uint16_t>(dviH);
+  cfg.dviWidth = static_cast<uint16_t>(dviW);
+  cfg.dviHeight = static_cast<uint16_t>(dviH);
 
-  sl2d::HostInterface host;
+  lcdtap::HostInterface host;
   host.alloc = poolAlloc;
   host.free = [](void *) {};
   host.log = nullptr;
   host.userData = nullptr;
 
-  sl2d::SpiLcd2Dvi sl2dInst(sl2dCfg, host);
-  if (sl2dInst.getStatus() != sl2d::Status::OK) panic("SpiLcd2Dvi init failed");
+  lcdtap::LcdTap inst(cfg, host);
+  if (inst.getStatus() != lcdtap::Status::OK) panic("LcdTap init failed");
 
   // Fill framebuffer with 8-bar test pattern so the DVI output pipeline can
   // be verified before the SPI master sends SLPOUT + DISPON.
@@ -289,16 +289,16 @@ int main() {
     static const uint16_t kBars[8] = {
         0x0000u, 0x001Fu, 0x07E0u, 0x07FFu, 0xF800u, 0xF81Fu, 0xFFE0u, 0xFFFFu,
     };
-    uint16_t *fb = sl2dInst.getFramebuf();
+    uint16_t *fb = inst.getFramebuf();
     for (uint16_t y = 0; y < lcdH; ++y) {
       for (uint16_t x = 0; x < lcdW; ++x) {
         fb[(uint32_t)y * lcdW + x] = kBars[(uint32_t)x * 8u / lcdW];
       }
     }
-    sl2dInst.setDisplayOn(true);
+    inst.setDisplayOn(true);
   }
 
-  gSl2d = &sl2dInst;  // expose to IRQ handler
+  gInst = &inst;  // expose to IRQ handler
 
   // -------------------------------------------------------------------------
   // 7. RESX interrupt
@@ -339,7 +339,7 @@ int main() {
     }
 
     // Fill the DVI buffer directly — no intermediate copy needed.
-    gSl2d->fillScanline(static_cast<uint16_t>(scanY), buf);
+    gInst->fillScanline(static_cast<uint16_t>(scanY), buf);
 
     // Hand the filled scanline to DVI Core 1.
     queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);

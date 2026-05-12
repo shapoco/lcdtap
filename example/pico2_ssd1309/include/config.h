@@ -92,7 +92,7 @@ static constexpr int N_SCANLINE_BUFS = 4;
 static constexpr uint32_t LED_TOGGLE_FRAMES = 30u;
 
 // =============================================================================
-// Memory pool for SpiLcd2Dvi internal allocations (bump allocator)
+// Memory pool for LcdTap internal allocations (bump allocator)
 // SSD1309 framebuffer: 128x64x2 = 16 384 bytes
 // + scanline bufs (320x2x4 = 2 560) + impl (~256)
 // =============================================================================
