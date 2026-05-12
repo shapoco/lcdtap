@@ -3,7 +3,19 @@
 A library and example that receives LCD controller commands (via SPI or I2C)
 and outputs the framebuffer as a DVI-D signal.
 
-## Library: LcdTap
+## Example: Raspberry Pi Pico2
+
+### for ST7789
+
+See [example/pico2_st7789/README.md](example/pico2_st7789/README.md) for build
+instructions, pin assignment, and configuration details.
+
+### for SSD1309
+
+See [example/pico2_ssd1309/README.md](example/pico2_ssd1309/README.md) for build
+instructions, pin assignment, and configuration details.
+
+## Library usage
 
 Include the library header:
 
@@ -184,11 +196,6 @@ ST7789 command code constants are available in a separate header:
 // lcdtap::st7789::CMD_NOP, CMD_SWRESET, CMD_SLPOUT, CMD_INVOFF, CMD_INVON,
 // CMD_DISPON, CMD_CASET, CMD_RASET, CMD_RAMWR, CMD_MADCTL, CMD_COLMOD
 ```
-
-## Example: Raspberry Pi Pico2 (ST7789)
-
-See [example/pico2_st7789/README.md](example/pico2_st7789/README.md) for build
-instructions, pin assignment, and configuration details.
 
 ## License
 
