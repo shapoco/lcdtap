@@ -253,8 +253,8 @@ int main() {
   // -------------------------------------------------------------------------
   // 1. Read boot-time configuration GPIOs
   // -------------------------------------------------------------------------
-  for (uint pin : {PIN_CFG_INPUT_MODE, PIN_CFG_DVI_RES, PIN_CFG_SCALE_MODE0,
-                   PIN_CFG_SCALE_MODE1}) {
+  for (uint pin : {PIN_CFG_INPUT_MODE, PIN_CFG_DVI_RES, PIN_CFG_ROT0,
+                   PIN_CFG_ROT1}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
     gpio_pull_down(pin);
@@ -263,18 +263,11 @@ int main() {
 
   const bool useI2C = gpio_get(PIN_CFG_INPUT_MODE);
   const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
-  const uint8_t scale = static_cast<uint8_t>(
-      (gpio_get(PIN_CFG_SCALE_MODE1) << 1u) | gpio_get(PIN_CFG_SCALE_MODE0));
+  const int rot = static_cast<int>(
+      (gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
 
   const struct dvi_timing *timing =
       dvi720p ? &dvi_timing_1280x720p_reduced_30hz : &dvi_timing_640x480p_60hz;
-
-  lcdtap::ScaleMode scaleMode;
-  switch (scale & 0x3u) {
-    case 1u: scaleMode = lcdtap::ScaleMode::FIT; break;
-    case 2u: scaleMode = lcdtap::ScaleMode::PIXEL_PERFECT; break;
-    default: scaleMode = lcdtap::ScaleMode::STRETCH; break;
-  }
 
   // -------------------------------------------------------------------------
   // 2. Voltage regulator and system clock
@@ -312,7 +305,7 @@ int main() {
   // -------------------------------------------------------------------------
   lcdtap::LcdTapConfig cfg;
   lcdtap::getDefaultConfig(lcdtap::ControllerType::SSD1309, &cfg);
-  cfg.scaleMode = scaleMode;
+  cfg.scaleMode = lcdtap::ScaleMode::FIT;
   cfg.invertInvPolarity = false;  // fixed
   cfg.dviWidth = static_cast<uint16_t>(dviW);
   cfg.dviHeight = static_cast<uint16_t>(dviH);
@@ -339,6 +332,8 @@ int main() {
   }
 
   gInst = &inst;
+
+  inst.setOutputRotation(rot);  // apply boot-time rotation setting
 
   // -------------------------------------------------------------------------
   // 6. Input peripheral init
@@ -372,6 +367,7 @@ int main() {
   uint32_t scanY = 0;
   uint32_t frame = 0;
   bool led = false;
+  int currentRot = rot;
 
   while (true) {
     uint16_t *buf;
@@ -393,6 +389,13 @@ int main() {
 
     if (++scanY >= dviH) {
       scanY = 0;
+      // Check rotation GPIO and update if changed
+      int newRot = static_cast<int>(
+          (gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
+      if (newRot != currentRot) {
+        currentRot = newRot;
+        gInst->setOutputRotation(currentRot);
+      }
       if (++frame % LED_TOGGLE_FRAMES == 0u) {
         led = !led;
         gpio_put(PIN_LED, led ? 1 : 0);

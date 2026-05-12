@@ -21,8 +21,8 @@ make -j4
 | 21   | IN        | CFG: DVI output resolution select |
 | 22   | IN        | RESX — hardware reset, active-low (pull-up on board) |
 | 25   | OUT       | Onboard LED |
-| 26   | IN        | CFG: scale mode bit 0 |
-| 27   | IN        | CFG: scale mode bit 1 |
+| 26   | IN        | CFG: output rotation bit 0 |
+| 27   | IN        | CFG: output rotation bit 1 |
 | 28   | IN        | CFG: inversion polarity |
 
 The SPI signal path uses external ICs to convert the serial SPI bus into a
@@ -46,11 +46,21 @@ All configuration pins are read once at startup with internal pull-downs
 |------|--------------|-------------------------|--------------------------------|
 | 20   | LCD\_SIZE    | 240×240                 | 240×320                        |
 | 21   | DVI\_RES     | 640×480 @ 60 Hz         | 1280×720 @ 30 Hz (reduced)     |
-| 26+27 | SCALE\_MODE | 00 = STRETCH            | 01 = FIT, 10 = PIXEL\_PERFECT  |
+| 26+27 | ROT         | 00 = no rotation        | 01/10/11 = see table below     |
 | 28   | INV\_POL     | INVON → inverted        | INVON → normal (polarity flip) |
 
-`SCALE_MODE` is a 2-bit field: GPIO 27 is bit 1 (MSB) and GPIO 26 is bit 0
-(LSB).  Values: `00` = STRETCH, `01` = FIT, `10` = PIXEL_PERFECT.
+`ROT` is a 2-bit field: GPIO 27 is bit 1 (MSB) and GPIO 26 is bit 0 (LSB).
+The output rotation is re-checked every DVI frame; changes take effect on the
+next frame without restarting.
+
+| ROT value | Effect |
+|-----------|--------|
+| `00`      | No rotation (default) |
+| `01`      | 90° clockwise — aspect ratio swapped for FIT / PIXEL\_PERFECT |
+| `10`      | 180° / flip |
+| `11`      | 270° clockwise — aspect ratio swapped for FIT / PIXEL\_PERFECT |
+
+The scale mode is fixed to **FIT** (aspect-ratio-preserving letterbox / pillarbox).
 
 `INV_POL` controls how the ST7789 INVON/INVOFF commands are interpreted.
 The default (LOW) matches the ST7789 datasheet polarity.

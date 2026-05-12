@@ -187,8 +187,8 @@ int main() {
   //    Do this first, before the system clock changes, while the default
   //    125 MHz clock is running and the GPIO input synchronisers are stable.
   // -------------------------------------------------------------------------
-  for (uint pin : {PIN_CFG_LCD_SIZE, PIN_CFG_DVI_RES, PIN_CFG_SCALE_MODE0,
-                   PIN_CFG_SCALE_MODE1, PIN_CFG_INV_POL}) {
+  for (uint pin : {PIN_CFG_LCD_SIZE, PIN_CFG_DVI_RES, PIN_CFG_ROT0,
+                   PIN_CFG_ROT1, PIN_CFG_INV_POL}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
     gpio_pull_down(pin);
@@ -198,8 +198,8 @@ int main() {
   const bool lcd320 = gpio_get(PIN_CFG_LCD_SIZE);
   const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
   const bool invPolarity = gpio_get(PIN_CFG_INV_POL);
-  const uint8_t scale = static_cast<uint8_t>(
-      (gpio_get(PIN_CFG_SCALE_MODE1) << 1u) | gpio_get(PIN_CFG_SCALE_MODE0));
+  const int rot = static_cast<int>(
+      (gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
 
   const uint16_t lcdW = 240u;
   const uint16_t lcdH = lcd320 ? 320u : 240u;
@@ -207,13 +207,6 @@ int main() {
   const struct dvi_timing *timing =
       dvi720p ? &dvi_timing_1280x720p_reduced_30hz  // 319.2 MHz bit clock
               : &dvi_timing_640x480p_60hz;          // 252.0 MHz bit clock
-
-  lcdtap::ScaleMode scaleMode;
-  switch (scale & 0x3u) {
-    case 1u: scaleMode = lcdtap::ScaleMode::FIT; break;
-    case 2u: scaleMode = lcdtap::ScaleMode::PIXEL_PERFECT; break;
-    default: scaleMode = lcdtap::ScaleMode::STRETCH; break;
-  }
 
   // -------------------------------------------------------------------------
   // 2. Voltage regulator and system clock
@@ -265,7 +258,7 @@ int main() {
   lcdtap::LcdTapConfig cfg;
   lcdtap::getDefaultConfig(lcdtap::ControllerType::ST7789, &cfg);
   cfg.lcdHeight = lcdH;  // 240 or 320 selected by PIN_CFG_LCD_SIZE
-  cfg.scaleMode = scaleMode;
+  cfg.scaleMode = lcdtap::ScaleMode::FIT;
   cfg.invertInvPolarity = invPolarity;
 
   // Use effective (colour-buffer) dimensions, not physical DVI dimensions.
@@ -300,6 +293,8 @@ int main() {
 
   gInst = &inst;  // expose to IRQ handler
 
+  inst.setOutputRotation(rot);  // apply boot-time rotation setting
+
   // -------------------------------------------------------------------------
   // 7. RESX interrupt
   // -------------------------------------------------------------------------
@@ -331,6 +326,7 @@ int main() {
   uint32_t scanY = 0;
   uint32_t frame = 0;
   bool led = false;
+  int currentRot = rot;
 
   while (true) {
     uint16_t *buf;
@@ -347,6 +343,13 @@ int main() {
     // Advance scanline counter; detect frame boundary.
     if (++scanY >= dviH) {
       scanY = 0;
+      // Check rotation GPIO and update if changed
+      int newRot = static_cast<int>(
+          (gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
+      if (newRot != currentRot) {
+        currentRot = newRot;
+        gInst->setOutputRotation(currentRot);
+      }
       if (++frame % LED_TOGGLE_FRAMES == 0u) {
         led = !led;
         gpio_put(PIN_LED, led ? 1 : 0);

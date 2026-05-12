@@ -37,9 +37,9 @@ static constexpr uint PIN_CFG_LCD_SIZE = 20u;
 // LOW=640x480@60Hz / HIGH=1280x720@30Hz(reduced)
 static constexpr uint PIN_CFG_DVI_RES = 21u;
 
-// scale mode bits: 00=STRETCH 01=FIT 10=PIXEL_PERFECT
-static constexpr uint PIN_CFG_SCALE_MODE0 = 26u;
-static constexpr uint PIN_CFG_SCALE_MODE1 = 27u;
+// output rotation bits: GPIO26=rot bit0, GPIO27=rot bit1 (pull-down=0, default rot=0)
+static constexpr uint PIN_CFG_ROT0 = 26u;
+static constexpr uint PIN_CFG_ROT1 = 27u;
 
 // =============================================================================
 // Onboard LED
