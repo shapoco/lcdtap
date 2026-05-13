@@ -49,12 +49,12 @@
 
     ; --- startup sync (runs once) -------------------------------------------
     ; If BCLK is already HIGH when the SM starts, wait for it to go LOW first.
-    wait 0 gpio PAR_BCLK_PIN
+    wait 1 gpio PAR_BCLK_PIN
 
 ; ---- per-byte loop ----------------------------------------------------------
 .wrap_target
-    wait 1 gpio PAR_BCLK_PIN    ; wait for BCLK rising edge  (4th SCLK cycle)
-    wait 0 gpio PAR_BCLK_PIN    ; wait for BCLK falling edge (byte complete)
+    wait 0 gpio PAR_BCLK_PIN    ; wait for BCLK rising edge  (4th SCLK cycle)
+    wait 1 gpio PAR_BCLK_PIN    ; wait for BCLK falling edge (byte complete)
 
     ; Sample DCX before reading parallel data.
     ; JMP_PIN is configured to PIN_PAR_DCX.
