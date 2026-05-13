@@ -1,5 +1,9 @@
 # Sample program for Raspberry Pi Pico2
 
+## Schematic
+
+![](./image/schematic.png)
+
 ## Build instructions
 
 ```bash
