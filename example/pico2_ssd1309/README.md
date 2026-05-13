@@ -25,7 +25,7 @@ or GDDRAM data.
 
 SPI commands are received via a parallel conversion circuit — see
 [example/pico2\_st7789/README.md](../pico2_st7789/README.md) for the full
-description of the 74HC4094 + 74HC4040 wiring and the BCLK/DCX signal path.
+description of the 74HC595 + 74HC4040 + 74AHC1G04 wiring and the BCLK/DCX signal path.
 The pin assignment is identical to the ST7789 example.
 
 ## Pin assignment
@@ -34,9 +34,9 @@ The pin assignment is identical to the ST7789 example.
 |-------|-----------|----------|
 | 0     | IN        | I2C SDA (I2C mode only) |
 | 1     | IN        | I2C SCL (I2C mode only) |
-| 2     | IN        | BCLK — byte clock = SCLK÷8 (SPI mode, 74HC4040 Q3 output) |
+| 2     | IN        | BCLK — byte clock = SCLK÷8 (SPI mode, 74AHC1G04 output, HIGH when byte complete) |
 | 3     | IN        | DCX — D/C# signal (SPI mode, direct from SPI master) |
-| 4–11  | IN        | D[0..7] — parallel data (SPI mode, 74HC4094 Q1–Q8 outputs) |
+| 4–11  | IN        | D[0..7] — parallel data (SPI mode, 74HC595 Q1–Q8 outputs) |
 | 12–19 | OUT       | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
 | 20    | IN        | CFG: input mode select |
 | 21    | IN        | CFG: DVI output resolution select |

@@ -139,9 +139,6 @@ static void spiDmaInit() {
 // =============================================================================
 // Drain the ring buffer and feed bytes to LcdTap
 // =============================================================================
-// static uint8_t dataBatch[DATA_BATCH_CAP];
-// static size_t dataBatchLen = 0;
-
 static void processSpiRingBuf() {
   // Current write position from the DMA controller.
   uint32_t writeAddr = dma_channel_hw_addr((uint)spiDmaCh)->write_addr;

@@ -5,12 +5,12 @@
 // =============================================================================
 // Parallel slave pins (SPI mode, PIO1 SM0)
 //
-// External circuit: 74HC4094 (serial-in / parallel-out) + 74HC4040 (÷8)
-//   SPI SCLK  → 74HC4040 CP, 74HC4094 CP
-//   SPI MOSI  → 74HC4094 DS
-//   SPI CS    → 74HC4040 CLR  (active-high; holds BCLK=0 while CS de-asserted)
-//   74HC4040 Q3 → GPIO 2  (BCLK = SCLK/8)
-//   74HC4094 Q1 → GPIO 4  (D[0], LSB)  ... Q8 → GPIO 11 (D[7], MSB)
+// External circuit: 74HC595 (serial-in / parallel-out) + 74HC4040 (÷8) + 74AHC1G04 (inverter)
+//   SPI SCLK  → 74HC4040 CP, 74HC595 SRCLK
+//   SPI MOSI  → 74HC595 SER
+//   SPI CS    → 74HC4040 CLR  (active-high; holds Q3=0, BCLK=1 while CS de-asserted)
+//   74HC4040 Q3 → 74AHC1G04 → 74HC595 RCLK, GPIO 2  (BCLK = SCLK/8, HIGH when byte complete)
+//   74HC595 Q1 → GPIO 4  (D[0], LSB)  ... Q8 → GPIO 11 (D[7], MSB)
 //   DCX       → GPIO 3   (D/C# signal, direct from SPI master)
 //   RESX      → GPIO 22  (hardware reset, active low)
 // =============================================================================

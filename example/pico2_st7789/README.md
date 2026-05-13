@@ -13,9 +13,9 @@ make -j4
 
 | GPIO | Direction | Function |
 |------|-----------|----------|
-| 2    | IN        | BCLK — byte clock = SCLK÷8 (74HC4040 Q3 output) |
+| 2    | IN        | BCLK — byte clock = SCLK÷8 (74AHC1G04 output, HIGH when byte complete) |
 | 3    | IN        | DCX — D/C# signal (direct from SPI master) |
-| 4–11 | IN       | D[0..7] — parallel data (74HC4094 Q1–Q8 outputs) |
+| 4–11 | IN       | D[0..7] — parallel data (74HC595 Q1–Q8 outputs) |
 | 12–19 | OUT     | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
 | 20   | IN        | CFG: LCD size select |
 | 21   | IN        | CFG: DVI output resolution select |
@@ -28,14 +28,15 @@ make -j4
 The SPI signal path uses external ICs to convert the serial SPI bus into a
 parallel byte interface:
 
-- **74HC4094** (serial-in / parallel-out shift register): captures MOSI bits
-  on each SCLK edge and presents them as D[0..7].
-- **74HC4040** (12-stage ripple counter): divides SCLK by 8, generating BCLK —
-  one pulse per complete byte. CS (active-high) holds the counter in reset while
-  the SPI master is idle, keeping BCLK low.
-
-For clock frequencies exceeding 30 MHz, high-speed IC variants (e.g., 74HCT or
-74LVC series) are recommended to ensure reliable operation.
+- **74HC595** (serial-in / parallel-out shift register with output register):
+  captures MOSI bits on each SCLK rising edge; Q outputs are updated on RCLK
+  rising edge after the 8th SCLK clock.
+- **74HC4040** (12-stage ripple counter): divides SCLK by 8, driving the RCLK
+  input of the 74HC595.  CS (active-high) holds the counter in reset while the
+  SPI master is idle.
+- **74AHC1G04** (single inverter): inverts the 74HC4040 Q3 output to produce
+  BCLK.  BCLK is HIGH when a byte is complete (data latched) and LOW during
+  byte transfer.
 
 ## Configuration GPIOs
 

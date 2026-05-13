@@ -119,7 +119,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
   switch (pixelFormat) {
     case PixelFormat::RGB444:
       // byte0: R1[3:0] G1[3:0]  byte1: B1[3:0] R2[3:0]  byte2: G2[3:0] B2[3:0]
-      // 4bit→5bit: (x<<1)|(x>>3)  4bit→6bit: (x<<2)|(x>>2)
+      // 4bit→5bit: x<<1 (MSB-align; LSB zeroed)  4bit→6bit: x<<2 (MSB-align; lower 2 bits zeroed)
       // 残余 (0〜2 バイト) の drain
       while (ramwrBufLen > 0 && i < length) {
         ramwrBuf[ramwrBufLen++] = data[i];
