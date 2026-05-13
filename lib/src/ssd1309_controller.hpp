@@ -22,13 +22,12 @@ class Ssd1309Controller : public ControllerBase {
 
   uint16_t logicalWidth() const override;
   uint16_t logicalHeight() const override;
-  uint32_t physIndex(uint32_t lcol, uint32_t lrow) const override;
   void updateWriteCache() override;
   void softReset() override;
   void dispatchCommand(uint8_t cmd) override;
   void feedDataByte(uint8_t byte) override;
   bool isRamWriteCommand() const override;
-  void processRamwrData(const uint8_t* data, size_t length) override;
+  void processRamwrData(const uint8_t* data, uint32_t numBytes, uint32_t stride) override;
 
  private:
   void applyPageModeCol();

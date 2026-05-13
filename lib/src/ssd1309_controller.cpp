@@ -8,12 +8,11 @@ uint16_t Ssd1309Controller::logicalWidth() const { return config.lcdWidth; }
 
 uint16_t Ssd1309Controller::logicalHeight() const { return config.lcdHeight; }
 
-uint32_t Ssd1309Controller::physIndex(uint32_t lcol, uint32_t lrow) const {
-  return lrow * config.lcdWidth + lcol;
-}
-
 void Ssd1309Controller::updateWriteCache() {
-  // MONO_VPACK モードでは writePtr キャッシュは使用しない
+  cachedHOffset = 0;
+  cachedHStep = 1;
+  cachedVOffset = 0;
+  cachedVStep = config.lcdWidth;
 }
 
 void Ssd1309Controller::softReset() {
@@ -165,11 +164,12 @@ void Ssd1309Controller::feedDataByte(uint8_t /*byte*/) {}
 bool Ssd1309Controller::isRamWriteCommand() const { return true; }
 
 // MONO_VPACK: 1バイト = 縦8ピクセル (bit0=上端, bit7=下端)
-void Ssd1309Controller::processRamwrData(const uint8_t* data, size_t length) {
+void Ssd1309Controller::processRamwrData(const uint8_t* data, uint32_t length,
+                                         uint32_t stride) {
   const uint16_t lcdW = config.lcdWidth;
   const uint16_t lcdH = config.lcdHeight;
 
-  for (size_t i = 0; i < length; ++i) {
+  for (uint32_t i = 0; i < length; i += stride) {
     uint8_t byte = data[i];
 
     // 1バイト = 8行分のピクセルを縦方向に書き込む

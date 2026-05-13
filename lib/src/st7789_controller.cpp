@@ -10,27 +10,23 @@ uint16_t St7789Controller::logicalHeight() const {
   return ((madctl >> 5) & 1) ? config.lcdWidth : config.lcdHeight;
 }
 
-uint32_t St7789Controller::physIndex(uint32_t lcol, uint32_t lrow) const {
-  bool mv = (madctl >> 5) & 1;
-  bool mx = (madctl >> 6) & 1;
-  bool my = (madctl >> 7) & 1;
-  uint32_t px = mv ? lrow : lcol;
-  uint32_t py = mv ? lcol : lrow;
-  if (mx) px = config.lcdWidth - 1 - px;
-  if (my) py = config.lcdHeight - 1 - py;
-  return py * config.lcdWidth + px;
-}
-
 void St7789Controller::updateWriteCache() {
   bool mv = (madctl >> 5) & 1;
   bool mx = (madctl >> 6) & 1;
   bool my = (madctl >> 7) & 1;
   cachedBGR = (madctl >> 3) & 1;
   int32_t W = static_cast<int32_t>(config.lcdWidth);
+  int32_t H = static_cast<int32_t>(config.lcdHeight);
   if (!mv) {
+    cachedHOffset = mx ? (config.lcdWidth - 1) : 0;
     cachedHStep = mx ? -1 : +1;
+    cachedVOffset = my ? (config.lcdHeight - 1) * W : 0;
+    cachedVStep = my ? -W : +W;
   } else {
+    cachedHOffset = my ? (config.lcdHeight - 1) * W : 0;
     cachedHStep = my ? -W : +W;
+    cachedVOffset = mx ? (config.lcdWidth - 1) : 0;
+    cachedVStep = mx ? -1 : +1;
   }
   if (framebuf) writePtr = framebuf + physIndex(ramwrX, ramwrY);
 }

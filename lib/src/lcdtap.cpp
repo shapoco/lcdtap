@@ -110,40 +110,79 @@ void ControllerBase::resetCommon() {
   updateWriteCache();
 }
 
-// RGB565 値を 1 ピクセルとしてフレームバッファに書く (MADCTL BGR 考慮)
-[[gnu::always_inline]] void ControllerBase::writePixelRgb565(uint16_t px) {
-  if (cachedBGR) {  // BGR: R[15:11] と B[4:0] を入れ替える
-    uint16_t r = (px >> 11) & 0x1Fu;
-    uint16_t g = (px >> 5) & 0x3Fu;
-    uint16_t b = px & 0x1Fu;
-    px = static_cast<uint16_t>((b << 11) | (g << 5) | r);
-  }
-  *writePtr = px;
-  writePtr += cachedHStep;
-  if (++ramwrX > casetXE) {
-    ramwrX = casetXS;
-    if (++ramwrY > rasetYE) {
-      ramwrY = rasetYS;
-    }
-    writePtr = framebuf + physIndex(ramwrX, ramwrY);
-  }
-}
-
 // RAMWR データをまとめて処理する (switch(pixelFormat) をループ外に出す)
-void ControllerBase::processRamwrData(const uint8_t* data, size_t length) {
-  size_t i = 0;
+void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
+                                      uint32_t stride) {
+  int32_t i = 0;
+  int32_t length = numBytes * stride;
 
   switch (pixelFormat) {
+    case PixelFormat::RGB444:
+      // byte0: R1[3:0] G1[3:0]  byte1: B1[3:0] R2[3:0]  byte2: G2[3:0] B2[3:0]
+      // 4bit→5bit: (x<<1)|(x>>3)  4bit→6bit: (x<<2)|(x>>2)
+      // 残余 (0〜2 バイト) の drain
+      while (ramwrBufLen > 0 && i < length) {
+        ramwrBuf[ramwrBufLen++] = data[i];
+        i += stride;
+        if (ramwrBufLen == 3) {
+          uint_fast16_t b0 = ramwrBuf[0], b1 = ramwrBuf[1], b2 = ramwrBuf[2];
+          uint_fast16_t pixel0 = 0;
+          pixel0 |= (b0 << 8) & 0xF000;  // R1
+          pixel0 |= (b0 << 7) & 0x0780;  // G1
+          pixel0 |= (b1 >> 3) & 0x001E;  // B1
+          writePixelRgb565(pixel0);
+          uint_fast16_t pixel1 = 0;
+          pixel1 |= (b1 << 12) & 0xF000;  // R2
+          pixel1 |= (b2 << 3) & 0x0780;   // G2
+          pixel1 |= (b2 << 1) & 0x001E;   // B2
+          writePixelRgb565(pixel1);
+          ramwrBufLen = 0;
+        }
+      }
+      // タイトループ: 3 バイト → 2 ピクセル
+      while (i + stride * 3 <= length) {
+        uint8_t b0 = data[i];
+        i += stride;
+        uint8_t b1 = data[i];
+        i += stride;
+        uint8_t b2 = data[i];
+        i += stride;
+        uint_fast16_t pixel0 = 0;
+        pixel0 |= (b0 << 8) & 0xF000;  // R1
+        pixel0 |= (b0 << 7) & 0x0780;  // G1
+        pixel0 |= (b1 >> 3) & 0x001E;  // B1
+        writePixelRgb565(pixel0);
+        uint_fast16_t pixel1 = 0;
+        pixel1 |= (b1 << 12) & 0xF000;  // R2
+        pixel1 |= (b2 << 3) & 0x0780;   // G2
+        pixel1 |= (b2 << 1) & 0x001E;   // B2
+        writePixelRgb565(pixel1);
+      }
+      // 端数保存
+      while (i < length) {
+        ramwrBuf[ramwrBufLen++] = data[i];
+        i += stride;
+      }
+      break;
+
     case PixelFormat::RGB565:
       // 残余 1 バイトの drain
       if (ramwrBufLen == 1 && i < length) {
-        writePixelRgb565(static_cast<uint16_t>((ramwrBuf[0] << 8) | data[i++]));
+        uint_fast16_t pixel = 0;
+        pixel |= ramwrBuf[0] << 8;
+        pixel |= data[i];
+        writePixelRgb565(pixel);
+        i += stride;
         ramwrBufLen = 0;
       }
       // タイトループ: 2 バイト → 1 ピクセル (ビッグエンディアン)
-      while (i + 2 <= length) {
-        writePixelRgb565(static_cast<uint16_t>((data[i] << 8) | data[i + 1]));
-        i += 2;
+      while (i + stride * 2 <= length) {
+        uint_fast16_t pixel = 0;
+        pixel |= data[i] << 8;
+        i += stride;
+        pixel |= data[i];
+        i += stride;
+        writePixelRgb565(pixel);
       }
       // 端数保存
       if (i < length) {
@@ -152,75 +191,52 @@ void ControllerBase::processRamwrData(const uint8_t* data, size_t length) {
       }
       break;
 
-    case PixelFormat::RGB444:
-      // byte0: R1[3:0] G1[3:0]  byte1: B1[3:0] R2[3:0]  byte2: G2[3:0] B2[3:0]
-      // 4bit→5bit: (x<<1)|(x>>3)  4bit→6bit: (x<<2)|(x>>2)
-      // 残余 (0〜2 バイト) の drain
-      while (ramwrBufLen > 0 && i < length) {
-        ramwrBuf[ramwrBufLen++] = data[i++];
-        if (ramwrBufLen == 3) {
-          uint8_t b0 = ramwrBuf[0], b1 = ramwrBuf[1], b2 = ramwrBuf[2];
-          uint8_t r1 = b0 >> 4, g1 = b0 & 0xFu, b1v = b1 >> 4;
-          uint8_t r2 = b1 & 0xFu, g2 = b2 >> 4, b2v = b2 & 0xFu;
-          writePixelRgb565(static_cast<uint16_t>(
-              ((uint16_t)(r1 << 1 | r1 >> 3) << 11) |
-              ((uint16_t)(g1 << 2 | g1 >> 2) << 5) | (b1v << 1 | b1v >> 3)));
-          writePixelRgb565(static_cast<uint16_t>(
-              ((uint16_t)(r2 << 1 | r2 >> 3) << 11) |
-              ((uint16_t)(g2 << 2 | g2 >> 2) << 5) | (b2v << 1 | b2v >> 3)));
-          ramwrBufLen = 0;
-        }
-      }
-      // タイトループ: 3 バイト → 2 ピクセル
-      while (i + 3 <= length) {
-        uint8_t b0 = data[i], b1 = data[i + 1], b2 = data[i + 2];
-        i += 3;
-        uint8_t r1 = b0 >> 4, g1 = b0 & 0xFu, b1v = b1 >> 4;
-        uint8_t r2 = b1 & 0xFu, g2 = b2 >> 4, b2v = b2 & 0xFu;
-        writePixelRgb565(static_cast<uint16_t>(
-            ((uint16_t)(r1 << 1 | r1 >> 3) << 11) |
-            ((uint16_t)(g1 << 2 | g1 >> 2) << 5) | (b1v << 1 | b1v >> 3)));
-        writePixelRgb565(static_cast<uint16_t>(
-            ((uint16_t)(r2 << 1 | r2 >> 3) << 11) |
-            ((uint16_t)(g2 << 2 | g2 >> 2) << 5) | (b2v << 1 | b2v >> 3)));
-      }
-      // 端数保存
-      while (i < length) ramwrBuf[ramwrBufLen++] = data[i++];
-      break;
-
     case PixelFormat::RGB666:
       // 各バイト上位 6bit が有効 (下位 2bit = 0)
       // R5 = byte0>>3, G6 = byte1>>2, B5 = byte2>>3 で直接 RGB565 に変換できる
       // 残余 (0〜2 バイト) の drain
       while (ramwrBufLen > 0 && i < length) {
-        ramwrBuf[ramwrBufLen++] = data[i++];
+        ramwrBuf[ramwrBufLen++] = data[i];
+        i += stride;
         if (ramwrBufLen == 3) {
-          writePixelRgb565(static_cast<uint16_t>(
-              ((uint16_t)(ramwrBuf[0] & 0xF8u) << 8) |
-              ((uint16_t)(ramwrBuf[1] & 0xFCu) << 3) | (ramwrBuf[2] >> 3)));
+          uint_fast16_t pixel = 0;
+          pixel |= (ramwrBuf[0] & 0xFCu) << 8;  // R5
+          pixel |= (ramwrBuf[1] & 0xFCu) << 3;  // G6
+          pixel |= (ramwrBuf[2] & 0xFCu) >> 3;  // B5
+          writePixelRgb565(static_cast<uint16_t>(pixel));
           ramwrBufLen = 0;
         }
       }
       // タイトループ: 3 バイト → 1 ピクセル
-      while (i + 3 <= length) {
-        writePixelRgb565(static_cast<uint16_t>(
-            ((uint16_t)(data[i] & 0xF8u) << 8) |
-            ((uint16_t)(data[i + 1] & 0xFCu) << 3) | (data[i + 2] >> 3)));
-        i += 3;
+      while (i + stride * 3 <= length) {
+        uint_fast16_t pixel = 0;
+        pixel |= (data[i] & 0xFCu) << 8;  // R5
+        i += stride;
+        pixel |= (data[i] & 0xFCu) << 3;  // G6
+        i += stride;
+        pixel |= (data[i] & 0xFCu) >> 3;  // B5
+        i += stride;
+        writePixelRgb565(static_cast<uint16_t>(pixel));
       }
       // 端数保存
-      while (i < length) ramwrBuf[ramwrBufLen++] = data[i++];
+      while (i < length) {
+        ramwrBuf[ramwrBufLen++] = data[i];
+        i += stride;
+      }
       break;
   }
 }
 
 // データバイト列の処理: RAMWR は一括、それ以外は 1 バイトずつ
-[[gnu::always_inline]] void ControllerBase::feedData(const uint8_t* data,
-                                                     size_t length) {
+void ControllerBase::feedData(const uint8_t* data, uint32_t numBytes,
+                              uint32_t stride) {
+  if (stride == 0) stride = 1;  // 安全のため
   if (isRamWriteCommand()) {
-    processRamwrData(data, length);
+    processRamwrData(data, numBytes, stride);
   } else {
-    for (size_t i = 0; i < length; ++i) feedDataByte(data[i]);
+    for (uint32_t i = 0; i < numBytes * stride; i += stride) {
+      feedDataByte(data[i]);
+    }
   }
 }
 
@@ -300,11 +316,12 @@ void LcdTap::inputCommand(uint8_t byte) {
   ctrl->dispatchCommand(byte);
 }
 
-void LcdTap::inputData(const uint8_t* data, size_t length) {
+void LcdTap::inputData(const uint8_t* data, uint32_t numBytes,
+                       uint32_t stride) {
   if (!impl_) return;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || ctrl->hwReset) return;
-  ctrl->feedData(data, length);
+  ctrl->feedData(data, numBytes, stride);
 }
 
 void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
@@ -322,8 +339,8 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   }
 
   // 垂直マッピング: 固定小数点乗算で LCD 行を求める
-  const uint16_t lcdRowOut = static_cast<uint16_t>(
-      ((uint32_t)(dviLine - ctrl->displayY) * ctrl->vStep) >> 16);
+  const uint32_t lcdRowOut =
+      ((uint32_t)(dviLine - ctrl->displayY) * ctrl->vStep) >> 16;
 
   uint16_t* d = dst;
 
@@ -335,8 +352,8 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   // 反転: RGB565 全ビット XOR → (31-R, 63-G, 31-B) で各チャネル反転
   const uint16_t inv = ctrl->inverted ? 0xFFFFu : 0u;
   const uint16_t* fb = ctrl->framebuf;
-  const uint16_t physW = ctrl->config.lcdWidth;
-  const uint16_t physH = ctrl->config.lcdHeight;
+  const uint32_t physW = ctrl->config.lcdWidth;
+  const uint32_t physH = ctrl->config.lcdHeight;
   uint32_t hAccum = 0;
 
   switch (ctrl->outputRotation) {

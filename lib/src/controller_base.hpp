@@ -54,7 +54,8 @@ class ControllerBase {
 
   // RAMWR 書き込みキャッシュ (updateWriteCache() で更新)
   bool cachedBGR;
-  int32_t cachedHStep;
+  int32_t cachedHOffset, cachedHStep;
+  int32_t cachedVOffset, cachedVStep;
   uint16_t* writePtr;
 
   // --- コントローラ固有の virtual インタフェース ---
@@ -64,7 +65,10 @@ class ControllerBase {
   virtual uint16_t logicalHeight() const = 0;
 
   // 論理座標 → 物理バッファインデックス
-  virtual uint32_t physIndex(uint32_t lcol, uint32_t lrow) const = 0;
+  [[gnu::always_inline]] uint32_t physIndex(uint32_t lcol, uint32_t lrow) {
+    return lcol * cachedHStep + cachedHOffset + lrow * cachedVStep +
+           cachedVOffset;
+  }
 
   // MADCTL 変更・RAMWR 開始時にキャッシュを更新する
   virtual void updateWriteCache() = 0;
@@ -94,14 +98,29 @@ class ControllerBase {
   void resetCommon();
 
   // RGB565 値を 1 ピクセルとしてフレームバッファに書く (MADCTL BGR 考慮)
-  void writePixelRgb565(uint16_t px);
-
+  [[gnu::always_inline]] void writePixelRgb565(uint16_t px) {
+    if (cachedBGR) {  // BGR: R[15:11] と B[4:0] を入れ替える
+      uint16_t r = (px >> 11) & 0x1Fu;
+      uint16_t g = (px >> 5) & 0x3Fu;
+      uint16_t b = px & 0x1Fu;
+      px = static_cast<uint16_t>((b << 11) | (g << 5) | r);
+    }
+    *writePtr = px;
+    writePtr += cachedHStep;
+    if (++ramwrX > casetXE) {
+      ramwrX = casetXS;
+      if (++ramwrY > rasetYE) {
+        ramwrY = rasetYS;
+      }
+      writePtr = framebuf + physIndex(ramwrX, ramwrY);
+    }
+  }
   // RAMWR データをまとめて処理する (switch(pixelFormat) をループ外に出す)
   // 派生クラスで独自フォーマットを処理する場合はオーバーライドする
-  virtual void processRamwrData(const uint8_t* data, size_t length);
+  virtual void processRamwrData(const uint8_t* data, uint32_t numBytes, uint32_t stride);
 
   // データバイト列の処理: RAMWR は一括、それ以外は 1 バイトずつ
-  void feedData(const uint8_t* data, size_t length);
+  void feedData(const uint8_t* data, uint32_t numBytes, uint32_t stride = 1);
 };
 
 }  // namespace lcdtap

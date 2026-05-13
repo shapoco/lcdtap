@@ -114,7 +114,7 @@ class LcdTap {
   void inputCommand(uint8_t byte);
 
   // データバイト列入力 (D/CX=High)
-  void inputData(const uint8_t* data, size_t length);
+  void inputData(const uint8_t* data, uint32_t numBytes, uint32_t stride = 1);
 
   //--- DVI 出力 ---
 

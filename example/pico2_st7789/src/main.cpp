@@ -139,8 +139,8 @@ static void spiDmaInit() {
 // =============================================================================
 // Drain the ring buffer and feed bytes to LcdTap
 // =============================================================================
-static uint8_t dataBatch[DATA_BATCH_CAP];
-static size_t dataBatchLen = 0;
+// static uint8_t dataBatch[DATA_BATCH_CAP];
+// static size_t dataBatchLen = 0;
 
 static void processSpiRingBuf() {
   // Current write position from the DMA controller.
@@ -156,25 +156,34 @@ static void processSpiRingBuf() {
     return;
   }
 
+  uint32_t dataStart = spiReadIdx;
   while (spiReadIdx != writeIdx) {
+    uint32_t lastReadIdx = spiReadIdx;
     uint32_t word = spiRingBuf[spiReadIdx];
     spiReadIdx = (spiReadIdx + 1u) & (SPI_RING_BUF_WORDS - 1u);
 
     if (word & 0x100u) {
-      // data byte
-      dataBatch[dataBatchLen++] = static_cast<uint8_t>(word);
-      if (dataBatchLen >= DATA_BATCH_CAP) {
-        gInst->inputData(dataBatch, dataBatchLen);
-        dataBatchLen = 0;
+      if (spiReadIdx == 0) {
+        gInst->inputData((uint8_t *)&spiRingBuf[dataStart],
+                         (SPI_RING_BUF_WORDS - dataStart), sizeof(uint32_t));
+        dataStart = 0;
       }
     } else {
       // command byte
-      if (dataBatchLen != 0) {
-        gInst->inputData(dataBatch, dataBatchLen);
-        dataBatchLen = 0;
+      uint32_t dataLen = lastReadIdx - dataStart;
+      if (dataLen != 0) {
+        gInst->inputData((uint8_t *)&spiRingBuf[dataStart], dataLen,
+                         sizeof(uint32_t));
       }
       gInst->inputCommand(static_cast<uint8_t>(word));
+      dataStart = spiReadIdx;
     }
+  }
+
+  uint32_t dataLen = spiReadIdx - dataStart;
+  if (dataLen != 0) {
+    gInst->inputData((uint8_t *)&spiRingBuf[dataStart], dataLen,
+                     sizeof(uint32_t));
   }
 }
 
@@ -198,8 +207,8 @@ int main() {
   const bool lcd320 = gpio_get(PIN_CFG_LCD_SIZE);
   const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
   const bool invPolarity = gpio_get(PIN_CFG_INV_POL);
-  const int rot = static_cast<int>(
-      (gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
+  const int rot =
+      static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
 
   const uint16_t lcdW = 240u;
   const uint16_t lcdH = lcd320 ? 320u : 240u;
@@ -344,8 +353,8 @@ int main() {
     if (++scanY >= dviH) {
       scanY = 0;
       // Check rotation GPIO and update if changed
-      int newRot = static_cast<int>(
-          (gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
+      int newRot = static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) |
+                                    gpio_get(PIN_CFG_ROT0));
       if (newRot != currentRot) {
         currentRot = newRot;
         gInst->setOutputRotation(currentRot);
