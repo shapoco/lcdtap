@@ -1,5 +1,11 @@
 # Sample program for Raspberry Pi Pico2 — SSD1306
 
+## Schematic
+
+![](./image/schematic.png)
+
+
+
 ## Build instructions
 
 ```bash
