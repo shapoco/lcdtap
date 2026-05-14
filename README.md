@@ -15,6 +15,10 @@ instructions, pin assignment, and configuration details.
 See [example/pico2_ssd1306/README.md](example/pico2_ssd1306/README.md) for build
 instructions, pin assignment, and configuration details.
 
+## Download Binary
+
+See [releases](https://github.com/shapoco/lcdtap/releases) for pre-built UF2 binaries.
+
 ## Library usage
 
 Include the library header:
