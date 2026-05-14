@@ -70,7 +70,7 @@ void St7789Controller::dispatchCommand(uint8_t cmd) {
       ramwrBufLen = 0;
       updateWriteCache();
       break;
-    // CMD_MADCTL / CMD_COLMOD / CMD_CASET / CMD_RASET はデータバイトを待つ
+    // CMD_MADCTL / CMD_COLMOD / CMD_CASET / CMD_RASET wait for data bytes
     default: break;
   }
 }
@@ -95,7 +95,7 @@ void St7789Controller::feedDataByte(uint8_t byte) {
           pixelFormat = PixelFormat::RGB565;
         else if (fmt == 0x06u)
           pixelFormat = PixelFormat::RGB666;
-        ramwrBufLen = 0;  // フォーマット変更でバッファリセット
+        ramwrBufLen = 0;  // reset buffer on format change
         log("COLMOD");
       }
       ++cmdDataLen;

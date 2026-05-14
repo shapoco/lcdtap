@@ -5,101 +5,101 @@
 
 namespace lcdtap {
 
-// ControllerBase — 共通内部実装基底クラス (PIMPL 実体)
+// ControllerBase — Common internal implementation base class (PIMPL body)
 //
-// フレームバッファを持ち、矩形アドレッシング (CASET/RASET) + RAMWR 方式で
-// 制御されるディスプレイコントローラ共通の状態と処理を保持する。
-// コントローラ固有の部分 (コマンドコード・MADCTL 等) は派生クラスで実装する。
+// Holds the common state and logic for display controllers that have a
+// framebuffer and are driven by rectangle addressing (CASET/RASET) + RAMWR.
+// Controller-specific parts (command codes, MADCTL, etc.) are implemented
+// in derived classes.
 class ControllerBase {
  public:
   virtual ~ControllerBase() = default;
 
-  // --- 共通設定・状態 ---
+  // --- Common configuration and state ---
   LcdTapConfig config;
   HostInterface host;
   Status status;
   bool hwReset;
 
-  uint16_t* framebuf;  // lcdWidth × lcdHeight × sizeof(uint16_t) の RGB565
+  uint16_t* framebuf;  // lcdWidth × lcdHeight × sizeof(uint16_t) RGB565 buffer
 
-  // 表示制御状態
+  // Display control state
   bool sleeping;
   bool displayOn;
   bool inverted;
   PixelFormat pixelFormat;
 
-  // コマンドステートマシン
+  // Command state machine
   uint8_t currentCmd;
-  uint8_t cmdDataLen;  // 現コマンドで受け取ったデータバイト数
+  uint8_t cmdDataLen;  // number of data bytes received for the current command
 
-  // RAMWR アドレッシング
-  uint16_t casetXS;  // CASET 開始列 (論理座標)
-  uint16_t casetXE;  // CASET 終了列 (論理座標、inclusive)
-  uint16_t rasetYS;  // RASET 開始行 (論理座標)
-  uint16_t rasetYE;  // RASET 終了行 (論理座標、inclusive)
-  uint16_t ramwrX;   // 現在の書き込み位置 X (論理座標)
-  uint16_t ramwrY;   // 現在の書き込み位置 Y (論理座標)
+  // RAMWR addressing
+  uint16_t casetXS;  // CASET start column (logical coordinate)
+  uint16_t casetXE;  // CASET end column   (logical coordinate, inclusive)
+  uint16_t rasetYS;  // RASET start row    (logical coordinate)
+  uint16_t rasetYE;  // RASET end row      (logical coordinate, inclusive)
+  uint16_t ramwrX;   // current write position X (logical coordinate)
+  uint16_t ramwrY;   // current write position Y (logical coordinate)
   uint8_t
-      ramwrBuf[3];  // 半端バイト蓄積 / コマンドデータ一時格納 (最大 3 バイト)
+      ramwrBuf[3];  // partial-byte accumulation / command data temp (up to 3 bytes)
   uint8_t ramwrBufLen;
 
-  // スケーリングパラメータ (コンストラクタで計算済み)
-  uint16_t displayX;  // DVI 上の LCD 表示領域 開始 X 座標
-  uint16_t displayY;  // DVI 上の LCD 表示領域 開始 Y 座標
-  uint16_t displayW;  // DVI 上の LCD 表示領域の幅
-  uint16_t displayH;  // DVI 上の LCD 表示領域の高さ
-  uint32_t hStep;  // 水平固定小数点ステップ (16.16 形式: lcdW<<16 / displayW)
-  uint32_t vStep;  // 垂直固定小数点ステップ (16.16 形式: lcdH<<16 / displayH)
-  uint8_t outputRotation;  // 出力回転 0..3 (0:なし, 1:90°CW, 2:180°, 3:270°CW)
+  // Scaling parameters (computed in the constructor)
+  uint16_t displayX;  // LCD display area start X on DVI
+  uint16_t displayY;  // LCD display area start Y on DVI
+  uint16_t displayW;  // LCD display area width on DVI
+  uint16_t displayH;  // LCD display area height on DVI
+  uint32_t hStep;  // horizontal fixed-point step (16.16 format: lcdW<<16 / displayW)
+  uint32_t vStep;  // vertical   fixed-point step (16.16 format: lcdH<<16 / displayH)
+  uint8_t outputRotation;  // output rotation 0..3 (0:none, 1:90°CW, 2:180°, 3:270°CW)
 
-  // RAMWR 書き込みキャッシュ (updateWriteCache() で更新)
+  // RAMWR write cache (updated by updateWriteCache())
   bool cachedBGR;
   int32_t cachedHOffset, cachedHStep;
   int32_t cachedVOffset, cachedVStep;
   uint16_t* writePtr;
 
-  // --- コントローラ固有の virtual インタフェース ---
+  // --- Controller-specific virtual interface ---
 
-  // MADCTL MV を考慮した論理幅/高さ
+  // Logical width/height taking MADCTL MV into account
   virtual uint16_t logicalWidth() const = 0;
   virtual uint16_t logicalHeight() const = 0;
 
-  // 論理座標 → 物理バッファインデックス
+  // Logical coordinates → physical buffer index
   [[gnu::always_inline]] uint32_t physIndex(uint32_t lcol, uint32_t lrow) {
     return lcol * cachedHStep + cachedHOffset + lrow * cachedVStep +
            cachedVOffset;
   }
 
-  // MADCTL 変更・RAMWR 開始時にキャッシュを更新する
+  // Update cache on MADCTL change or RAMWR start
   virtual void updateWriteCache() = 0;
 
-  // ソフトリセット (コントローラ固有レジスタを初期化してから resetCommon()
-  // を呼ぶ)
+  // Soft reset (initialise controller-specific registers, then call resetCommon())
   virtual void softReset() = 0;
 
-  // コマンドバイト処理
+  // Process a command byte
   virtual void dispatchCommand(uint8_t cmd) = 0;
 
-  // RAMWR 以外のコマンドデータバイト処理
+  // Process a non-RAMWR command data byte
   virtual void feedDataByte(uint8_t byte) = 0;
 
-  // 現コマンドが RAM 書き込み (RAMWR 相当) かどうか
+  // Returns true if the current command is a RAM write (RAMWR equivalent)
   virtual bool isRamWriteCommand() const = 0;
 
-  // --- 共通実装 ---
+  // --- Common implementation ---
 
-  // スケーリングパラメータの計算 (コンストラクタ内で呼ぶ)
+  // Compute scaling parameters (call inside the constructor)
   void calcScaleParams();
 
-  // ログ出力ヘルパー
+  // Log output helper
   void log(const char* msg) const;
 
-  // 共通フィールドのリセット (派生クラスの softReset() から呼ぶ)
+  // Reset common fields (called from the derived class softReset())
   void resetCommon();
 
-  // RGB565 値を 1 ピクセルとしてフレームバッファに書く (MADCTL BGR 考慮)
+  // Write one RGB565 pixel to the framebuffer (respects MADCTL BGR)
   [[gnu::always_inline]] void writePixelRgb565(uint16_t px) {
-    if (cachedBGR) {  // BGR: R[15:11] と B[4:0] を入れ替える
+    if (cachedBGR) {  // BGR: swap R[15:11] and B[4:0]
       uint16_t r = (px >> 11) & 0x1Fu;
       uint16_t g = (px >> 5) & 0x3Fu;
       uint16_t b = px & 0x1Fu;
@@ -115,11 +115,11 @@ class ControllerBase {
       writePtr = framebuf + physIndex(ramwrX, ramwrY);
     }
   }
-  // RAMWR データをまとめて処理する (switch(pixelFormat) をループ外に出す)
-  // 派生クラスで独自フォーマットを処理する場合はオーバーライドする
+  // Process all RAMWR data at once (moves switch(pixelFormat) outside the loop)
+  // Override in derived classes to handle custom formats.
   virtual void processRamwrData(const uint8_t* data, uint32_t numBytes, uint32_t stride);
 
-  // データバイト列の処理: RAMWR は一括、それ以外は 1 バイトずつ
+  // Process a data byte stream: RAMWR data is handled in bulk, others byte by byte
   void feedData(const uint8_t* data, uint32_t numBytes, uint32_t stride = 1);
 };
 

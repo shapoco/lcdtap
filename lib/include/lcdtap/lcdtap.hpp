@@ -12,17 +12,17 @@
 namespace lcdtap {
 
 //=============================================================================
-// ステータスコード
+// Status codes
 //=============================================================================
 enum class Status : int {
   OK = 0,
-  INVALID_PARAM,  // config に不正な値がある
-  OUT_OF_MEMORY,  // alloc() が nullptr を返した
-  NOT_READY,      // コンストラクタ失敗後に操作を呼んだ
+  INVALID_PARAM,  // a field in config has an invalid value
+  OUT_OF_MEMORY,  // alloc() returned nullptr
+  NOT_READY,      // an operation was called after a constructor failure
 };
 
 //=============================================================================
-// LCDコントローラの種類
+// LCD controller type
 //=============================================================================
 enum class ControllerType : uint8_t {
   ST7789,
@@ -30,131 +30,131 @@ enum class ControllerType : uint8_t {
 };
 
 //=============================================================================
-// ピクセルフォーマット (SPI 入力側 — COLMOD 相当)
+// Pixel format (SPI input side — COLMOD equivalent)
 //=============================================================================
 enum class PixelFormat : uint8_t {
-  MONO_VPACK = 0x00,  // 1bpp モノクロ縦8ピクセルパック (SSD1309)
+  MONO_VPACK = 0x00,  // 1bpp monochrome vertical 8-pixel pack (SSD1309)
   RGB444 = 0x03,      // 12bpp
   RGB565 = 0x05,      // 16bpp
   RGB666 = 0x06,      // 18bpp
 };
 
 //=============================================================================
-// スケーリングモード (LCD 解像度 ≠ DVI アクティブ領域の場合)
+// Scaling mode (when LCD resolution differs from DVI active area)
 //=============================================================================
 enum class ScaleMode : uint8_t {
-  STRETCH,  // DVI 全体に引き伸ばす (アスペクト比無視)
-  FIT,  // アスペクト比を保ってレターボックス/ピラーボックス表示
-  PIXEL_PERFECT,  // 整数倍で拡大、余白は黒
+  STRETCH,       // Stretch to fill the full DVI area (ignores aspect ratio)
+  FIT,           // Letterbox/pillarbox to preserve aspect ratio
+  PIXEL_PERFECT, // Scale by integer factor; black padding around the image
 };
 
 //=============================================================================
-// 設定構造体
+// Configuration structure
 //=============================================================================
 struct LcdTapConfig {
-  // --- LCDコントローラ ---
+  // --- LCD controller ---
   ControllerType controller;
 
-  // --- SPI 入力 (LCD) 側 ---
+  // --- SPI input (LCD) side ---
   uint16_t lcdWidth;
   uint16_t lcdHeight;
-  PixelFormat pixelFormat;  // 初期ピクセルフォーマット (COLMOD で変更可)
+  PixelFormat pixelFormat;  // Initial pixel format (can be changed via COLMOD)
 
-  // --- DVI 出力側 ---
-  uint16_t dviWidth;   // DVI アクティブ領域の幅 (ピクセル)
-  uint16_t dviHeight;  // DVI アクティブ領域の高さ (ライン)
+  // --- DVI output side ---
+  uint16_t dviWidth;   // DVI active area width (pixels)
+  uint16_t dviHeight;  // DVI active area height (lines)
   ScaleMode scaleMode;
 
-  bool invertInvPolarity;  // true: INVON→非反転 / INVOFF→反転
+  bool invertInvPolarity;  // true: INVON→non-inverted / INVOFF→inverted
 };
 
 //=============================================================================
-// ホストインタフェース
+// Host interface
 //=============================================================================
 struct HostInterface {
-  // --- メモリ管理 (必須) ---
-  // フレームバッファの確保/解放に使用する。
-  // PSRAM 等の外部メモリに確保したい場合に独自のアロケータを渡す。
+  // --- Memory management (required) ---
+  // Used for framebuffer allocation/deallocation.
+  // Pass a custom allocator if you need to allocate in external memory (e.g. PSRAM).
   void* (*alloc)(size_t size);
   void (*free)(void* ptr);
 
-  // --- 通知コールバック (省略可、nullptr 可) ---
+  // --- Notification callbacks (optional; nullptr to disable) ---
 
-  // デバッグログ出力 (nullptr なら無効)
+  // Debug log output (disabled when nullptr)
   void (*log)(void* userData, const char* message);
 
   void* userData;
 };
 
 //=============================================================================
-// デフォルト設定の取得
-// 指定したコントローラ向けのデフォルト値を cfg に書き込む。
-// 必要に応じてフィールドを上書きして LcdTap のコンストラクタに渡す。
+// Get default configuration
+// Writes default values for the specified controller into cfg.
+// Override fields as needed before passing to the LcdTap constructor.
 //=============================================================================
 void getDefaultConfig(ControllerType type, LcdTapConfig* cfg);
 
 //=============================================================================
-// メインクラス
+// Main class
 //=============================================================================
 class LcdTap {
  public:
   LcdTap(const LcdTapConfig& config, const HostInterface& host);
   ~LcdTap();
 
-  // コンストラクタ失敗時の状態確認
+  // Check status after a constructor failure
   Status getStatus() const;
 
-  //--- SPI 入力 ---
+  //--- SPI input ---
 
-  // ハードウェアリセット信号入力 (RESX ピン相当)
-  // assert=true でリセット状態、false で解除
+  // Hardware reset signal input (equivalent to RESX pin)
+  // assert=true: hold in reset; false: release reset
   void inputReset(bool assert);
 
-  // コマンドバイト入力 (D/CX=Low)
+  // Command byte input (D/CX=Low)
   void inputCommand(uint8_t byte);
 
-  // データバイト列入力 (D/CX=High)
+  // Data byte stream input (D/CX=High)
   void inputData(const uint8_t* data, uint32_t numBytes, uint32_t stride = 1);
 
-  //--- DVI 出力 ---
+  //--- DVI output ---
 
-  // 指定ライン番号のピクセルデータを dst に書き込む。
-  // フォーマット: RGB565 (1 ピクセル = uint16_t、R[15:11] G[10:5] B[4:0])
-  // line の範囲: 0 .. dviHeight - 1 (DVI 座標系)
-  // スケーリングはライブラリ内部で処理済み。
-  // dst は dviWidth 個の uint16_t を格納できる領域を指すこと。
+  // Writes pixel data for the specified line number into dst.
+  // Format: RGB565 (1 pixel = uint16_t, R[15:11] G[10:5] B[4:0])
+  // line range: 0 .. dviHeight - 1 (DVI coordinate system)
+  // Scaling is handled internally by the library.
+  // dst must point to a buffer that can hold dviWidth uint16_t values.
   void fillScanline(uint16_t line, uint16_t* dst) const;
 
-  // ディスプレイ出力の回転設定。
-  // rot=0: 従来通り (デフォルト)
-  // rot=1: 時計回り 90° 回転。FIT/PIXEL_PERFECT ではアスペクト比が
-  // 縦横入れ替わる。
-  // rot=2: 上下左右反転。アスペクト比は変化しない。
-  // rot=3: 時計回り 270° 回転。FIT/PIXEL_PERFECT
-  // ではアスペクト比が縦横入れ替わる。
-  // コントローラの内部状態には影響しない。
-  // fillScanline の読み出しパターンのみ変わる。
+  // Set display output rotation.
+  // rot=0: no rotation (default)
+  // rot=1: 90° clockwise. With FIT/PIXEL_PERFECT the aspect ratio is
+  // transposed.
+  // rot=2: 180° rotation. Aspect ratio is unchanged.
+  // rot=3: 270° clockwise. With FIT/PIXEL_PERFECT
+  // the aspect ratio is transposed.
+  // Does not affect the controller's internal state.
+  // Only the readout pattern of fillScanline() changes.
   void setOutputRotation(int rot);
 
-  //--- テスト / デバッグ用 ---
+  //--- Test / debug ---
 
-  // フレームバッファへの直接書き込みポインタを返す。
-  // フォーマット: lcdWidth × lcdHeight × sizeof(uint16_t) バイト
-  //              (行優先 RGB565、MADCTL 変換なし)。
+  // Returns a direct write pointer to the framebuffer.
+  // Format: lcdWidth × lcdHeight × sizeof(uint16_t) bytes
+  //         (row-major RGB565, without MADCTL transform).
   uint16_t* getFramebuf();
 
-  // スリープ/表示オン状態を強制設定する。
-  // on=true: sleeping=false かつ displayOn=true にして fillScanline()
-  // を黒以外にする。 on=false: sleeping=true にして黒画面に戻す。 SPI
-  // マスターから SLPOUT/DISPON
-  // を受け取る前にテストパターンを表示したい場合に使用。
+  // Force-set the sleep/display-on state.
+  // on=true: sets sleeping=false and displayOn=true, making fillScanline()
+  // return non-black pixels. on=false: sets sleeping=true and returns a black screen.
+  // Use this when you want to display a test pattern before the SPI master sends
+  // SLPOUT/DISPON.
   void setDisplayOn(bool on);
 
  private:
   LcdTap(const LcdTap&) = delete;
   LcdTap& operator=(const LcdTap&) = delete;
 
-  void* impl_;  // 内部実装を隠蔽 (PIMPL)
+  void* impl_;  // Hides internal implementation (PIMPL)
 };
 
 }  // namespace lcdtap

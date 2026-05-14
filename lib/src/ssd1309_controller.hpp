@@ -4,21 +4,21 @@
 
 namespace lcdtap {
 
-// SSD1309 コントローラ実装
+// SSD1309 controller implementation
 //
-// ST7789 との主な差異:
-// - DCX=0 バイトがコマンド本体とパラメータ両方を担う
-// - DCX=1 バイトは常に GDDRAM データ (MONO_VPACK: 1バイト=縦8ピクセル)
-// - RAMWR 相当の明示コマンドはなく isRamWriteCommand() は常に true
-// - アドレッシングはページベース (水平/垂直/ページの3モード)
+// Key differences from ST7789:
+// - DCX=0 bytes carry both commands and their parameters
+// - DCX=1 bytes are always GDDRAM data (MONO_VPACK: 1 byte = vertical 8 pixels)
+// - There is no explicit RAMWR command; isRamWriteCommand() always returns true
+// - Addressing is page-based (horizontal / vertical / page modes)
 class Ssd1309Controller : public ControllerBase {
  public:
-  uint8_t ssdAddrMode;     // 0=水平, 1=垂直, 2=ページ (デフォルト)
-  bool ssdSegmentRemap;    // true=A1 (col127→SEG0, 水平反転)
-  bool ssdComFlip;         // true=C8 (COM63→COM0, 垂直反転)
-  uint8_t expectedParams;  // 現コマンドの残りパラメータバイト数
-  uint8_t pageColLow;      // ページモード列アドレス 下位ニブル
-  uint8_t pageColHigh;     // ページモード列アドレス 上位ニブル
+  uint8_t ssdAddrMode;     // 0=horizontal, 1=vertical, 2=page (default)
+  bool ssdSegmentRemap;    // true=A1 (col127→SEG0, horizontal flip)
+  bool ssdComFlip;         // true=C8 (COM63→COM0, vertical flip)
+  uint8_t expectedParams;  // remaining parameter bytes for the current command
+  uint8_t pageColLow;      // page mode column address lower nibble
+  uint8_t pageColHigh;     // page mode column address upper nibble
 
   uint16_t logicalWidth() const override;
   uint16_t logicalHeight() const override;

@@ -39,13 +39,13 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
 }
 
 //=============================================================================
-// ControllerBase 共通実装
+// ControllerBase common implementation
 //=============================================================================
 
 void ControllerBase::calcScaleParams() {
   uint16_t dviW = config.dviWidth;
   uint16_t dviH = config.dviHeight;
-  // rot=1,3 では LCD の縦横が入れ替わって見える
+  // rot=1,3: LCD width and height appear swapped
   uint16_t lcdW = ((outputRotation & 1) ? config.lcdHeight : config.lcdWidth);
   uint16_t lcdH = ((outputRotation & 1) ? config.lcdWidth : config.lcdHeight);
 
@@ -58,7 +58,7 @@ void ControllerBase::calcScaleParams() {
       break;
 
     case ScaleMode::FIT:
-      // lcdW/lcdH > dviW/dviH (横長LCD) ↔ lcdW*dviH > dviW*lcdH
+      // lcdW/lcdH > dviW/dviH (landscape LCD) ↔ lcdW*dviH > dviW*lcdH
       if ((uint32_t)lcdW * dviH > (uint32_t)dviW * lcdH) {
         displayW = dviW;
         displayH = (uint16_t)((uint32_t)dviW * lcdH / lcdW);
@@ -110,7 +110,7 @@ void ControllerBase::resetCommon() {
   updateWriteCache();
 }
 
-// RAMWR データをまとめて処理する (switch(pixelFormat) をループ外に出す)
+// Process all RAMWR data at once (moves switch(pixelFormat) outside the loop)
 void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
                                       uint32_t stride) {
   int32_t i = 0;
@@ -120,7 +120,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
     case PixelFormat::RGB444:
       // byte0: R1[3:0] G1[3:0]  byte1: B1[3:0] R2[3:0]  byte2: G2[3:0] B2[3:0]
       // 4bit→5bit: x<<1 (MSB-align; LSB zeroed)  4bit→6bit: x<<2 (MSB-align; lower 2 bits zeroed)
-      // 残余 (0〜2 バイト) の drain
+      // Drain leftover bytes (0–2 bytes)
       while (ramwrBufLen > 0 && i < length) {
         ramwrBuf[ramwrBufLen++] = data[i];
         i += stride;
@@ -139,7 +139,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
           ramwrBufLen = 0;
         }
       }
-      // タイトループ: 3 バイト → 2 ピクセル
+      // Tight loop: 3 bytes → 2 pixels
       while (i + stride * 3 <= length) {
         uint8_t b0 = data[i];
         i += stride;
@@ -158,7 +158,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         pixel1 |= (b2 << 1) & 0x001E;   // B2
         writePixelRgb565(pixel1);
       }
-      // 端数保存
+      // Save remainder
       while (i < length) {
         ramwrBuf[ramwrBufLen++] = data[i];
         i += stride;
@@ -166,7 +166,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
       break;
 
     case PixelFormat::RGB565:
-      // 残余 1 バイトの drain
+      // Drain leftover 1 byte
       if (ramwrBufLen == 1 && i < length) {
         uint_fast16_t pixel = 0;
         pixel |= ramwrBuf[0] << 8;
@@ -175,7 +175,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         i += stride;
         ramwrBufLen = 0;
       }
-      // タイトループ: 2 バイト → 1 ピクセル (ビッグエンディアン)
+      // Tight loop: 2 bytes → 1 pixel (big-endian)
       while (i + stride * 2 <= length) {
         uint_fast16_t pixel = 0;
         pixel |= data[i] << 8;
@@ -184,7 +184,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         i += stride;
         writePixelRgb565(pixel);
       }
-      // 端数保存
+      // Save remainder
       if (i < length) {
         ramwrBuf[0] = data[i];
         ramwrBufLen = 1;
@@ -192,9 +192,9 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
       break;
 
     case PixelFormat::RGB666:
-      // 各バイト上位 6bit が有効 (下位 2bit = 0)
-      // R5 = byte0>>3, G6 = byte1>>2, B5 = byte2>>3 で直接 RGB565 に変換できる
-      // 残余 (0〜2 バイト) の drain
+      // Upper 6 bits of each byte are significant (lower 2 bits = 0)
+      // R5 = byte0>>3, G6 = byte1>>2, B5 = byte2>>3 maps directly to RGB565
+      // Drain leftover bytes (0–2 bytes)
       while (ramwrBufLen > 0 && i < length) {
         ramwrBuf[ramwrBufLen++] = data[i];
         i += stride;
@@ -207,7 +207,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
           ramwrBufLen = 0;
         }
       }
-      // タイトループ: 3 バイト → 1 ピクセル
+      // Tight loop: 3 bytes → 1 pixel
       while (i + stride * 3 <= length) {
         uint_fast16_t pixel = 0;
         pixel |= (data[i] & 0xFCu) << 8;  // R5
@@ -218,7 +218,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         i += stride;
         writePixelRgb565(static_cast<uint16_t>(pixel));
       }
-      // 端数保存
+      // Save remainder
       while (i < length) {
         ramwrBuf[ramwrBufLen++] = data[i];
         i += stride;
@@ -227,10 +227,10 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
   }
 }
 
-// データバイト列の処理: RAMWR は一括、それ以外は 1 バイトずつ
+// Process a data byte stream: RAMWR data is handled in bulk, others byte by byte
 void ControllerBase::feedData(const uint8_t* data, uint32_t numBytes,
                               uint32_t stride) {
-  if (stride == 0) stride = 1;  // 安全のため
+  if (stride == 0) stride = 1;  // safety guard
   if (isRamWriteCommand()) {
     processRamwrData(data, numBytes, stride);
   } else {
@@ -331,25 +331,25 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
 
   const uint16_t dviW = ctrl->config.dviWidth;
 
-  // 表示オフ・スリープ中、または垂直方向の黒帯
+  // Display off, sleeping, or in the vertical black border region
   if (ctrl->sleeping || !ctrl->displayOn || dviLine < ctrl->displayY ||
       dviLine >= ctrl->displayY + ctrl->displayH) {
     memset(dst, 0, dviW * sizeof(uint16_t));
     return;
   }
 
-  // 垂直マッピング: 固定小数点乗算で LCD 行を求める
+  // Vertical mapping: compute LCD row via fixed-point multiply
   const uint32_t lcdRowOut =
       ((uint32_t)(dviLine - ctrl->displayY) * ctrl->vStep) >> 16;
 
   uint16_t* d = dst;
 
-  // 左の黒帯
+  // Left black border
   memset(d, 0, (size_t)ctrl->displayX * sizeof(uint16_t));
   d += ctrl->displayX;
 
-  // アクティブ領域: 水平スケーリング + 輝度反転 + 回転
-  // 反転: RGB565 全ビット XOR → (31-R, 63-G, 31-B) で各チャネル反転
+  // Active area: horizontal scaling + brightness inversion + rotation
+  // Inversion: XOR all RGB565 bits → (31-R, 63-G, 31-B) inverts each channel
   const uint16_t inv = ctrl->inverted ? 0xFFFFu : 0u;
   const uint16_t* fb = ctrl->framebuf;
   const uint32_t physW = ctrl->config.lcdWidth;
@@ -359,7 +359,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   switch (ctrl->outputRotation) {
     default:
     case 0: {
-      // rot=0: 通常 (行優先読み出し)
+      // rot=0: normal (row-major readout)
       const uint16_t* srcRow = fb + (uint32_t)lcdRowOut * physW;
       for (uint16_t x = 0; x < ctrl->displayW; ++x) {
         *d++ = srcRow[hAccum >> 16] ^ inv;
@@ -368,8 +368,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       break;
     }
     case 1: {
-      // rot=1: 90° CW  — (lcdRowOut, lcdColOut) → ((physH-1-lcdColOut),
-      // lcdRowOut)
+      // rot=1: 90° CW  — (lcdRowOut, lcdColOut) → ((physH-1-lcdColOut), lcdRowOut)
       for (uint16_t x = 0; x < ctrl->displayW; ++x) {
         uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
         *d++ = fb[(uint32_t)(physH - 1u - lcdColOut) * physW + lcdRowOut] ^ inv;
@@ -378,8 +377,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       break;
     }
     case 2: {
-      // rot=2: 180° — (lcdRowOut, lcdColOut) → ((physH-1-lcdRowOut),
-      // (physW-1-lcdColOut))
+      // rot=2: 180° — (lcdRowOut, lcdColOut) → ((physH-1-lcdRowOut), (physW-1-lcdColOut))
       const uint16_t* srcRow = fb + (uint32_t)(physH - 1u - lcdRowOut) * physW;
       for (uint16_t x = 0; x < ctrl->displayW; ++x) {
         uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
@@ -389,8 +387,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       break;
     }
     case 3: {
-      // rot=3: 270° CW — (lcdRowOut, lcdColOut) → (lcdColOut,
-      // (physW-1-lcdRowOut))
+      // rot=3: 270° CW — (lcdRowOut, lcdColOut) → (lcdColOut, (physW-1-lcdRowOut))
       for (uint16_t x = 0; x < ctrl->displayW; ++x) {
         uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
         *d++ = fb[(uint32_t)lcdColOut * physW + (physW - 1u - lcdRowOut)] ^ inv;
@@ -400,7 +397,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
     }
   }
 
-  // 右の黒帯
+  // Right black border
   memset(d, 0,
          (size_t)(dviW - ctrl->displayX - ctrl->displayW) * sizeof(uint16_t));
 }

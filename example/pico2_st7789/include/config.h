@@ -48,7 +48,7 @@ static constexpr uint PIN_LED = 25u;
 
 // =============================================================================
 // Boot-time inversion polarity GPIO (read once at startup)
-// Pull LOW = default (INVON→反転), pull HIGH = polarity inverted (INVON→非反転)
+// Pull LOW = default (INVON→inverted), pull HIGH = polarity inverted (INVON→non-inverted)
 // =============================================================================
 static constexpr uint PIN_CFG_INV_POL = 28u;
 
