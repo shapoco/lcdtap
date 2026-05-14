@@ -1,0 +1,100 @@
+; SPI slave receiver with simultaneous DCX capture.
+;
+; Receives SPI bytes directly from the master — no external shift registers,
+; counters, or inverters are required.
+;
+; Pin mapping (configure SM before enabling):
+;   IN_BASE = PIN_SPI_MOSI  (GPIO 4)
+;     IN_BASE + 0  (GPIO 4) = MOSI  — serial data from master (MSB first)
+;     IN_BASE + 1  (GPIO 5) = DCX   — D/C# signal from master
+;   SCLK and CS are referenced by absolute GPIO numbers via 'wait gpio'.
+;
+; SPI mode: CPOL=0 CPHA=0 (clock idles LOW, data sampled on rising edge).
+; Bit order: MSB first (D7 first, D0 last).
+;
+; ISR shift direction: LEFT
+;   'in pins, 2' on the first clock edge captures both DCX and D7:
+;     GPIO 4 (MOSI/D7) → bit[0] of the 2-bit value
+;     GPIO 5 (DCX)     → bit[1] of the 2-bit value
+;   With LEFT shift: ISR = (ISR << 2) | {DCX, D7}  → ISR[1]=DCX, ISR[0]=D7
+;   'in pins, 1' × 7 captures D6 down to D0, each shifting in MOSI at ISR[0].
+;   After all 9 left-shifts: bit[8]=DCX, bits[7:0]={D7, D6, ..., D0}.
+;
+; AUTOPUSH: disabled  (manual push after each 9-bit word)
+; FIFO join: RX only  (8-deep receive FIFO)
+;
+; Output word layout (32-bit, upper 23 bits zero):
+;   bit [8]    = DCX  (0 = command, 1 = data)
+;   bits[7:0]  = received byte  (D7=bit7, D0=bit0)
+;
+; Timing (at 252 MHz PIO/system clock):
+;   Each of the 7 remaining bits (D6..D0) takes 3 PIO instructions:
+;     wait 0 gpio SCLK  (≥1 cycle)
+;     wait 1 gpio SCLK  (≥1 cycle)
+;     in   pins, 1      (1 cycle)
+;   Minimum SCLK period = 3 cycles → f_SPI_max = 252 / 3 = 84 MHz.
+;   The SCLK HIGH phase must be ≥ 2 cycles (7.94 ns at 252 MHz) so that
+;   'wait 1' detects the rising edge and 'in' samples valid MOSI before the
+;   next falling edge.  SSD1306 max SPI clock is ~10 MHz, so there is ample
+;   margin in practice.
+;
+; Startup sync:
+;   CS is HIGH when idle.  The SM waits for CS HIGH before entering the main
+;   loop, so a CS that is already LOW on power-up does not cause a spurious
+;   transaction to be sampled.
+;
+; CS de-assertion (rising edge) handling:
+;   A GPIO IRQ on PIN_SPI_CS calls a CPU handler that: disables the SM, clears
+;   FIFOs, calls pio_sm_restart() to reset ISR/shift counters, executes a JMP
+;   back to program start to reset the PC (pio_sm_restart does NOT reset PC),
+;   then re-enables the SM.  When the SM resumes, 'wait 1 gpio SPI_CS_PIN'
+;   completes immediately (CS is HIGH) and falls through to .wrap_target.
+
+.define public SPI_CS_PIN    6
+.define public SPI_SCLK_PIN  2
+
+.program spi_slave_with_dcx
+
+; ---- per-transaction loop ---------------------------------------------------
+.wrap_target
+    wait 0 gpio SPI_CS_PIN      ; wait for CS LOW  (transaction begins)
+
+    ; Wait for SCLK to be LOW (idle state) before arming the first bit.
+    ; Prevents a false sample if CS goes LOW while SCLK is already HIGH.
+    wait 0 gpio SPI_SCLK_PIN
+
+    ; ---- bit D7 + DCX (first clock edge) ------------------------------------
+    wait 1 gpio SPI_SCLK_PIN    ; wait for SCLK rising edge
+    ; Sample DCX (IN_BASE+1 = GPIO 5) and MOSI/D7 (IN_BASE+0 = GPIO 4).
+    ; LEFT shift: ISR = (ISR << 2) | {DCX, D7}  → ISR[1]=DCX, ISR[0]=D7.
+    in   pins, 2
+
+    ; ---- bits D6..D0 (seven more clock edges, loop unrolled) ----------------
+    ; Unrolling removes the 'jmp' instruction, reducing each bit to 3 cycles
+    ; and raising the maximum SPI clock to 252/3 = 84 MHz.
+    wait 0 gpio SPI_SCLK_PIN
+    wait 1 gpio SPI_SCLK_PIN
+    in   pins, 1                ; D6
+    wait 0 gpio SPI_SCLK_PIN
+    wait 1 gpio SPI_SCLK_PIN
+    in   pins, 1                ; D5
+    wait 0 gpio SPI_SCLK_PIN
+    wait 1 gpio SPI_SCLK_PIN
+    in   pins, 1                ; D4
+    wait 0 gpio SPI_SCLK_PIN
+    wait 1 gpio SPI_SCLK_PIN
+    in   pins, 1                ; D3
+    wait 0 gpio SPI_SCLK_PIN
+    wait 1 gpio SPI_SCLK_PIN
+    in   pins, 1                ; D2
+    wait 0 gpio SPI_SCLK_PIN
+    wait 1 gpio SPI_SCLK_PIN
+    in   pins, 1                ; D1
+    wait 0 gpio SPI_SCLK_PIN
+    wait 1 gpio SPI_SCLK_PIN
+    in   pins, 1                ; D0
+
+    ; Push the completed 9-bit word.  noblock discards if the FIFO is full,
+    ; preventing the SM from stalling behind the SPI master under DVI load.
+    push noblock
+.wrap

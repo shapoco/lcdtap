@@ -3,17 +3,50 @@
 #include <cstdint>
 
 // =============================================================================
-// Parallel slave pins (PIO1 SM0)
+// Common pins (both Normal Mode and Fast Mode)
+// =============================================================================
+
+// Hardware reset, active low (input, pull-up)
+static constexpr uint PIN_RESX = 1u;
+
+// =============================================================================
+// Normal Mode: SPI slave pins (PIO1 SM0)
 //
-// External circuit: 74HC595 (serial-in / parallel-out) + 74HC4040 (÷8) + 74AHC1G04 (inverter)
+// Direct connection — no external ICs required.
+//   SPI RESX → GPIO 1  (hardware reset, active low, pull-up on Pico 2)
+//   SPI SCLK → GPIO 2  (clock, CPOL=0: idle LOW; must match SPI_SCLK_PIN in
+//   spi_slave.pio) SPI MOSI → GPIO 4  (data MSB first; PIO IN_BASE) SPI DCX  →
+//   GPIO 5  (D/C# signal; sampled as IN_BASE+1 in spi_slave.pio) SPI CS   →
+//   GPIO 6  (chip select, active low; must match SPI_CS_PIN in spi_slave.pio)
+// =============================================================================
+
+// SPI clock (input; must equal SPI_SCLK_PIN defined in spi_slave.pio = 2)
+static constexpr uint PIN_SPI_SCLK = 2u;
+
+// SPI data (input, PIO IN_BASE)
+static constexpr uint PIN_SPI_MOSI = 4u;
+
+// D/C# signal (input, PIO IN_BASE+1)
+static constexpr uint PIN_SPI_DCX = 5u;
+
+// Chip select, active low (input; must equal SPI_CS_PIN defined in
+// spi_slave.pio = 6)
+static constexpr uint PIN_SPI_CS = 6u;
+
+// =============================================================================
+// Fast Mode: Parallel slave pins (PIO1 SM0)
+//
+// External circuit: 74HC595 (serial-in / parallel-out) + 74HC4040 (÷8) +
+// 74AHC1G04 (inverter)
 //   SPI SCLK  → 74HC4040 CP, 74HC595 SRCLK
 //   SPI MOSI  → 74HC595 SER
-//   SPI CS    → 74HC4040 CLR  (active-high; holds Q3=0, BCLK=1 while CS de-asserted)
-//   74HC4040 Q3 → 74AHC1G04 → 74HC595 RCLK, GPIO 2  (BCLK = SCLK/8, HIGH when byte complete)
-//   74HC595 Q1 → GPIO 4  (D[0], LSB)  ... Q8 → GPIO 11 (D[7], MSB)
-//   DCX       → GPIO 3   (D/C# signal, direct from SPI master)
-//   RESX      → GPIO 22  (hardware reset, active low)
+//   SPI CS    → 74HC4040 CLR  (active-high; holds Q3=0, BCLK=1 while CS
+//   de-asserted) 74HC4040 Q3 → 74AHC1G04 → 74HC595 RCLK, GPIO 2  (BCLK =
+//   SCLK/8, HIGH when byte complete) 74HC595 Q1 → GPIO 4  (D[0], LSB)  ... Q8 →
+//   GPIO 11 (D[7], MSB) DCX       → GPIO 3   (D/C# signal, direct from SPI
+//   master) RESX      → GPIO 1   (hardware reset, active low)
 // =============================================================================
+
 // SCLK/8 byte clock (input)
 static constexpr uint PIN_PAR_BCLK = 2u;
 
@@ -22,9 +55,6 @@ static constexpr uint PIN_PAR_DCX = 3u;
 
 // D[0..7] (input, PIO IN_BASE; GPIO 4-11)
 static constexpr uint PIN_PAR_DATA_BASE = 4u;
-
-// Hardware reset, active low (input)
-static constexpr uint PIN_PAR_RESX = 22u;
 
 // =============================================================================
 // Boot-time configuration GPIOs (read once at startup)
@@ -37,7 +67,12 @@ static constexpr uint PIN_CFG_LCD_SIZE = 20u;
 // LOW=640x480@60Hz / HIGH=1280x720@30Hz(reduced)
 static constexpr uint PIN_CFG_DVI_RES = 21u;
 
-// output rotation bits: GPIO26=rot bit0, GPIO27=rot bit1 (pull-down=0, default rot=0)
+// LOW=Normal Mode (spi_slave.pio, no external ICs) / HIGH=Fast Mode
+// (par_slave.pio)
+static constexpr uint PIN_CFG_CLK_MODE = 22u;
+
+// output rotation bits: GPIO26=rot bit0, GPIO27=rot bit1 (pull-down=0, default
+// rot=0)
 static constexpr uint PIN_CFG_ROT0 = 26u;
 static constexpr uint PIN_CFG_ROT1 = 27u;
 
@@ -48,7 +83,8 @@ static constexpr uint PIN_LED = 25u;
 
 // =============================================================================
 // Boot-time inversion polarity GPIO (read once at startup)
-// Pull LOW = default (INVON→inverted), pull HIGH = polarity inverted (INVON→non-inverted)
+// Pull LOW = default (INVON→inverted), pull HIGH = polarity inverted
+// (INVON→non-inverted)
 // =============================================================================
 static constexpr uint PIN_CFG_INV_POL = 28u;
 

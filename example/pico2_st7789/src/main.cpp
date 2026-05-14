@@ -20,6 +20,14 @@
 
 #include "config.h"
 #include "par_slave.pio.h"
+#include "spi_slave.pio.h"
+
+static_assert(PIN_SPI_CS == SPI_CS_PIN,
+              "PIN_SPI_CS mismatch with spi_slave.pio");
+static_assert(PIN_SPI_SCLK == SPI_SCLK_PIN,
+              "PIN_SPI_SCLK mismatch with spi_slave.pio");
+static_assert(PIN_SPI_MOSI + 1u == PIN_SPI_DCX,
+              "DCX must be MOSI+1 for 'in pins, 2'");
 
 // =============================================================================
 // Memory pool (bump allocator for LcdTap)
@@ -58,12 +66,26 @@ static uint16_t *scanlineBufs[N_SCANLINE_BUFS];
 // =============================================================================
 static lcdtap::LcdTap *gInst = nullptr;
 
+// PIO program offset — stored so gpioIrqHandler can reset the SM PC on CS
+// de-assertion in Normal Mode (pio_sm_restart does not reset the PC).
+static uint gSpiProgOffset = 0u;
+
 // =============================================================================
-// GPIO interrupt handler  (RESX pin)
+// GPIO interrupt handler  (RESX pin; CS pin in Normal Mode)
 // =============================================================================
 static void gpioIrqHandler(uint gpio, uint32_t events) {
-  if (gpio == PIN_PAR_RESX && gInst) {
+  if (gpio == PIN_RESX && gInst) {
     gInst->inputReset((events & GPIO_IRQ_EDGE_FALL) != 0u);
+  }
+  if (gpio == PIN_SPI_CS && (events & GPIO_IRQ_EDGE_RISE)) {
+    // CS rising edge (Normal Mode): transaction ended or aborted.  Reset the
+    // SM so any partial byte is discarded and it is ready for the next
+    // transaction.
+    pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
+    pio_sm_clear_fifos(SPI_PIO, SPI_SM);
+    pio_sm_restart(SPI_PIO, SPI_SM);
+    pio_sm_exec(SPI_PIO, SPI_SM, pio_encode_jmp(gSpiProgOffset));
+    pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
   }
 }
 
@@ -82,7 +104,29 @@ static void core1Main() {
 }
 
 // =============================================================================
-// Parallel slave init  (PIO1 SM0)
+// Normal Mode: SPI slave init  (PIO1 SM0)
+// =============================================================================
+static void spiSlaveInit(uint prog_offset) {
+  for (uint pin : {PIN_SPI_SCLK, PIN_SPI_MOSI, PIN_SPI_DCX}) {
+    gpio_init(pin);
+    gpio_set_dir(pin, GPIO_IN);
+  }
+  gpio_init(PIN_SPI_CS);
+  gpio_set_dir(PIN_SPI_CS, GPIO_IN);
+  gpio_pull_up(PIN_SPI_CS);
+
+  pio_sm_config c = spi_slave_with_dcx_program_get_default_config(prog_offset);
+  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO4; DCX is IN_BASE+1
+  sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
+                         /*push_threshold=*/32);
+  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
+  pio_sm_init(SPI_PIO, SPI_SM, prog_offset, &c);
+  pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
+}
+
+// =============================================================================
+// Fast Mode: Parallel slave init  (PIO1 SM0)
 // =============================================================================
 static void parSlaveInit(uint prog_offset) {
   // BCLK and DCX are inputs.
@@ -95,8 +139,6 @@ static void parSlaveInit(uint prog_offset) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
   }
-  // RESX pulled high so the line reads "deasserted" when unconnected.
-  gpio_pull_up(PIN_PAR_RESX);
 
   pio_sm_config c = par_slave_with_dcx_program_get_default_config(prog_offset);
   // D[0] is the IN base pin; 'in pins, 8' samples GPIO 4-11.
@@ -193,8 +235,8 @@ int main() {
   //    Do this first, before the system clock changes, while the default
   //    125 MHz clock is running and the GPIO input synchronisers are stable.
   // -------------------------------------------------------------------------
-  for (uint pin : {PIN_CFG_LCD_SIZE, PIN_CFG_DVI_RES, PIN_CFG_ROT0,
-                   PIN_CFG_ROT1, PIN_CFG_INV_POL}) {
+  for (uint pin : {PIN_CFG_LCD_SIZE, PIN_CFG_DVI_RES, PIN_CFG_CLK_MODE,
+                   PIN_CFG_ROT0, PIN_CFG_ROT1, PIN_CFG_INV_POL}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
     gpio_pull_down(pin);
@@ -203,6 +245,7 @@ int main() {
 
   const bool lcd320 = gpio_get(PIN_CFG_LCD_SIZE);
   const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
+  const bool fastMode = gpio_get(PIN_CFG_CLK_MODE);
   const bool invPolarity = gpio_get(PIN_CFG_INV_POL);
   const int rot =
       static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
@@ -231,9 +274,9 @@ int main() {
   // -------------------------------------------------------------------------
   // 4. RESX input (pull-up; active low from SPI master)
   // -------------------------------------------------------------------------
-  gpio_init(PIN_PAR_RESX);
-  gpio_set_dir(PIN_PAR_RESX, GPIO_IN);
-  gpio_pull_up(PIN_PAR_RESX);
+  gpio_init(PIN_RESX);
+  gpio_set_dir(PIN_RESX, GPIO_IN);
+  gpio_pull_up(PIN_RESX);
 
   // -------------------------------------------------------------------------
   // 5. DVI init (claims DMA channels and PIO0 state machines)
@@ -304,16 +347,25 @@ int main() {
   // -------------------------------------------------------------------------
   // 7. RESX interrupt
   // -------------------------------------------------------------------------
-  gpio_set_irq_enabled_with_callback(PIN_PAR_RESX,
+  gpio_set_irq_enabled_with_callback(PIN_RESX,
                                      GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
                                      /*enabled=*/true, &gpioIrqHandler);
 
   // -------------------------------------------------------------------------
-  // 8. Parallel slave PIO + DMA
+  // 8. Input slave PIO + DMA
   //    Must come after dvi_init() so DVI claims its DMA channels first.
   // -------------------------------------------------------------------------
-  uint pioProgOffset = pio_add_program(SPI_PIO, &par_slave_with_dcx_program);
-  parSlaveInit(pioProgOffset);
+  if (fastMode) {
+    // Fast Mode: parallel slave via external shift-register circuit
+    uint pioProgOffset = pio_add_program(SPI_PIO, &par_slave_with_dcx_program);
+    parSlaveInit(pioProgOffset);
+  } else {
+    // Normal Mode: direct SPI slave — CS rising edge resets SM on transaction
+    // end
+    gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
+    gSpiProgOffset = pio_add_program(SPI_PIO, &spi_slave_with_dcx_program);
+    spiSlaveInit(gSpiProgOffset);
+  }
   spiDmaInit();
 
   // -------------------------------------------------------------------------

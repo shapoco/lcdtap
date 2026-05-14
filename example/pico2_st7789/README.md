@@ -1,9 +1,5 @@
 # Sample program for Raspberry Pi Pico2
 
-## Schematic
-
-![](./image/schematic.png)
-
 ## Build instructions
 
 ```bash
@@ -13,46 +9,67 @@ cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk
 make -j4
 ```
 
-## Pin assignment
+## Operating modes
 
-| GPIO | Direction | Function |
-|------|-----------|----------|
-| 2    | IN        | BCLK — byte clock = SCLK÷8 (74AHC1G04 output, HIGH when byte complete) |
-| 3    | IN        | DCX — D/C# signal (direct from SPI master) |
-| 4–11 | IN       | D[0..7] — parallel data (74HC595 Q1–Q8 outputs) |
-| 12–19 | OUT     | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
-| 20   | IN        | CFG: LCD size select |
-| 21   | IN        | CFG: DVI output resolution select |
-| 22   | IN        | RESX — hardware reset, active-low (pull-up on board) |
-| 25   | OUT       | Onboard LED |
-| 26   | IN        | CFG: output rotation bit 0 |
-| 27   | IN        | CFG: output rotation bit 1 |
-| 28   | IN        | CFG: inversion polarity |
+This program supports two input modes selected at startup by **GPIO 22
+(CLK\_MODE)**. Pull GPIO 22 LOW (or leave it unconnected — internal pull-down)
+for Normal Mode; pull it HIGH for Fast Mode.
 
-The SPI signal path uses external ICs to convert the serial SPI bus into a
-parallel byte interface:
+### Normal Mode (GPIO 22 = LOW, default)
 
-- **74HC595** (serial-in / parallel-out shift register with output register):
-  captures MOSI bits on each SCLK rising edge; Q outputs are updated on RCLK
-  rising edge after the 8th SCLK clock.
-- **74HC4040** (12-stage ripple counter): divides SCLK by 8, driving the RCLK
-  input of the 74HC595.  CS (active-high) holds the counter in reset while the
-  SPI master is idle.
-- **74AHC1G04** (single inverter): inverts the 74HC4040 Q3 output to produce
-  BCLK.  BCLK is HIGH when a byte is complete (data latched) and LOW during
-  byte transfer.
+Direct SPI slave connection — **no external ICs required**. Supports SPI clock up to approximately 40 MHz.
+
+![](./image/schematic_normal.png)
+
+| GPIO  | Direction | Function |
+|-------|-----------|----------|
+| 1     | IN        | RESX — hardware reset, active-low (pull-up on board) |
+| 2     | IN        | SCLK — SPI clock (CPOL=0: idles LOW) |
+| 4     | IN        | MOSI — SPI data, MSB first |
+| 5     | IN        | DCX — D/C# signal |
+| 6     | IN        | CS — chip select, active-low (pull-up on board) |
+| 12–19 | OUT       | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
+| 20    | IN        | CFG: LCD size select |
+| 21    | IN        | CFG: DVI output resolution select |
+| 22    | IN        | CFG: CLK\_MODE — LOW = Normal Mode (this mode) |
+| 25    | OUT       | Onboard LED |
+| 26    | IN        | CFG: output rotation bit 0 |
+| 27    | IN        | CFG: output rotation bit 1 |
+| 28    | IN        | CFG: inversion polarity |
+
+### Fast Mode (GPIO 22 = HIGH)
+
+![](./image/schematic_fast.png)
+
+Parallel byte interface via external ICs — tested up to 62.5 MHz SPI clock.
+
+| GPIO  | Direction | Function |
+|-------|-----------|----------|
+| 1     | IN        | RESX — hardware reset, active-low (pull-up on board) |
+| 2     | IN        | BCLK — byte clock = SCLK÷8 (74AHC1G04 output, HIGH when byte complete) |
+| 3     | IN        | DCX — D/C# signal (direct from SPI master) |
+| 4–11  | IN        | D[0..7] — parallel data (74HC595 Q1–Q8 outputs) |
+| 12–19 | OUT       | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
+| 20    | IN        | CFG: LCD size select |
+| 21    | IN        | CFG: DVI output resolution select |
+| 22    | IN        | CFG: CLK\_MODE — HIGH = Fast Mode (this mode) |
+| 25    | OUT       | Onboard LED |
+| 26    | IN        | CFG: output rotation bit 0 |
+| 27    | IN        | CFG: output rotation bit 1 |
+| 28    | IN        | CFG: inversion polarity |
 
 ## Configuration GPIOs
 
 All configuration pins are read once at startup with internal pull-downs
 (default = LOW). Pull HIGH to select the alternate option.
 
-| GPIO | Name         | LOW (default)           | HIGH (alternate)               |
-|------|--------------|-------------------------|--------------------------------|
-| 20   | LCD\_SIZE    | 240×240                 | 240×320                        |
-| 21   | DVI\_RES     | 640×480 @ 60 Hz         | 1280×720 @ 30 Hz (reduced)     |
-| 26+27 | ROT         | 00 = no rotation        | 01/10/11 = see table below     |
-| 28   | INV\_POL     | INVON → inverted        | INVON → normal (polarity flip) |
+| GPIO  | Name          | LOW (default)           | HIGH (alternate)               |
+|-------|---------------|-------------------------|--------------------------------|
+| 20    | LCD\_SIZE     | 240×240                 | 240×320                        |
+| 21    | DVI\_RES      | 640×480 @ 60 Hz         | 1280×720 @ 30 Hz (reduced)     |
+| 22    | CLK\_MODE     | Normal Mode (SPI slave) | Fast Mode (parallel slave)     |
+| 26+27 | ROT           | 00 = no rotation        | 01/10/11 = see table below     |
+| 28    | INV\_POL      | INVON → inverted        | INVON → normal (polarity flip) |
 
 `ROT` is a 2-bit field: GPIO 27 is bit 1 (MSB) and GPIO 26 is bit 0 (LSB).
 The output rotation is re-checked every DVI frame; changes take effect on the
@@ -85,6 +102,6 @@ The system clock is raised to match the TMDS bit-clock requirement (252 MHz for
 640×480, 319.2 MHz for 1280×720 reduced), and the voltage regulator is set to
 1.20 V to support these higher frequencies.
 
-PicoDVI uses PIO0 and claims its DMA channels inside `dvi_init()`. The parallel
+PicoDVI uses PIO0 and claims its DMA channels inside `dvi_init()`. The input
 slave PIO program runs on PIO1 (SM0), and its DMA channel is claimed after
 `dvi_init()` to avoid conflicts.

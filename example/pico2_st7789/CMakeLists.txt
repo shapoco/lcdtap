@@ -25,9 +25,12 @@ add_executable(lcdtap_pico2_st7789
     src/main.cpp
 )
 
-# Generate the PIO header from par_slave.pio
+# Generate PIO headers
 pico_generate_pio_header(lcdtap_pico2_st7789
     ${CMAKE_CURRENT_LIST_DIR}/src/par_slave.pio
+)
+pico_generate_pio_header(lcdtap_pico2_st7789
+    ${CMAKE_CURRENT_LIST_DIR}/src/spi_slave.pio
 )
 
 target_include_directories(lcdtap_pico2_st7789 PRIVATE
