@@ -1,29 +1,29 @@
-#include "ssd1309_controller.hpp"
+#include "ssd1306_controller.hpp"
 
-#include <lcdtap/devices/ssd1309.hpp>
+#include <lcdtap/devices/ssd1306.hpp>
 
 namespace lcdtap {
 
-uint16_t Ssd1309Controller::logicalWidth() const { return config.lcdWidth; }
+uint16_t Ssd1306Controller::logicalWidth() const { return config.lcdWidth; }
 
-uint16_t Ssd1309Controller::logicalHeight() const { return config.lcdHeight; }
+uint16_t Ssd1306Controller::logicalHeight() const { return config.lcdHeight; }
 
-void Ssd1309Controller::updateWriteCache() {
+void Ssd1306Controller::updateWriteCache() {
   cachedHOffset = 0;
   cachedHStep = 1;
   cachedVOffset = 0;
   cachedVStep = config.lcdWidth;
 }
 
-void Ssd1309Controller::softReset() {
-  ssdAddrMode = 2;  // page addressing (SSD1309 default)
+void Ssd1306Controller::softReset() {
+  ssdAddrMode = 2;  // page addressing (SSD1306 default)
   ssdSegmentRemap = false;
   ssdComFlip = false;
   expectedParams = 0;
   pageColLow = 0;
   pageColHigh = 0;
   resetCommon();
-  sleeping = false;  // SSD1309 has no sleep mode
+  sleeping = false;  // SSD1306 has no sleep mode
   pixelFormat = PixelFormat::MONO_VPACK;
   casetXS = 0;
   casetXE = static_cast<uint16_t>(config.lcdWidth - 1);
@@ -34,8 +34,8 @@ void Ssd1309Controller::softReset() {
 }
 
 // Accepts all DCX=0 bytes (both command body and parameters)
-void Ssd1309Controller::dispatchCommand(uint8_t cmd) {
-  using namespace ssd1309;
+void Ssd1306Controller::dispatchCommand(uint8_t cmd) {
+  using namespace ssd1306;
 
   // Waiting for parameters of the current command
   if (expectedParams > 0) {
@@ -43,7 +43,7 @@ void Ssd1309Controller::dispatchCommand(uint8_t cmd) {
     switch (currentCmd) {
       case CMD_SET_ADDR_MODE:
         ssdAddrMode = cmd & 0x03u;
-        log("SSD1309: SET_ADDR_MODE");
+        log("SSD1306: SET_ADDR_MODE");
         break;
       case CMD_SET_COL_ADDR:
         if (cmdDataLen == 0) {
@@ -51,7 +51,7 @@ void Ssd1309Controller::dispatchCommand(uint8_t cmd) {
           ramwrX = casetXS;
         } else {
           casetXE = cmd;
-          log("SSD1309: SET_COL_ADDR");
+          log("SSD1306: SET_COL_ADDR");
         }
         break;
       case CMD_SET_PAGE_ADDR:
@@ -62,7 +62,7 @@ void Ssd1309Controller::dispatchCommand(uint8_t cmd) {
           rasetYE = static_cast<uint16_t>(cmd * 8u + 7u);
           if (rasetYE >= config.lcdHeight)
             rasetYE = static_cast<uint16_t>(config.lcdHeight - 1);
-          log("SSD1309: SET_PAGE_ADDR");
+          log("SSD1306: SET_PAGE_ADDR");
         }
         break;
       default: break;  // parameter for a command that is otherwise ignored
@@ -111,35 +111,35 @@ void Ssd1309Controller::dispatchCommand(uint8_t cmd) {
   switch (cmd) {
     case CMD_DISPLAY_OFF:
       displayOn = false;
-      log("SSD1309: DISPLAY_OFF");
+      log("SSD1306: DISPLAY_OFF");
       break;
     case CMD_DISPLAY_ON:
       displayOn = true;
-      log("SSD1309: DISPLAY_ON");
+      log("SSD1306: DISPLAY_ON");
       break;
     case CMD_NORMAL_DISPLAY:
       inverted = config.invertInvPolarity;
-      log("SSD1309: NORMAL_DISPLAY");
+      log("SSD1306: NORMAL_DISPLAY");
       break;
     case CMD_INVERT_DISPLAY:
       inverted = !config.invertInvPolarity;
-      log("SSD1309: INVERT_DISPLAY");
+      log("SSD1306: INVERT_DISPLAY");
       break;
     case CMD_SEG_REMAP_0:
       ssdSegmentRemap = false;
-      log("SSD1309: SEG_REMAP_0");
+      log("SSD1306: SEG_REMAP_0");
       break;
     case CMD_SEG_REMAP_1:
       ssdSegmentRemap = true;
-      log("SSD1309: SEG_REMAP_1");
+      log("SSD1306: SEG_REMAP_1");
       break;
     case CMD_COM_SCAN_INC:
       ssdComFlip = false;
-      log("SSD1309: COM_SCAN_INC");
+      log("SSD1306: COM_SCAN_INC");
       break;
     case CMD_COM_SCAN_DEC:
       ssdComFlip = true;
-      log("SSD1309: COM_SCAN_DEC");
+      log("SSD1306: COM_SCAN_DEC");
       break;
     case CMD_SET_ADDR_MODE: expectedParams = 1; break;
     case CMD_SET_COL_ADDR: expectedParams = 2; break;
@@ -157,14 +157,14 @@ void Ssd1309Controller::dispatchCommand(uint8_t cmd) {
   }
 }
 
-// For SSD1309, DCX=1 is always GDDRAM data — feedDataByte is never called
-void Ssd1309Controller::feedDataByte(uint8_t /*byte*/) {}
+// For SSD1306, DCX=1 is always GDDRAM data — feedDataByte is never called
+void Ssd1306Controller::feedDataByte(uint8_t /*byte*/) {}
 
 // DCX=1 is always GDDRAM (pixel) data
-bool Ssd1309Controller::isRamWriteCommand() const { return true; }
+bool Ssd1306Controller::isRamWriteCommand() const { return true; }
 
 // MONO_VPACK: 1 byte = 8 vertical pixels (bit0=top, bit7=bottom)
-void Ssd1309Controller::processRamwrData(const uint8_t* data, uint32_t length,
+void Ssd1306Controller::processRamwrData(const uint8_t* data, uint32_t length,
                                          uint32_t stride) {
   const uint16_t lcdW = config.lcdWidth;
   const uint16_t lcdH = config.lcdHeight;
@@ -210,7 +210,7 @@ void Ssd1309Controller::processRamwrData(const uint8_t* data, uint32_t length,
   }
 }
 
-void Ssd1309Controller::applyPageModeCol() {
+void Ssd1306Controller::applyPageModeCol() {
   ramwrX = static_cast<uint16_t>(pageColHigh | pageColLow);
   if (ramwrX >= config.lcdWidth)
     ramwrX = static_cast<uint16_t>(config.lcdWidth - 1u);

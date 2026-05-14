@@ -4,7 +4,7 @@
 #include <new>
 
 #include "controller_base.hpp"
-#include "ssd1309_controller.hpp"
+#include "ssd1306_controller.hpp"
 #include "st7789_controller.hpp"
 
 namespace lcdtap {
@@ -25,8 +25,8 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->scaleMode = ScaleMode::FIT;
       cfg->invertInvPolarity = false;
       break;
-    case ControllerType::SSD1309:
-      cfg->controller = ControllerType::SSD1309;
+    case ControllerType::SSD1306:
+      cfg->controller = ControllerType::SSD1306;
       cfg->lcdWidth = 128;
       cfg->lcdHeight = 64;
       cfg->pixelFormat = PixelFormat::MONO_VPACK;
@@ -253,8 +253,8 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
     case ControllerType::ST7789:
       ctrl = new (std::nothrow) St7789Controller();
       break;
-    case ControllerType::SSD1309:
-      ctrl = new (std::nothrow) Ssd1309Controller();
+    case ControllerType::SSD1306:
+      ctrl = new (std::nothrow) Ssd1306Controller();
       break;
   }
   if (!ctrl) return;

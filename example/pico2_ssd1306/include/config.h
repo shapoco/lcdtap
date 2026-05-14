@@ -29,8 +29,8 @@ static constexpr uint PIN_PAR_RESX = 22u;
 // =============================================================================
 // I2C slave pins (I2C mode, I2C0)
 //
-// SSD1309 I2C address: 0x3C (SA0 tied low)
-// Connect SSD1309 SDA/SCL directly to Pico 2; add 4.7kΩ pull-ups to 3.3V.
+// SSD1306 I2C address: 0x3C (SA0 tied low)
+// Connect SSD1306 SDA/SCL directly to Pico 2; add 4.7kΩ pull-ups to 3.3V.
 // =============================================================================
 static constexpr uint PIN_I2C_SDA = 0u;
 static constexpr uint PIN_I2C_SCL = 1u;
@@ -69,7 +69,7 @@ static constexpr uint SPI_SM = 0u;
 // Must be a power-of-two number of bytes and aligned to its own size.
 // Each element is one uint32_t word: bit[8]=DCX, bits[7:0]=data byte.
 // =============================================================================
-static constexpr uint32_t SPI_RING_BUF_LOG2 = 12u;  // 4KB (SSD1309 is small)
+static constexpr uint32_t SPI_RING_BUF_LOG2 = 12u;  // 4KB (SSD1306 is small)
 static constexpr uint32_t SPI_RING_BUF_BYTES = 1u << SPI_RING_BUF_LOG2;
 static constexpr uint32_t SPI_RING_BUF_WORDS =
     SPI_RING_BUF_BYTES / sizeof(uint32_t);
@@ -93,7 +93,7 @@ static constexpr uint32_t LED_TOGGLE_FRAMES = 30u;
 
 // =============================================================================
 // Memory pool for LcdTap internal allocations (bump allocator)
-// SSD1309 framebuffer: 128x64x2 = 16 384 bytes
+// SSD1306 framebuffer: 128x64x2 = 16 384 bytes
 // + scanline bufs (320x2x4 = 2 560) + impl (~256)
 // =============================================================================
 static constexpr size_t MEM_POOL_SIZE = 32u * 1024u;

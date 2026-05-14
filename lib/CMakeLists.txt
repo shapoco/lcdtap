@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(lcdtap STATIC
     src/lcdtap.cpp
     src/st7789_controller.cpp
-    src/ssd1309_controller.cpp
+    src/ssd1306_controller.cpp
 )
 
 target_include_directories(lcdtap

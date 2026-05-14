@@ -26,14 +26,14 @@ enum class Status : int {
 //=============================================================================
 enum class ControllerType : uint8_t {
   ST7789,
-  SSD1309,
+  SSD1306,
 };
 
 //=============================================================================
 // Pixel format (SPI input side — COLMOD equivalent)
 //=============================================================================
 enum class PixelFormat : uint8_t {
-  MONO_VPACK = 0x00,  // 1bpp monochrome vertical 8-pixel pack (SSD1309)
+  MONO_VPACK = 0x00,  // 1bpp monochrome vertical 8-pixel pack (SSD1306)
   RGB444 = 0x03,      // 12bpp
   RGB565 = 0x05,      // 16bpp
   RGB666 = 0x06,      // 18bpp

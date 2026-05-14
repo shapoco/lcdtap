@@ -10,9 +10,9 @@ and outputs the framebuffer as a DVI-D signal.
 See [example/pico2_st7789/README.md](example/pico2_st7789/README.md) for build
 instructions, pin assignment, and configuration details.
 
-### for SSD1309
+### for SSD1306
 
-See [example/pico2_ssd1309/README.md](example/pico2_ssd1309/README.md) for build
+See [example/pico2_ssd1306/README.md](example/pico2_ssd1306/README.md) for build
 instructions, pin assignment, and configuration details.
 
 ## Library usage
@@ -30,7 +30,7 @@ All symbols live in the `lcdtap` namespace.
 ```cpp
 enum class ControllerType : uint8_t {
   ST7789,
-  SSD1309,
+  SSD1306,
 };
 ```
 

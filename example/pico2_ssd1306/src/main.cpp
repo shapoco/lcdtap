@@ -146,12 +146,12 @@ static void i2cSlaveIrqHandler() {
     uint8_t byte = static_cast<uint8_t>(raw & 0xFFu);
 
     if (firstByte) {
-      // First byte after address phase is always the SSD1309 control byte.
+      // First byte after address phase is always the SSD1306 control byte.
       i2cRxState = I2cRxState::WAIT_CTRL;
     }
 
     if (i2cRxState == I2cRxState::WAIT_CTRL) {
-      // Decode SSD1309 control byte: bit6=D/C#, bit7=Co (Co=1 not supported)
+      // Decode SSD1306 control byte: bit6=D/C#, bit7=Co (Co=1 not supported)
       bool dc = (byte >> 6u) & 1u;
       i2cRxState = dc ? I2cRxState::STREAM_DATA : I2cRxState::STREAM_CMD;
     } else {
@@ -301,10 +301,10 @@ int main() {
   }
 
   // -------------------------------------------------------------------------
-  // 5. LcdTap init (SSD1309, 128x64 fixed)
+  // 5. LcdTap init (SSD1306, 128x64 fixed)
   // -------------------------------------------------------------------------
   lcdtap::LcdTapConfig cfg;
-  lcdtap::getDefaultConfig(lcdtap::ControllerType::SSD1309, &cfg);
+  lcdtap::getDefaultConfig(lcdtap::ControllerType::SSD1306, &cfg);
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
   cfg.invertInvPolarity = false;  // fixed
   cfg.dviWidth = static_cast<uint16_t>(dviW);

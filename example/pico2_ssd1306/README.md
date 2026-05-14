@@ -1,9 +1,9 @@
-# Sample program for Raspberry Pi Pico2 — SSD1309
+# Sample program for Raspberry Pi Pico2 — SSD1306
 
 ## Build instructions
 
 ```bash
-cd example/pico2_ssd1309
+cd example/pico2_ssd1306
 mkdir build && cd build
 cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk
 make -j4
@@ -15,9 +15,9 @@ This example supports two input modes, selectable via GPIO 20 at startup.
 
 ### I2C mode (default)
 
-Connect the SSD1309 SDA and SCL lines directly to GPIO 0 and GPIO 1 with
+Connect the SSD1306 SDA and SCL lines directly to GPIO 0 and GPIO 1 with
 4.7 kΩ pull-ups to 3.3 V. The Pico 2 acts as an I2C slave at address
-`0x3C` (SA0 tied low). The SSD1309 I2C control byte (first byte after the
+`0x3C` (SA0 tied low). The SSD1306 I2C control byte (first byte after the
 address phase) is decoded to determine whether subsequent bytes are commands
 or GDDRAM data.
 
@@ -69,7 +69,7 @@ next frame without restarting.
 | `11`      | 270° clockwise — aspect ratio swapped for FIT |
 
 The scale mode is fixed to **FIT** (aspect-ratio-preserving letterbox /
-pillarbox). The SSD1309 display is 128×64 pixels.
+pillarbox). The SSD1306 display is 128×64 pixels.
 
 ## DVI output (PicoDVI / libdvi)
 

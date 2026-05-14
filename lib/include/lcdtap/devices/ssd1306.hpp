@@ -2,12 +2,12 @@
 
 #include <cstdint>
 
-// SSD1309 command constants
+// SSD1306 command constants
 // Note: all commands with parameters are sent as DCX=0 bytes.
 //       DCX=1 bytes are always GDDRAM data (MONO_VPACK).
 
 namespace lcdtap {
-namespace ssd1309 {
+namespace ssd1306 {
 
 // Lower column address (for page addressing mode, 0x00-0x0F)
 static constexpr uint8_t CMD_SET_LOWER_COL_MASK = 0x0F;
@@ -83,5 +83,5 @@ static constexpr uint8_t CMD_SET_VCOMH = 0xDB;
 // NOP
 static constexpr uint8_t CMD_NOP = 0xE3;
 
-}  // namespace ssd1309
+}  // namespace ssd1306
 }  // namespace lcdtap

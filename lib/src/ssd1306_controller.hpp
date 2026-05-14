@@ -4,14 +4,14 @@
 
 namespace lcdtap {
 
-// SSD1309 controller implementation
+// SSD1306 controller implementation
 //
 // Key differences from ST7789:
 // - DCX=0 bytes carry both commands and their parameters
 // - DCX=1 bytes are always GDDRAM data (MONO_VPACK: 1 byte = vertical 8 pixels)
 // - There is no explicit RAMWR command; isRamWriteCommand() always returns true
 // - Addressing is page-based (horizontal / vertical / page modes)
-class Ssd1309Controller : public ControllerBase {
+class Ssd1306Controller : public ControllerBase {
  public:
   uint8_t ssdAddrMode;     // 0=horizontal, 1=vertical, 2=page (default)
   bool ssdSegmentRemap;    // true=A1 (col127→SEG0, horizontal flip)
