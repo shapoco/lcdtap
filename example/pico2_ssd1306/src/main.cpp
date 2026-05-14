@@ -22,7 +22,14 @@
 #include "lcdtap/lcdtap.hpp"
 
 #include "config.h"
-#include "par_slave.pio.h"
+#include "spi_slave.pio.h"
+
+static_assert(PIN_SPI_CS == SPI_CS_PIN,
+              "PIN_SPI_CS mismatch with spi_slave.pio");
+static_assert(PIN_SPI_SCLK == SPI_SCLK_PIN,
+              "PIN_SPI_SCLK mismatch with spi_slave.pio");
+static_assert(PIN_SPI_MOSI + 1u == PIN_SPI_DCX,
+              "DCX must be MOSI+1 for 'in pins, 2'");
 
 // =============================================================================
 // Memory pool (bump allocator for LcdTap)
@@ -72,12 +79,26 @@ static uint16_t *scanlineBufs[N_SCANLINE_BUFS];
 // =============================================================================
 static lcdtap::LcdTap *gInst = nullptr;
 
+// PIO program offset — stored so gpioIrqHandler can reset the SM PC on CS
+// de-assertion (pio_sm_restart does not reset the PC).
+static uint gSpiProgOffset = 0u;
+
 // =============================================================================
-// GPIO interrupt handler (RESX pin, SPI mode)
+// GPIO interrupt handler (RESX and CS pins, SPI mode)
 // =============================================================================
 static void gpioIrqHandler(uint gpio, uint32_t events) {
-  if (gpio == PIN_PAR_RESX && gInst) {
+  if (gpio == PIN_SPI_RESX && gInst) {
     gInst->inputReset((events & GPIO_IRQ_EDGE_FALL) != 0u);
+  }
+  if (gpio == PIN_SPI_CS && (events & GPIO_IRQ_EDGE_RISE)) {
+    // CS rising edge: transaction ended or aborted.  Reset the SM so any
+    // partial byte is discarded and it is ready for the next transaction.
+    pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
+    pio_sm_clear_fifos(SPI_PIO, SPI_SM);
+    pio_sm_restart(SPI_PIO, SPI_SM);
+    pio_sm_exec(SPI_PIO, SPI_SM, pio_encode_jmp(gSpiProgOffset));
+    pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
+    // SM resumes from .wrap_target: 'wait 0 gpio SPI_CS_PIN'.
   }
 }
 
@@ -92,22 +113,19 @@ static void core1Main() {
 }
 
 // =============================================================================
-// Parallel slave init (SPI mode, PIO1 SM0)
+// SPI slave init (SPI mode, PIO1 SM0)
 // =============================================================================
-static void parSlaveInit(uint prog_offset) {
-  gpio_init(PIN_PAR_BCLK);
-  gpio_set_dir(PIN_PAR_BCLK, GPIO_IN);
-  gpio_init(PIN_PAR_DCX);
-  gpio_set_dir(PIN_PAR_DCX, GPIO_IN);
-  for (uint pin = PIN_PAR_DATA_BASE; pin < PIN_PAR_DATA_BASE + 8u; ++pin) {
+static void spiSlaveInit(uint prog_offset) {
+  for (uint pin : {PIN_SPI_SCLK, PIN_SPI_MOSI, PIN_SPI_DCX}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
   }
-  gpio_pull_up(PIN_PAR_RESX);
+  gpio_init(PIN_SPI_CS);
+  gpio_set_dir(PIN_SPI_CS, GPIO_IN);
+  gpio_pull_up(PIN_SPI_CS);
 
-  pio_sm_config c = par_slave_with_dcx_program_get_default_config(prog_offset);
-  sm_config_set_in_pins(&c, PIN_PAR_DATA_BASE);
-  sm_config_set_jmp_pin(&c, PIN_PAR_DCX);
+  pio_sm_config c = spi_slave_with_dcx_program_get_default_config(prog_offset);
+  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO4; DCX is IN_BASE+1
   sm_config_set_in_shift(&c, false, false, 32);
   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
 
@@ -253,8 +271,8 @@ int main() {
   // -------------------------------------------------------------------------
   // 1. Read boot-time configuration GPIOs
   // -------------------------------------------------------------------------
-  for (uint pin : {PIN_CFG_INPUT_MODE, PIN_CFG_DVI_RES, PIN_CFG_ROT0,
-                   PIN_CFG_ROT1}) {
+  for (uint pin :
+       {PIN_CFG_INPUT_MODE, PIN_CFG_DVI_RES, PIN_CFG_ROT0, PIN_CFG_ROT1}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
     gpio_pull_down(pin);
@@ -263,8 +281,8 @@ int main() {
 
   const bool useI2C = !gpio_get(PIN_CFG_INPUT_MODE);
   const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
-  const int rot = static_cast<int>(
-      (gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
+  const int rot =
+      static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
 
   const struct dvi_timing *timing =
       dvi720p ? &dvi_timing_1280x720p_reduced_30hz : &dvi_timing_640x480p_60hz;
@@ -341,18 +359,20 @@ int main() {
   if (useI2C) {
     i2cSlaveInit();
   } else {
-    // SPI mode: RESX GPIO interrupt
-    gpio_init(PIN_PAR_RESX);
-    gpio_set_dir(PIN_PAR_RESX, GPIO_IN);
-    gpio_pull_up(PIN_PAR_RESX);
-    gpio_set_irq_enabled_with_callback(PIN_PAR_RESX,
+    // RESX: interrupt on both edges (reset assert / release)
+    gpio_init(PIN_SPI_RESX);
+    gpio_set_dir(PIN_SPI_RESX, GPIO_IN);
+    gpio_pull_up(PIN_SPI_RESX);
+    gpio_set_irq_enabled_with_callback(PIN_SPI_RESX,
                                        GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
                                        true, &gpioIrqHandler);
+    // CS: rising edge only — resets the PIO SM on transaction end/abort.
+    // Shares the callback already registered for RESX above.
+    gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
 
-    // Parallel slave PIO + DMA (after dvi_init so DVI claims its channels
-    // first)
-    uint pioProgOffset = pio_add_program(SPI_PIO, &par_slave_with_dcx_program);
-    parSlaveInit(pioProgOffset);
+    // SPI slave PIO + DMA (after dvi_init so DVI claims its channels first)
+    gSpiProgOffset = pio_add_program(SPI_PIO, &spi_slave_with_dcx_program);
+    spiSlaveInit(gSpiProgOffset);
     spiDmaInit();
   }
 
@@ -390,8 +410,8 @@ int main() {
     if (++scanY >= dviH) {
       scanY = 0;
       // Check rotation GPIO and update if changed
-      int newRot = static_cast<int>(
-          (gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
+      int newRot = static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) |
+                                    gpio_get(PIN_CFG_ROT0));
       if (newRot != currentRot) {
         currentRot = newRot;
         gInst->setOutputRotation(currentRot);

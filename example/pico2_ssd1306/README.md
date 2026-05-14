@@ -21,7 +21,7 @@ This example supports two input modes, selectable via GPIO 20 at startup.
 
 ### I2C mode (default)
 
-Connect the SSD1306 SDA and SCL lines directly to GPIO 0 and GPIO 1 with
+Connect the SSD1306 SDA and SCL lines directly to GPIO 8 and GPIO 9 with
 4.7 kΩ pull-ups to 3.3 V. The Pico 2 acts as an I2C slave at address
 `0x3C` (SA0 tied low). The SSD1306 I2C control byte (first byte after the
 address phase) is decoded to determine whether subsequent bytes are commands
@@ -29,24 +29,29 @@ or GDDRAM data.
 
 ### SPI mode
 
-SPI commands are received via a parallel conversion circuit — see
-[example/pico2\_st7789/README.md](../pico2_st7789/README.md) for the full
-description of the 74HC595 + 74HC4040 + 74AHC1G04 wiring and the BCLK/DCX signal path.
-The pin assignment is identical to the ST7789 example.
+SPI bytes are received directly by a PIO state machine (`spi_slave_with_dcx`
+in `src/spi_slave.pio`) — no external ICs are required. Connect the SPI
+master signals directly to the Pico 2 GPIOs as shown in the pin table below.
+
+The program samples MOSI and DCX simultaneously on each SCLK rising edge
+(CPOL=0, CPHA=0, MSB first). At 252 MHz system clock the maximum supported
+SPI clock is **84 MHz**. A GPIO interrupt on CS (rising edge) resets the PIO
+state machine between transactions, discarding any partially received byte.
 
 ## Pin assignment
 
 | GPIO  | Direction | Function |
 |-------|-----------|----------|
-| 0     | IN        | I2C SDA (I2C mode only) |
-| 1     | IN        | I2C SCL (I2C mode only) |
-| 2     | IN        | BCLK — byte clock = SCLK÷8 (SPI mode, 74AHC1G04 output, HIGH when byte complete) |
-| 3     | IN        | DCX — D/C# signal (SPI mode, direct from SPI master) |
-| 4–11  | IN        | D[0..7] — parallel data (SPI mode, 74HC595 Q1–Q8 outputs) |
+| 1     | IN        | RESX — hardware reset, active-low (SPI mode, pull-up on board) |
+| 2     | IN        | SCLK — SPI clock from master (SPI mode, CPOL=0: idle LOW) |
+| 4     | IN        | MOSI — SPI data from master, MSB first (SPI mode) |
+| 5     | IN        | DCX — D/C# signal from master (SPI mode) |
+| 6     | IN        | CS — chip select, active-low (SPI mode, pull-up on board) |
+| 8     | IN        | I2C SDA (I2C mode only) |
+| 9     | IN        | I2C SCL (I2C mode only) |
 | 12–19 | OUT       | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
 | 20    | IN        | CFG: input mode select |
 | 21    | IN        | CFG: DVI output resolution select |
-| 22    | IN        | RESX — hardware reset, active-low (SPI mode, pull-up on board) |
 | 25    | OUT       | Onboard LED |
 | 26    | IN        | CFG: output rotation bit 0 |
 | 27    | IN        | CFG: output rotation bit 1 |
@@ -93,5 +98,5 @@ The system clock is raised to match the TMDS bit-clock requirement (252 MHz for
 1.20 V to support these higher frequencies.
 
 PicoDVI uses PIO0 and claims its DMA channels inside `dvi_init()`. In SPI mode,
-the parallel slave PIO program runs on PIO1 (SM0), and its DMA channel is
+the SPI slave PIO program runs on PIO1 (SM0), and its DMA channel is
 claimed after `dvi_init()` to avoid conflicts.

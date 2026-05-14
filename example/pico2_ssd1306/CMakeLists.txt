@@ -25,9 +25,9 @@ add_executable(lcdtap_pico2_ssd1306
     src/main.cpp
 )
 
-# Generate the PIO header from par_slave.pio (SPI mode)
+# Generate the PIO header from spi_slave.pio (SPI mode)
 pico_generate_pio_header(lcdtap_pico2_ssd1306
-    ${CMAKE_CURRENT_LIST_DIR}/src/par_slave.pio
+    ${CMAKE_CURRENT_LIST_DIR}/src/spi_slave.pio
 )
 
 target_include_directories(lcdtap_pico2_ssd1306 PRIVATE
