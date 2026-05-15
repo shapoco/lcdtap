@@ -9,6 +9,21 @@ cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk
 make -j4
 ```
 
+To override the framebuffer size, pass optional `-D` flags to `cmake`:
+
+```bash
+cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk \
+         -DLCDTAP_LCD_SIZE_W=240 -DLCDTAP_LCD_SIZE_H=320 \
+         -DLCDTAP_LCD_SIZE_ALT_W=320 -DLCDTAP_LCD_SIZE_ALT_H=240
+```
+
+| cmake option | Default | Description |
+|---|---|---|
+| `LCDTAP_LCD_SIZE_W` | `240` | Framebuffer width when GPIO 20 (LCD\_SIZE) = LOW |
+| `LCDTAP_LCD_SIZE_H` | `320` | Framebuffer height when GPIO 20 (LCD\_SIZE) = LOW |
+| `LCDTAP_LCD_SIZE_ALT_W` | `320` | Framebuffer width when GPIO 20 (LCD\_SIZE) = HIGH |
+| `LCDTAP_LCD_SIZE_ALT_H` | `240` | Framebuffer height when GPIO 20 (LCD\_SIZE) = HIGH |
+
 ## Operating modes
 
 This program supports two input modes selected at startup by **GPIO 22
@@ -69,7 +84,7 @@ All configuration pins are read once at startup with internal pull-downs
 
 | GPIO  | Name          | LOW (default)           | HIGH (alternate)               |
 |-------|---------------|-------------------------|--------------------------------|
-| 20    | LCD\_SIZE     | 240×240                 | 240×320                        |
+| 20    | LCD\_SIZE     | 240×320 (default, overridable at build time) | 320×240 (default, overridable at build time) |
 | 21    | DVI\_RES      | 640×480 @ 60 Hz         | 1280×720 @ 30 Hz (reduced)     |
 | 22    | CLK\_MODE     | Normal Mode (SPI slave) | Fast Mode (parallel slave)     |
 | 26+27 | ROT           | 00 = no rotation        | 01/10/11 = see table below     |

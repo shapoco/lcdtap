@@ -214,8 +214,8 @@ int main() {
   const int rot =
       static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
 
-  const uint16_t lcdW = 240u;
-  const uint16_t lcdH = lcd320 ? 320u : 240u;
+  const uint16_t lcdW = lcd320 ? LCDTAP_LCD_SIZE_ALT_W : LCDTAP_LCD_SIZE_W;
+  const uint16_t lcdH = lcd320 ? LCDTAP_LCD_SIZE_ALT_H : LCDTAP_LCD_SIZE_H;
 
   const struct dvi_timing *timing =
       dvi720p ? &dvi_timing_1280x720p_reduced_30hz  // 319.2 MHz bit clock
@@ -270,7 +270,8 @@ int main() {
   // -------------------------------------------------------------------------
   lcdtap::LcdTapConfig cfg;
   lcdtap::getDefaultConfig(lcdtap::ControllerType::ST7789, &cfg);
-  cfg.lcdHeight = lcdH;  // 240 or 320 selected by PIN_CFG_LCD_SIZE
+  cfg.lcdWidth = lcdW;
+  cfg.lcdHeight = lcdH;
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
   cfg.invertInvPolarity = invPolarity;
 

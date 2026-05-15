@@ -105,3 +105,14 @@ static constexpr size_t MEM_POOL_SIZE = 32u * 1024u;
 // Data batching buffer for inputData() calls (SPI mode)
 // =============================================================================
 static constexpr size_t DATA_BATCH_CAP = 256u;
+
+// =============================================================================
+// Framebuffer size defaults (overridable via cmake -DLCDTAP_LCD_SIZE_W=...
+// etc.)
+// =============================================================================
+#ifndef LCDTAP_LCD_SIZE_W
+#define LCDTAP_LCD_SIZE_W 128
+#endif
+#ifndef LCDTAP_LCD_SIZE_H
+#define LCDTAP_LCD_SIZE_H 64
+#endif

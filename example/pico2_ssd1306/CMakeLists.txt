@@ -41,6 +41,14 @@ target_compile_definitions(lcdtap_pico2_ssd1306 PRIVATE
     DVI_DEFAULT_PIO_INST=pio0
 )
 
+# Forward framebuffer-size overrides only when explicitly passed via -D.
+# Defaults are defined in config.h via #ifndef/#define.
+foreach(VAR LCDTAP_LCD_SIZE_W LCDTAP_LCD_SIZE_H)
+    if(DEFINED ${VAR})
+        target_compile_definitions(lcdtap_pico2_ssd1306 PRIVATE "${VAR}=${${VAR}}")
+    endif()
+endforeach()
+
 target_link_libraries(lcdtap_pico2_ssd1306
     lcdtap
     libdvi

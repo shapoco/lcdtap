@@ -35,7 +35,8 @@ static constexpr uint PIN_SPI_CS = 6u;
 // Pull LOW = default, pull HIGH = alternate
 // =============================================================================
 
-// LOW=240x240 / HIGH=240x320
+// LOW=default size / HIGH=alternate size (see LCDTAP_LCD_SIZE_* in
+// CMakeLists.txt)
 static constexpr uint PIN_CFG_LCD_SIZE = 20u;
 
 // LOW=640x480@60Hz / HIGH=1280x720@30Hz(reduced)
@@ -100,3 +101,22 @@ static constexpr size_t MEM_POOL_SIZE = 200u * 1024u;
 // Data batching buffer for inputData() calls
 // =============================================================================
 static constexpr size_t DATA_BATCH_CAP = 1024u;
+
+// =============================================================================
+// Framebuffer size defaults (overridable via cmake -DLCDTAP_LCD_SIZE_W=...
+// etc.) PIN_CFG_LCD_SIZE=Low  → LCDTAP_LCD_SIZE_W     x LCDTAP_LCD_SIZE_H
+// (portrait) PIN_CFG_LCD_SIZE=High → LCDTAP_LCD_SIZE_ALT_W x
+// LCDTAP_LCD_SIZE_ALT_H (landscape)
+// =============================================================================
+#ifndef LCDTAP_LCD_SIZE_W
+#define LCDTAP_LCD_SIZE_W 240
+#endif
+#ifndef LCDTAP_LCD_SIZE_H
+#define LCDTAP_LCD_SIZE_H 320
+#endif
+#ifndef LCDTAP_LCD_SIZE_ALT_W
+#define LCDTAP_LCD_SIZE_ALT_W 320
+#endif
+#ifndef LCDTAP_LCD_SIZE_ALT_H
+#define LCDTAP_LCD_SIZE_ALT_H 240
+#endif

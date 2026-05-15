@@ -15,6 +15,18 @@ cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk
 make -j4
 ```
 
+To override the framebuffer size, pass optional `-D` flags to `cmake`:
+
+```bash
+cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk \
+         -DLCDTAP_LCD_SIZE_W=128 -DLCDTAP_LCD_SIZE_H=64
+```
+
+| cmake option | Default | Description |
+|---|---|---|
+| `LCDTAP_LCD_SIZE_W` | `128` | Framebuffer width |
+| `LCDTAP_LCD_SIZE_H` | `64` | Framebuffer height |
+
 ## Input modes
 
 This example supports two input modes, selectable via GPIO 20 at startup.
@@ -80,7 +92,8 @@ next frame without restarting.
 | `11`      | 270° clockwise — aspect ratio swapped for FIT |
 
 The scale mode is fixed to **FIT** (aspect-ratio-preserving letterbox /
-pillarbox). The SSD1306 display is 128×64 pixels.
+pillarbox). The framebuffer size defaults to 128×64 pixels (overridable at
+build time; see Build instructions).
 
 ## DVI output (PicoDVI / libdvi)
 
