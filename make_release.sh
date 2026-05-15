@@ -25,7 +25,7 @@ for example_dir in "${SCRIPT_DIR}/example"/*/; do
     mkdir -p "${dest}"
 
     cp "${example_dir}/README.md" "${dest}/"
-    cp -r "${example_dir}/image" "${dest}/"
+    [ -d "${example_dir}/image" ] && cp -r "${example_dir}/image" "${dest}/"
     cp "${example_dir}"/build/*.uf2 "${dest}/"
 done
 
