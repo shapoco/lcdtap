@@ -24,6 +24,7 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->dviHeight = 480;
       cfg->scaleMode = ScaleMode::FIT;
       cfg->invertInvPolarity = false;
+      cfg->swapRB = false;
       break;
     case ControllerType::SSD1306:
       cfg->controller = ControllerType::SSD1306;
@@ -34,6 +35,7 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->dviHeight = 480;
       cfg->scaleMode = ScaleMode::FIT;
       cfg->invertInvPolarity = false;
+      cfg->swapRB = false;
       break;
   }
 }
@@ -119,8 +121,8 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
   switch (pixelFormat) {
     case PixelFormat::RGB444:
       // byte0: R1[3:0] G1[3:0]  byte1: B1[3:0] R2[3:0]  byte2: G2[3:0] B2[3:0]
-      // 4bit→5bit: x<<1 (MSB-align; LSB zeroed)  4bit→6bit: x<<2 (MSB-align; lower 2 bits zeroed)
-      // Drain leftover bytes (0–2 bytes)
+      // 4bit→5bit: x<<1 (MSB-align; LSB zeroed)  4bit→6bit: x<<2 (MSB-align;
+      // lower 2 bits zeroed) Drain leftover bytes (0–2 bytes)
       while (ramwrBufLen > 0 && i < length) {
         ramwrBuf[ramwrBufLen++] = data[i];
         i += stride;
@@ -227,7 +229,8 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
   }
 }
 
-// Process a data byte stream: RAMWR data is handled in bulk, others byte by byte
+// Process a data byte stream: RAMWR data is handled in bulk, others byte by
+// byte
 void ControllerBase::feedData(const uint8_t* data, uint32_t numBytes,
                               uint32_t stride) {
   if (stride == 0) stride = 1;  // safety guard
@@ -368,7 +371,8 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       break;
     }
     case 1: {
-      // rot=1: 90° CW  — (lcdRowOut, lcdColOut) → ((physH-1-lcdColOut), lcdRowOut)
+      // rot=1: 90° CW  — (lcdRowOut, lcdColOut) → ((physH-1-lcdColOut),
+      // lcdRowOut)
       for (uint16_t x = 0; x < ctrl->displayW; ++x) {
         uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
         *d++ = fb[(uint32_t)(physH - 1u - lcdColOut) * physW + lcdRowOut] ^ inv;
@@ -377,7 +381,8 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       break;
     }
     case 2: {
-      // rot=2: 180° — (lcdRowOut, lcdColOut) → ((physH-1-lcdRowOut), (physW-1-lcdColOut))
+      // rot=2: 180° — (lcdRowOut, lcdColOut) → ((physH-1-lcdRowOut),
+      // (physW-1-lcdColOut))
       const uint16_t* srcRow = fb + (uint32_t)(physH - 1u - lcdRowOut) * physW;
       for (uint16_t x = 0; x < ctrl->displayW; ++x) {
         uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
@@ -387,7 +392,8 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       break;
     }
     case 3: {
-      // rot=3: 270° CW — (lcdRowOut, lcdColOut) → (lcdColOut, (physW-1-lcdRowOut))
+      // rot=3: 270° CW — (lcdRowOut, lcdColOut) → (lcdColOut,
+      // (physW-1-lcdRowOut))
       for (uint16_t x = 0; x < ctrl->displayW; ++x) {
         uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
         *d++ = fb[(uint32_t)lcdColOut * physW + (physW - 1u - lcdRowOut)] ^ inv;

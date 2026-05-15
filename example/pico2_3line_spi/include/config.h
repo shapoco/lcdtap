@@ -59,6 +59,9 @@ static constexpr uint PIN_LED = 25u;
 // =============================================================================
 static constexpr uint PIN_CFG_INV_POL = 28u;
 
+// LOW=no swap (default) / HIGH=swap R and B channels
+static constexpr uint PIN_CFG_SWAP_RB = 22u;
+
 // =============================================================================
 // PIO / DMA resource assignment
 // pio0 is reserved for PicoDVI (libdvi uses DVI_DEFAULT_PIO_INST = pio0).

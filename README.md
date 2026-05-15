@@ -57,6 +57,8 @@ struct LcdTapConfig {
 
   bool invertInvPolarity;     // true: INVON → normal, INVOFF → inverted
                               // false (default): INVON → inverted (ST7789 spec)
+  bool swapRB;                // true: swap R and B channels (invert cachedBGR)
+                              // false (default): no swap
 };
 ```
 
@@ -96,6 +98,7 @@ Default values for `ControllerType::ST7789`:
 | `dviHeight`        | 480                  |
 | `scaleMode`        | `FIT`                |
 | `invertInvPolarity`| `false`              |
+| `swapRB`           | `false`              |
 
 ### `HostInterface` — platform callbacks
 

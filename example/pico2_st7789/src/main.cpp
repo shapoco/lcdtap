@@ -235,8 +235,9 @@ int main() {
   //    Do this first, before the system clock changes, while the default
   //    125 MHz clock is running and the GPIO input synchronisers are stable.
   // -------------------------------------------------------------------------
-  for (uint pin : {PIN_CFG_LCD_SIZE, PIN_CFG_DVI_RES, PIN_CFG_CLK_MODE,
-                   PIN_CFG_ROT0, PIN_CFG_ROT1, PIN_CFG_INV_POL}) {
+  for (uint pin :
+       {PIN_CFG_LCD_SIZE, PIN_CFG_DVI_RES, PIN_CFG_CLK_MODE, PIN_CFG_ROT0,
+        PIN_CFG_ROT1, PIN_CFG_INV_POL, PIN_CFG_SWAP_RB}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
     gpio_pull_down(pin);
@@ -247,6 +248,7 @@ int main() {
   const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
   const bool fastMode = gpio_get(PIN_CFG_CLK_MODE);
   const bool invPolarity = gpio_get(PIN_CFG_INV_POL);
+  const bool swapRB = gpio_get(PIN_CFG_SWAP_RB);
   const int rot =
       static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
 
@@ -310,6 +312,7 @@ int main() {
   cfg.lcdHeight = lcdH;
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
   cfg.invertInvPolarity = invPolarity;
+  cfg.swapRB = swapRB;
 
   // Use effective (colour-buffer) dimensions, not physical DVI dimensions.
   cfg.dviWidth = static_cast<uint16_t>(dviW);

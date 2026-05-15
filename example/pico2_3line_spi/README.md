@@ -48,6 +48,7 @@ approximately **84 MHz** at the 640×480 system clock (252 MHz).
 | 12–19 | OUT       | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
 | 20    | IN        | CFG: LCD size select |
 | 21    | IN        | CFG: DVI output resolution select |
+| 22    | IN        | CFG: SWAP\_RB — R/B channel swap |
 | 25    | OUT       | Onboard LED |
 | 26    | IN        | CFG: output rotation bit 0 |
 | 27    | IN        | CFG: output rotation bit 1 |
@@ -62,6 +63,7 @@ All configuration pins are read once at startup with internal pull-downs
 |-------|-----------|-------------------------|--------------------------------|
 | 20    | LCD\_SIZE | 240×320 (default, overridable at build time) | 320×240 (default, overridable at build time) |
 | 21    | DVI\_RES  | 640×480 @ 60 Hz         | 1280×720 @ 30 Hz (reduced)     |
+| 22    | SWAP\_RB  | no R/B swap (default)   | swap R and B channels          |
 | 26+27 | ROT       | 00 = no rotation        | 01/10/11 = see table below     |
 | 28    | INV\_POL  | INVON → inverted        | INVON → normal (polarity flip) |
 
@@ -80,6 +82,9 @@ The scale mode is fixed to **FIT** (aspect-ratio-preserving letterbox / pillarbo
 
 `INV_POL` controls how the INVON/INVOFF commands are interpreted.
 The default (LOW) matches the standard polarity.
+
+`SWAP_RB` overrides the R/B channel swap regardless of the MADCTL BGR bit.
+Pull HIGH to swap R and B channels; useful when the display panel wiring inverts the colour order.
 
 ## DVI output (PicoDVI / libdvi)
 

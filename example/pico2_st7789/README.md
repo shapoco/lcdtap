@@ -26,11 +26,11 @@ cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk \
 
 ## Operating modes
 
-This program supports two input modes selected at startup by **GPIO 22
-(CLK\_MODE)**. Pull GPIO 22 LOW (or leave it unconnected — internal pull-down)
+This program supports two input modes selected at startup by **GPIO 0
+(CLK\_MODE)**. Pull GPIO 0 LOW (or leave it unconnected — internal pull-down)
 for Normal Mode; pull it HIGH for Fast Mode.
 
-### Normal Mode (GPIO 22 = LOW, default)
+### Normal Mode (GPIO 0 = LOW, default)
 
 Direct SPI slave connection — **no external ICs required**. Supports SPI clock up to approximately 40 MHz.
 
@@ -40,6 +40,7 @@ The rotary switch can be substituted with a DIP switch.
 
 | GPIO  | Direction | Function |
 |-------|-----------|----------|
+| 0     | IN        | CFG: CLK\_MODE — LOW = Normal Mode (this mode) |
 | 1     | IN        | RESX — hardware reset, active-low (pull-up on board) |
 | 2     | IN        | SCLK — SPI clock (CPOL=0: idles LOW) |
 | 4     | IN        | MOSI — SPI data, MSB first |
@@ -48,13 +49,13 @@ The rotary switch can be substituted with a DIP switch.
 | 12–19 | OUT       | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
 | 20    | IN        | CFG: LCD size select |
 | 21    | IN        | CFG: DVI output resolution select |
-| 22    | IN        | CFG: CLK\_MODE — LOW = Normal Mode (this mode) |
+| 22    | IN        | CFG: SWAP\_RB — R/B channel swap |
 | 25    | OUT       | Onboard LED |
 | 26    | IN        | CFG: output rotation bit 0 |
 | 27    | IN        | CFG: output rotation bit 1 |
 | 28    | IN        | CFG: inversion polarity |
 
-### Fast Mode (GPIO 22 = HIGH)
+### Fast Mode (GPIO 0 = HIGH)
 
 Parallel byte interface via external ICs — tested up to 62.5 MHz SPI clock.
 
@@ -64,6 +65,7 @@ The rotary switch can be substituted with a DIP switch.
 
 | GPIO  | Direction | Function |
 |-------|-----------|----------|
+| 0     | IN        | CFG: CLK\_MODE — HIGH = Fast Mode (this mode) |
 | 1     | IN        | RESX — hardware reset, active-low (pull-up on board) |
 | 2     | IN        | BCLK — byte clock = SCLK÷8 (74AHC1G04 output, HIGH when byte complete) |
 | 3     | IN        | DCX — D/C# signal (direct from SPI master) |
@@ -71,7 +73,7 @@ The rotary switch can be substituted with a DIP switch.
 | 12–19 | OUT       | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
 | 20    | IN        | CFG: LCD size select |
 | 21    | IN        | CFG: DVI output resolution select |
-| 22    | IN        | CFG: CLK\_MODE — HIGH = Fast Mode (this mode) |
+| 22    | IN        | CFG: SWAP\_RB — R/B channel swap |
 | 25    | OUT       | Onboard LED |
 | 26    | IN        | CFG: output rotation bit 0 |
 | 27    | IN        | CFG: output rotation bit 1 |
@@ -84,9 +86,10 @@ All configuration pins are read once at startup with internal pull-downs
 
 | GPIO  | Name          | LOW (default)           | HIGH (alternate)               |
 |-------|---------------|-------------------------|--------------------------------|
+| 0     | CLK\_MODE     | Normal Mode (SPI slave) | Fast Mode (parallel slave)     |
 | 20    | LCD\_SIZE     | 240×320 (default, overridable at build time) | 320×240 (default, overridable at build time) |
 | 21    | DVI\_RES      | 640×480 @ 60 Hz         | 1280×720 @ 30 Hz (reduced)     |
-| 22    | CLK\_MODE     | Normal Mode (SPI slave) | Fast Mode (parallel slave)     |
+| 22    | SWAP\_RB      | no R/B swap (default)   | swap R and B channels          |
 | 26+27 | ROT           | 00 = no rotation        | 01/10/11 = see table below     |
 | 28    | INV\_POL      | INVON → inverted        | INVON → normal (polarity flip) |
 
@@ -105,6 +108,9 @@ The scale mode is fixed to **FIT** (aspect-ratio-preserving letterbox / pillarbo
 
 `INV_POL` controls how the ST7789 INVON/INVOFF commands are interpreted.
 The default (LOW) matches the ST7789 datasheet polarity.
+
+`SWAP_RB` overrides the R/B channel swap regardless of the MADCTL BGR bit.
+Pull HIGH to swap R and B channels; useful when the display panel wiring inverts the colour order.
 
 ## DVI output (PicoDVI / libdvi)
 

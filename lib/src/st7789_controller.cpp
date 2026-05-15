@@ -14,7 +14,7 @@ void St7789Controller::updateWriteCache() {
   bool mv = (madctl >> 5) & 1;
   bool mx = (madctl >> 6) & 1;
   bool my = (madctl >> 7) & 1;
-  cachedBGR = (madctl >> 3) & 1;
+  cachedBGR = ((madctl >> 3) & 1) ^ config.swapRB;
   int32_t W = static_cast<int32_t>(config.lcdWidth);
   int32_t H = static_cast<int32_t>(config.lcdHeight);
   if (!mv) {

@@ -70,7 +70,7 @@ static constexpr uint PIN_CFG_DVI_RES = 21u;
 
 // LOW=Normal Mode (spi_slave.pio, no external ICs) / HIGH=Fast Mode
 // (par_slave.pio)
-static constexpr uint PIN_CFG_CLK_MODE = 22u;
+static constexpr uint PIN_CFG_CLK_MODE = 0u;
 
 // output rotation bits: GPIO26=rot bit0, GPIO27=rot bit1 (pull-down=0, default
 // rot=0)
@@ -88,6 +88,9 @@ static constexpr uint PIN_LED = 25u;
 // (INVON→non-inverted)
 // =============================================================================
 static constexpr uint PIN_CFG_INV_POL = 28u;
+
+// LOW=no swap (default) / HIGH=swap R and B channels
+static constexpr uint PIN_CFG_SWAP_RB = 22u;
 
 // =============================================================================
 // PIO / DMA resource assignment

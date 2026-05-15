@@ -43,9 +43,9 @@ enum class PixelFormat : uint8_t {
 // Scaling mode (when LCD resolution differs from DVI active area)
 //=============================================================================
 enum class ScaleMode : uint8_t {
-  STRETCH,       // Stretch to fill the full DVI area (ignores aspect ratio)
-  FIT,           // Letterbox/pillarbox to preserve aspect ratio
-  PIXEL_PERFECT, // Scale by integer factor; black padding around the image
+  STRETCH,        // Stretch to fill the full DVI area (ignores aspect ratio)
+  FIT,            // Letterbox/pillarbox to preserve aspect ratio
+  PIXEL_PERFECT,  // Scale by integer factor; black padding around the image
 };
 
 //=============================================================================
@@ -66,6 +66,7 @@ struct LcdTapConfig {
   ScaleMode scaleMode;
 
   bool invertInvPolarity;  // true: INVON→non-inverted / INVOFF→inverted
+  bool swapRB;             // true: invert cachedBGR (swap R and B channels)
 };
 
 //=============================================================================
@@ -74,7 +75,8 @@ struct LcdTapConfig {
 struct HostInterface {
   // --- Memory management (required) ---
   // Used for framebuffer allocation/deallocation.
-  // Pass a custom allocator if you need to allocate in external memory (e.g. PSRAM).
+  // Pass a custom allocator if you need to allocate in external memory (e.g.
+  // PSRAM).
   void* (*alloc)(size_t size);
   void (*free)(void* ptr);
 
@@ -145,9 +147,9 @@ class LcdTap {
 
   // Force-set the sleep/display-on state.
   // on=true: sets sleeping=false and displayOn=true, making fillScanline()
-  // return non-black pixels. on=false: sets sleeping=true and returns a black screen.
-  // Use this when you want to display a test pattern before the SPI master sends
-  // SLPOUT/DISPON.
+  // return non-black pixels. on=false: sets sleeping=true and returns a black
+  // screen. Use this when you want to display a test pattern before the SPI
+  // master sends SLPOUT/DISPON.
   void setDisplayOn(bool on);
 
  private:
