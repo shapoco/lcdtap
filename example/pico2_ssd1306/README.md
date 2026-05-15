@@ -4,7 +4,7 @@
 
 ![](./image/schematic.png)
 
-
+The rotary switch can be substituted with a DIP switch.
 
 ## Build instructions
 

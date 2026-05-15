@@ -21,6 +21,8 @@ Direct SPI slave connection — **no external ICs required**. Supports SPI clock
 
 ![](./image/schematic_normal.png)
 
+The rotary switch can be substituted with a DIP switch.
+
 | GPIO  | Direction | Function |
 |-------|-----------|----------|
 | 1     | IN        | RESX — hardware reset, active-low (pull-up on board) |
@@ -39,9 +41,11 @@ Direct SPI slave connection — **no external ICs required**. Supports SPI clock
 
 ### Fast Mode (GPIO 22 = HIGH)
 
+Parallel byte interface via external ICs — tested up to 62.5 MHz SPI clock.
+
 ![](./image/schematic_fast.png)
 
-Parallel byte interface via external ICs — tested up to 62.5 MHz SPI clock.
+The rotary switch can be substituted with a DIP switch.
 
 | GPIO  | Direction | Function |
 |-------|-----------|----------|
