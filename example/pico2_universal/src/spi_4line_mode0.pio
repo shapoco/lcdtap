@@ -53,7 +53,7 @@
 .define public SPI_CS_PIN    6
 .define public SPI_SCLK_PIN  2
 
-.program spi_slave_with_dcx
+.program spi_4line_mode0
 
 ; ---- per-transaction loop ---------------------------------------------------
 .wrap_target

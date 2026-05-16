@@ -4,8 +4,9 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. Based on `pico
 
 ## Features
 
-- Supports Normal Mode (direct SPI) and Fast Mode (74HC595/74HC4040 parallel) via GPIO0
-- Runtime configuration via OSD menu: controller type, pixel format, LCD size, inversion, R/B swap, rotation, scale mode
+- Supports four input interfaces selectable via OSD: I2C, 4-Line SPI, 3-Line SPI, Parallel
+- Runtime configuration via OSD menu: interface, controller type, pixel format, LCD size, inversion, R/B swap, rotation, scale mode
+- Settings (including selected interface) saved to flash on Apply and restored at next boot
 - DVI output: 640×480@60Hz or 1280×720@30Hz selectable via GPIO21 at boot
 
 ## OSD Menu
@@ -16,21 +17,29 @@ Press the **Enter key** (GPIO28) to open the configuration menu.
 |-----|--------|
 | Up / Down | Navigate menu items |
 | Left / Right | Adjust selected value |
-| Enter on Apply | Apply changes |
+| Enter on Apply | Apply changes and save to flash |
 | Enter on Cancel | Discard changes and close |
+
+### Interface Selection
+
+The **Interface** item (second in the menu) selects the input interface:
+
+| Value | Interface | Description |
+|-------|-----------|-------------|
+| I2C | I2C slave | I2C0 on GPIO8 (SDA) / GPIO9 (SCL), address 0x3C |
+| 4Line SPI | 4-line SPI (default) | MOSI + separate DCX pin |
+| 3Line SPI | 3-line SPI | DCX embedded as first bit of each 9-bit transaction |
+| Parallel | Parallel 8-bit | External 74HC595 + 74HC4040 + 74AHC1G04 circuit |
+
+The selected interface takes effect immediately on Apply (no reboot required).
 
 ## GPIO Assignments
 
-### Normal Mode (default)
+### Common (all modes)
 
 | GPIO | Direction | Function |
 |------|-----------|----------|
-| 0 | IN | CFG: CLK_MODE — LOW=Normal Mode, HIGH=Fast Mode (pull-down) |
 | 1 | IN | RESX — hardware reset, active-low (pull-up) |
-| 2 | IN | SPI SCLK |
-| 4 | IN | SPI MOSI — MSB first |
-| 5 | IN | SPI DCX — D/C# signal |
-| 6 | IN | SPI CS — chip select, active-low (pull-up) |
 | 12–19 | OUT | DVI-D TMDS output (PicoDVI pico_sock_cfg) |
 | 20 | IN | KEY_UP — active-low (pull-up) |
 | 21 | IN | CFG: DVI_RES — LOW=640×480@60Hz, HIGH=1280×720@30Hz (pull-down) |
@@ -40,23 +49,39 @@ Press the **Enter key** (GPIO28) to open the configuration menu.
 | 27 | IN | KEY_RIGHT — active-low (pull-up) |
 | 28 | IN | KEY_ENTER — active-low (pull-up) |
 
-### Fast Mode (GPIO0 = HIGH)
+### I2C Mode
 
 | GPIO | Direction | Function |
 |------|-----------|----------|
-| 0 | IN | CFG: CLK_MODE — HIGH=Fast Mode (pull-down) |
-| 1 | IN | RESX — hardware reset, active-low (pull-up) |
+| 8 | IN | I2C SDA (pull-up) |
+| 9 | IN | I2C SCL (pull-up) |
+
+### 4-Line SPI Mode (default)
+
+| GPIO | Direction | Function |
+|------|-----------|----------|
+| 2 | IN | SPI SCLK |
+| 4 | IN | SPI MOSI — MSB first |
+| 5 | IN | SPI DCX — D/C# signal |
+| 6 | IN | SPI CS — chip select, active-low (pull-up) |
+
+### 3-Line SPI Mode
+
+| GPIO | Direction | Function |
+|------|-----------|----------|
+| 2 | IN | SPI SCLK |
+| 4 | IN | SPI MOSI — DCX as first bit, then D7..D0 |
+| 6 | IN | SPI CS — chip select, active-low (pull-up) |
+
+### Parallel Mode
+
+| GPIO | Direction | Function |
+|------|-----------|----------|
 | 2 | IN | PAR BCLK — byte clock (SCLK÷8) |
 | 3 | IN | PAR DCX — D/C# signal |
-| 4–11 | IN | PAR D[0..7] — parallel data |
-| 12–19 | OUT | DVI-D TMDS output |
-| 20 | IN | KEY_UP — active-low (pull-up) |
-| 21 | IN | CFG: DVI_RES (pull-down) |
-| 22 | IN | KEY_DOWN — active-low (pull-up) |
-| 25 | OUT | Onboard LED |
-| 26 | IN | KEY_LEFT — active-low (pull-up) |
-| 27 | IN | KEY_RIGHT — active-low (pull-up) |
-| 28 | IN | KEY_ENTER — active-low (pull-up) |
+| 4–11 | IN | PAR D[0..7] — parallel data (GPIO8/9 shared with I2C) |
+
+> **Note:** GPIO8 and GPIO9 are shared between I2C mode (SDA/SCL) and Parallel mode (PAR\_DATA[4:5]). Wire only the interface actually in use.
 
 ## Build
 

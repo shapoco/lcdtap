@@ -47,7 +47,10 @@ constexpr uint16_t ITEM_ID_CANCEL = 10u;
 // getDefaultOsdConfig
 //=============================================================================
 
-void getDefaultOsdConfig(OsdConfig* cfg) { (void)cfg; }
+void getDefaultOsdConfig(OsdConfig* cfg) {
+  cfg->onMenuOpen = nullptr;
+  cfg->userData = nullptr;
+}
 
 //=============================================================================
 // Osd::init
@@ -98,6 +101,7 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
     // Show OSD on Enter
     if (activeKeys & OSD_KEY_ENTER) {
       initMenuItems(lcdtap);
+      if (cfg_.onMenuOpen) cfg_.onMenuOpen(this, cfg_.userData);
       visible_ = true;
       blinkOn_ = true;
       lastBlinkMs_ = nowMs;

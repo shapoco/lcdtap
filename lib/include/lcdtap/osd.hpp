@@ -60,7 +60,9 @@ struct OsdMenuItem {
 // OSD configuration (provided by host before calling Osd::init())
 //=============================================================================
 struct OsdConfig {
-  // Reserved for future host-side extensions.
+  // Called after initMenuItems(); use osd->insertItem() to inject custom items.
+  void (*onMenuOpen)(class Osd* osd, void* userData);
+  void* userData;
 };
 
 // Fill cfg with safe defaults.

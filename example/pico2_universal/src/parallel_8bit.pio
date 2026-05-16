@@ -47,7 +47,7 @@
 
 .define public PAR_BCLK_PIN  2
 
-.program par_slave_with_dcx
+.program parallel_8bit
 
     ; --- startup sync (runs once) -------------------------------------------
     ; If BCLK is already LOW when the SM starts, wait for it to go HIGH first.

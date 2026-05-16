@@ -6,8 +6,11 @@
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
+#include "hardware/i2c.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
+#include "hardware/regs/i2c.h"
+#include "hardware/structs/i2c.h"
 #include "hardware/vreg.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -21,13 +24,14 @@
 
 #include "config.h"
 #include "flash_config.hpp"
-#include "par_slave.pio.h"
-#include "spi_slave.pio.h"
+#include "parallel_8bit.pio.h"
+#include "spi_3line_mode0.pio.h"
+#include "spi_4line_mode0.pio.h"
 
 static_assert(PIN_SPI_CS == SPI_CS_PIN,
-              "PIN_SPI_CS mismatch with spi_slave.pio");
+              "PIN_SPI_CS mismatch with spi_4line_mode0.pio");
 static_assert(PIN_SPI_SCLK == SPI_SCLK_PIN,
-              "PIN_SPI_SCLK mismatch with spi_slave.pio");
+              "PIN_SPI_SCLK mismatch with spi_4line_mode0.pio");
 static_assert(PIN_SPI_MOSI + 1u == PIN_SPI_DCX,
               "DCX must be MOSI+1 for 'in pins, 2'");
 
@@ -47,25 +51,40 @@ static void *poolAlloc(size_t size) {
 static void poolFree(void *ptr) { (void)ptr; }
 
 // =============================================================================
-// Ring buffer  (word = [bit8: DCX, bits7:0: data byte])
+// SPI/Parallel ring buffer  (word = [bit8: DCX, bits7:0: data byte])
 // =============================================================================
 static uint32_t
     __attribute__((aligned(SPI_RING_BUF_BYTES))) spiRingBuf[SPI_RING_BUF_WORDS];
 
 static int spiDmaCh = -1;
-static uint32_t spiReadIdx = 0;  // index into spiRingBuf[]
+static uint32_t spiReadIdx = 0;
+
+// =============================================================================
+// I2C ring buffer  (same word format as SPI ring buffer)
+// =============================================================================
+static uint32_t i2cRingBuf[I2C_RING_BUF_WORDS];
+static volatile uint32_t i2cWriteIdx = 0;  // bounded: 0..I2C_RING_BUF_WORDS-1
+static uint32_t i2cReadIdx = 0;
+
+enum class I2cRxState { WAIT_CTRL, STREAM_CMD, STREAM_DATA };
+static volatile I2cRxState i2cRxState = I2cRxState::WAIT_CTRL;
+
+// =============================================================================
+// Interface selection
+// =============================================================================
+static InterfaceType gCurrentIface = InterfaceType::SPI_4LINE;
+static bool gIfaceActive = false;
+static const pio_program_t *gCurrentPioProgram = nullptr;
 
 // =============================================================================
 // DVI
 // =============================================================================
 static struct dvi_inst dvi0;
 
-// Static RGB565 scanline buffers, recycled via q_colour_free.
-// Sized to DVI_MAX_W so they fit any supported DVI timing without allocation.
 static uint16_t scanlineBufs[N_SCANLINE_BUFS][DVI_MAX_W];
 
 // =============================================================================
-// LcdTap instance (set after init so the RESX callback can reach it)
+// LcdTap instance
 // =============================================================================
 static lcdtap::LcdTap *gInst = nullptr;
 
@@ -73,20 +92,42 @@ static lcdtap::LcdTap *gInst = nullptr;
 static lcdtap::Osd gOsd;
 
 // PIO program offset — stored so gpioIrqHandler can reset the SM PC on CS
-// de-assertion in Normal Mode (pio_sm_restart does not reset the PC).
+// de-assertion (pio_sm_restart does not reset the PC).
 static uint gSpiProgOffset = 0u;
 
 // =============================================================================
-// GPIO interrupt handler  (RESX pin; CS pin in Normal Mode)
+// OSD user item
+// =============================================================================
+static constexpr uint16_t OSD_USER_ITEM_ID_INTERFACE =
+    lcdtap::OSD_USER_ITEM_ID_BASE;
+
+static const char *kInterfaceNames[] = {"I2C", "4Line SPI", "3Line SPI",
+                                        "Parallel"};
+
+static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
+  lcdtap::OsdMenuItem item = {};
+  item.id = OSD_USER_ITEM_ID_INTERFACE;
+  item.type = lcdtap::OsdMenuType::ENUM;
+  item.name = "Interface";
+  item.unit = "";
+  item.values = kInterfaceNames;
+  item.min = 0;
+  item.max = 3;
+  item.step = 1;
+  item.value = static_cast<int16_t>(gCurrentIface);
+  osd->insertItem(1, item);
+}
+
+// =============================================================================
+// GPIO interrupt handler  (RESX pin; CS pin for SPI modes)
 // =============================================================================
 static void gpioIrqHandler(uint gpio, uint32_t events) {
   if (gpio == PIN_RESX && gInst) {
     gInst->inputReset((events & GPIO_IRQ_EDGE_FALL) != 0u);
   }
   if (gpio == PIN_SPI_CS && (events & GPIO_IRQ_EDGE_RISE)) {
-    // CS rising edge (Normal Mode): transaction ended or aborted.  Reset the
-    // SM so any partial byte is discarded and it is ready for the next
-    // transaction.
+    // CS rising edge: transaction ended or aborted.  Reset the SM so any
+    // partial byte is discarded and it is ready for the next transaction.
     pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
     pio_sm_clear_fifos(SPI_PIO, SPI_SM);
     pio_sm_restart(SPI_PIO, SPI_SM);
@@ -99,18 +140,14 @@ static void gpioIrqHandler(uint gpio, uint32_t events) {
 // Core 1: DVI TMDS encode + serialise (never returns)
 // =============================================================================
 static void core1Main() {
-  // Route DVI DMA IRQ to this core; use DMA_IRQ_0 (highest priority).
   dvi_register_irqs_this_core(&dvi0, DMA_IRQ_0);
-
-  // Wait until Core 0 has queued the first scanline before starting output.
   while (queue_is_empty(&dvi0.q_colour_valid)) __wfe();
-
   dvi_start(&dvi0);
-  dvi_scanbuf_main_16bpp(&dvi0);  // infinite loop
+  dvi_scanbuf_main_16bpp(&dvi0);
 }
 
 // =============================================================================
-// Normal Mode: SPI slave init  (PIO1 SM0)
+// 4-Line SPI slave init  (PIO1 SM0)
 // =============================================================================
 static void spiSlaveInit(uint prog_offset) {
   for (uint pin : {PIN_SPI_SCLK, PIN_SPI_MOSI, PIN_SPI_DCX}) {
@@ -121,7 +158,7 @@ static void spiSlaveInit(uint prog_offset) {
   gpio_set_dir(PIN_SPI_CS, GPIO_IN);
   gpio_pull_up(PIN_SPI_CS);
 
-  pio_sm_config c = spi_slave_with_dcx_program_get_default_config(prog_offset);
+  pio_sm_config c = spi_4line_mode0_program_get_default_config(prog_offset);
   sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO4; DCX is IN_BASE+1
   sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
                          /*push_threshold=*/32);
@@ -132,31 +169,45 @@ static void spiSlaveInit(uint prog_offset) {
 }
 
 // =============================================================================
-// Fast Mode: Parallel slave init  (PIO1 SM0)
+// 3-Line SPI slave init  (PIO1 SM0)
+// =============================================================================
+static void spi3lineSlaveInit(uint prog_offset) {
+  for (uint pin : {PIN_SPI_SCLK, PIN_SPI_MOSI}) {
+    gpio_init(pin);
+    gpio_set_dir(pin, GPIO_IN);
+  }
+  gpio_init(PIN_SPI_CS);
+  gpio_set_dir(PIN_SPI_CS, GPIO_IN);
+  gpio_pull_up(PIN_SPI_CS);
+
+  pio_sm_config c = spi_3line_mode0_program_get_default_config(prog_offset);
+  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO4 (MOSI only)
+  sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
+                         /*push_threshold=*/32);
+  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
+  pio_sm_init(SPI_PIO, SPI_SM, prog_offset, &c);
+  pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
+}
+
+// =============================================================================
+// Parallel slave init  (PIO1 SM0)
 // =============================================================================
 static void parSlaveInit(uint prog_offset) {
-  // BCLK and DCX are inputs.
   gpio_init(PIN_PAR_BCLK);
   gpio_set_dir(PIN_PAR_BCLK, GPIO_IN);
   gpio_init(PIN_PAR_DCX);
   gpio_set_dir(PIN_PAR_DCX, GPIO_IN);
-  // D[0..7] = GPIO 4-11 are all inputs.
   for (uint pin = PIN_PAR_DATA_BASE; pin < PIN_PAR_DATA_BASE + 8u; ++pin) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
   }
 
-  pio_sm_config c = par_slave_with_dcx_program_get_default_config(prog_offset);
-  // D[0] is the IN base pin; 'in pins, 8' samples GPIO 4-11.
+  pio_sm_config c = parallel_8bit_program_get_default_config(prog_offset);
   sm_config_set_in_pins(&c, PIN_PAR_DATA_BASE);
-  // DCX is the JMP_PIN; 'jmp pin' branches on its state.
   sm_config_set_jmp_pin(&c, PIN_PAR_DCX);
-  // Shift left so D7..D0 accumulate in bits[7:0] after 8 shifts.
-  // AUTOPUSH disabled; we push manually after each 9-bit word.
-  sm_config_set_in_shift(&c, /*shift_direction=*/false,
-                         /*autopush=*/false,
+  sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
                          /*push_threshold=*/32);
-  // Join both FIFOs into one 8-deep RX FIFO.
   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
 
   pio_sm_init(SPI_PIO, SPI_SM, prog_offset, &c);
@@ -170,33 +221,150 @@ static void spiDmaInit() {
   spiDmaCh = dma_claim_unused_channel(true);
 
   dma_channel_config cfg = dma_channel_get_default_config((uint)spiDmaCh);
-  channel_config_set_read_increment(&cfg, false);  // fixed: PIO RX FIFO
-  channel_config_set_write_increment(&cfg, true);  // advances through ring
+  channel_config_set_read_increment(&cfg, false);
+  channel_config_set_write_increment(&cfg, true);
   channel_config_set_dreq(&cfg, pio_get_dreq(SPI_PIO, SPI_SM, /*is_tx=*/false));
   channel_config_set_transfer_data_size(&cfg, DMA_SIZE_32);
-  // Wrap the write address at SPI_RING_BUF_BYTES boundary → circular buffer.
   channel_config_set_ring(&cfg, /*write=*/true, SPI_RING_BUF_LOG2);
 
-  dma_channel_configure((uint)spiDmaCh, &cfg,
-                        spiRingBuf,             // initial write address
-                        &SPI_PIO->rxf[SPI_SM],  // read address: PIO RX FIFO
-                        0xFFFFFFFFu,            // run forever
+  dma_channel_configure((uint)spiDmaCh, &cfg, spiRingBuf, &SPI_PIO->rxf[SPI_SM],
+                        0xFFFFFFFFu,
                         /*trigger=*/true);
 }
 
 // =============================================================================
-// Drain the ring buffer and feed bytes to LcdTap
+// I2C slave init
+// =============================================================================
+static void i2cSlaveIrqHandler() {
+  i2c_hw_t *hw = i2c_get_hw(i2c0);
+  uint32_t intr = hw->intr_stat;
+
+  if (intr & I2C_IC_INTR_STAT_R_RX_FULL_BITS) {
+    uint32_t raw = hw->data_cmd;
+    bool firstByte = (raw & I2C_IC_DATA_CMD_FIRST_DATA_BYTE_BITS) != 0u;
+    uint8_t byte = static_cast<uint8_t>(raw & 0xFFu);
+
+    if (firstByte) {
+      i2cRxState = I2cRxState::WAIT_CTRL;
+    }
+
+    if (i2cRxState == I2cRxState::WAIT_CTRL) {
+      // Decode SSD1306 control byte: bit6=D/C#, bit7=Co (Co=1 not supported)
+      bool dc = (byte >> 6u) & 1u;
+      i2cRxState = dc ? I2cRxState::STREAM_DATA : I2cRxState::STREAM_CMD;
+    } else {
+      uint32_t word = (i2cRxState == I2cRxState::STREAM_DATA)
+                          ? (0x100u | byte)
+                          : static_cast<uint32_t>(byte);
+      i2cRingBuf[i2cWriteIdx] = word;
+      i2cWriteIdx = (i2cWriteIdx + 1u) & (I2C_RING_BUF_WORDS - 1u);
+    }
+  }
+
+  if (intr & I2C_IC_INTR_STAT_R_STOP_DET_BITS) {
+    i2cRxState = I2cRxState::WAIT_CTRL;
+    (void)hw->clr_stop_det;
+  }
+
+  if (intr & I2C_IC_INTR_STAT_R_RD_REQ_BITS) {
+    hw->data_cmd = 0xFFu;
+    (void)hw->clr_rd_req;
+  }
+
+  if (intr & I2C_IC_INTR_STAT_R_TX_ABRT_BITS) {
+    (void)hw->clr_tx_abrt;
+  }
+}
+
+static void i2cSlaveInit() {
+  i2c_init(i2c0, 400u * 1000u);
+  gpio_set_function(PIN_I2C_SDA, GPIO_FUNC_I2C);
+  gpio_set_function(PIN_I2C_SCL, GPIO_FUNC_I2C);
+  gpio_pull_up(PIN_I2C_SDA);
+  gpio_pull_up(PIN_I2C_SCL);
+
+  i2c_set_slave_mode(i2c0, true, I2C_SLAVE_ADDR);
+
+  i2c_get_hw(i2c0)->intr_mask =
+      I2C_IC_INTR_MASK_M_RX_FULL_BITS | I2C_IC_INTR_MASK_M_STOP_DET_BITS |
+      I2C_IC_INTR_MASK_M_RD_REQ_BITS | I2C_IC_INTR_MASK_M_TX_ABRT_BITS;
+
+  irq_set_exclusive_handler(I2C0_IRQ, i2cSlaveIrqHandler);
+  irq_set_enabled(I2C0_IRQ, true);
+}
+
+// =============================================================================
+// Interface switching (teardown current, setup new)
+// =============================================================================
+static void switchInterface(InterfaceType newIface) {
+  if (gIfaceActive) {
+    if (gCurrentIface == InterfaceType::I2C) {
+      irq_set_enabled(I2C0_IRQ, false);
+      i2c_deinit(i2c0);
+      i2cReadIdx = 0;
+      i2cWriteIdx = 0;
+      i2cRxState = I2cRxState::WAIT_CTRL;
+    } else {
+      if (spiDmaCh >= 0) {
+        dma_channel_abort((uint)spiDmaCh);
+        dma_channel_unclaim((uint)spiDmaCh);
+        spiDmaCh = -1;
+      }
+      pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
+      pio_sm_clear_fifos(SPI_PIO, SPI_SM);
+      if (gCurrentIface == InterfaceType::SPI_4LINE ||
+          gCurrentIface == InterfaceType::SPI_3LINE) {
+        gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, false);
+      }
+      if (gCurrentPioProgram) {
+        pio_remove_program(SPI_PIO, gCurrentPioProgram, gSpiProgOffset);
+        gCurrentPioProgram = nullptr;
+      }
+      spiReadIdx = 0;
+    }
+    if (gInst) {
+      gInst->inputReset(true);
+      gInst->inputReset(false);
+    }
+  }
+  gIfaceActive = true;
+
+  switch (newIface) {
+    case InterfaceType::I2C: i2cSlaveInit(); break;
+    case InterfaceType::SPI_4LINE:
+      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
+      gCurrentPioProgram = &spi_4line_mode0_program;
+      gSpiProgOffset = pio_add_program(SPI_PIO, gCurrentPioProgram);
+      spiSlaveInit(gSpiProgOffset);
+      spiDmaInit();
+      break;
+    case InterfaceType::SPI_3LINE:
+      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
+      gCurrentPioProgram = &spi_3line_mode0_program;
+      gSpiProgOffset = pio_add_program(SPI_PIO, gCurrentPioProgram);
+      spi3lineSlaveInit(gSpiProgOffset);
+      spiDmaInit();
+      break;
+    case InterfaceType::PARALLEL:
+      gCurrentPioProgram = &parallel_8bit_program;
+      gSpiProgOffset = pio_add_program(SPI_PIO, gCurrentPioProgram);
+      parSlaveInit(gSpiProgOffset);
+      spiDmaInit();
+      break;
+  }
+  gCurrentIface = newIface;
+}
+
+// =============================================================================
+// Drain the SPI/Parallel ring buffer and feed bytes to LcdTap
 // =============================================================================
 static void processSpiRingBuf() {
-  // Current write position from the DMA controller.
   uint32_t writeAddr = dma_channel_hw_addr((uint)spiDmaCh)->write_addr;
   uint32_t writeIdx =
       (writeAddr - reinterpret_cast<uint32_t>(spiRingBuf)) / sizeof(uint32_t);
   writeIdx &= (SPI_RING_BUF_WORDS - 1u);
 
   if (!gInst) {
-    // No LcdTap instance to feed; just advance the read index to "consume"
-    // the data.
     spiReadIdx = writeIdx;
     return;
   }
@@ -214,7 +382,6 @@ static void processSpiRingBuf() {
         dataStart = 0;
       }
     } else {
-      // command byte
       uint32_t dataLen = lastReadIdx - dataStart;
       if (dataLen != 0) {
         gInst->inputData((uint8_t *)&spiRingBuf[dataStart], dataLen,
@@ -230,6 +397,57 @@ static void processSpiRingBuf() {
     gInst->inputData((uint8_t *)&spiRingBuf[dataStart], dataLen,
                      sizeof(uint32_t));
   }
+}
+
+// =============================================================================
+// Drain the I2C ring buffer and feed bytes to LcdTap
+// =============================================================================
+static void processI2cRingBuf() {
+  uint32_t writeIdx = i2cWriteIdx;  // snapshot of volatile
+
+  if (!gInst) {
+    i2cReadIdx = writeIdx;
+    return;
+  }
+
+  uint32_t dataStart = i2cReadIdx;
+  while (i2cReadIdx != writeIdx) {
+    uint32_t lastReadIdx = i2cReadIdx;
+    uint32_t word = i2cRingBuf[i2cReadIdx];
+    i2cReadIdx = (i2cReadIdx + 1u) & (I2C_RING_BUF_WORDS - 1u);
+
+    if (word & 0x100u) {
+      if (i2cReadIdx == 0) {
+        gInst->inputData((uint8_t *)&i2cRingBuf[dataStart],
+                         (I2C_RING_BUF_WORDS - dataStart), sizeof(uint32_t));
+        dataStart = 0;
+      }
+    } else {
+      uint32_t dataLen = lastReadIdx - dataStart;
+      if (dataLen != 0) {
+        gInst->inputData((uint8_t *)&i2cRingBuf[dataStart], dataLen,
+                         sizeof(uint32_t));
+      }
+      gInst->inputCommand(static_cast<uint8_t>(word));
+      dataStart = i2cReadIdx;
+    }
+  }
+
+  uint32_t dataLen = i2cReadIdx - dataStart;
+  if (dataLen != 0) {
+    gInst->inputData((uint8_t *)&i2cRingBuf[dataStart], dataLen,
+                     sizeof(uint32_t));
+  }
+}
+
+// =============================================================================
+// Dispatch to the active ring buffer processor
+// =============================================================================
+static void processInputBuf() {
+  if (gCurrentIface == InterfaceType::I2C)
+    processI2cRingBuf();
+  else
+    processSpiRingBuf();
 }
 
 // =============================================================================
@@ -252,11 +470,8 @@ static uint8_t readKeys() {
 int main() {
   // -------------------------------------------------------------------------
   // 1. Read boot-time configuration GPIOs and initialize key inputs
-  //    Do this first, before the system clock changes, while the default
-  //    125 MHz clock is running and the GPIO input synchronisers are stable.
   // -------------------------------------------------------------------------
 
-  // Key inputs: active-low with internal pull-up.
   for (uint pin :
        {PIN_KEY_UP, PIN_KEY_DOWN, PIN_KEY_LEFT, PIN_KEY_RIGHT, PIN_KEY_ENTER}) {
     gpio_init(pin);
@@ -264,23 +479,18 @@ int main() {
     gpio_pull_up(pin);
   }
 
-  // Boot-time config straps: pull-down, read once.
-  for (uint pin : {PIN_CFG_CLK_MODE, PIN_CFG_DVI_RES}) {
-    gpio_init(pin);
-    gpio_set_dir(pin, GPIO_IN);
-    gpio_pull_down(pin);
-  }
-  sleep_ms(1);  // allow pull-downs to settle
+  gpio_init(PIN_CFG_DVI_RES);
+  gpio_set_dir(PIN_CFG_DVI_RES, GPIO_IN);
+  gpio_pull_down(PIN_CFG_DVI_RES);
+  sleep_ms(1);
 
-  const bool fastMode = gpio_get(PIN_CFG_CLK_MODE);
   const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
 
   const uint16_t lcdW = LCDTAP_LCD_SIZE_W;
   const uint16_t lcdH = LCDTAP_LCD_SIZE_H;
 
   const struct dvi_timing *timing =
-      dvi720p ? &dvi_timing_1280x720p_reduced_30hz  // 319.2 MHz bit clock
-              : &dvi_timing_640x480p_60hz;          // 252.0 MHz bit clock
+      dvi720p ? &dvi_timing_1280x720p_reduced_30hz : &dvi_timing_640x480p_60hz;
 
   // -------------------------------------------------------------------------
   // 2. Voltage regulator and system clock
@@ -297,7 +507,7 @@ int main() {
   gpio_put(PIN_LED, 0);
 
   // -------------------------------------------------------------------------
-  // 4. RESX input (pull-up; active low from SPI master)
+  // 4. RESX input (pull-up; active low from SPI/Parallel master)
   // -------------------------------------------------------------------------
   gpio_init(PIN_RESX);
   gpio_set_dir(PIN_RESX, GPIO_IN);
@@ -307,15 +517,9 @@ int main() {
   // 5. DVI init (claims DMA channels and PIO0 state machines)
   // -------------------------------------------------------------------------
   dvi0.timing = timing;
-  dvi0.ser_cfg = pico_sock_cfg;  // GPIO12-19, pio0, invert_diffpairs=false
+  dvi0.ser_cfg = pico_sock_cfg;
   dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
 
-  // Effective colour buffer dimensions for dvi_scanbuf_main_16bpp:
-  //   Horizontal: tmds_encode_data_channel_16bpp doubles each pixel, so the
-  //               colour buffer is h_active_pixels/2 pixels wide.
-  //   Vertical:   DVI_VERTICAL_REPEAT reuses each TMDS buffer for REPEAT
-  //               consecutive physical lines, so only v_active_lines/REPEAT
-  //               unique colour buffers are consumed per DVI frame.
   const uint32_t dviW = timing->h_active_pixels / 2;
   const uint32_t dviH = timing->v_active_lines / DVI_VERTICAL_REPEAT;
 
@@ -333,18 +537,18 @@ int main() {
   cfg.lcdHeight = lcdH;
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
 
-  // Use effective (colour-buffer) dimensions, not physical DVI dimensions.
   cfg.dviWidth = static_cast<uint16_t>(dviW);
   cfg.dviHeight = static_cast<uint16_t>(dviH);
 
-  // Restore settings saved to flash; DVI dimensions are fixed at boot so keep
-  // them.
+  // Restore settings saved to flash; DVI dimensions and interface type are
+  // restored here; interface is applied later via switchInterface().
   {
-    lcdtap::LcdTapConfig saved;
+    ConfigFile saved;
     if (loadConfig(&saved)) {
-      saved.dviWidth = cfg.dviWidth;
-      saved.dviHeight = cfg.dviHeight;
-      cfg = saved;
+      saved.libConfig.dviWidth = cfg.dviWidth;
+      saved.libConfig.dviHeight = cfg.dviHeight;
+      cfg = saved.libConfig;
+      gCurrentIface = saved.interfaceType;
     }
   }
 
@@ -357,10 +561,6 @@ int main() {
   lcdtap::LcdTap inst(cfg, host);
   if (inst.getStatus() != lcdtap::Status::OK) panic("LcdTap init failed");
 
-  // Fill framebuffer with 8-bar test pattern so the DVI output pipeline can
-  // be verified before the SPI master sends SLPOUT + DISPON.
-  // The pattern is replaced by real SPI content once the master initialises.
-  // Bar order (left→right): black blue green cyan red magenta yellow white
   {
     static const uint16_t kBars[8] = {
         0x0000u, 0x001Fu, 0x07E0u, 0x07FFu, 0xF800u, 0xF81Fu, 0xFFE0u, 0xFFFFu,
@@ -374,13 +574,15 @@ int main() {
     inst.setDisplayOn(true);
   }
 
-  gInst = &inst;  // expose to IRQ handler
+  gInst = &inst;
 
   // -------------------------------------------------------------------------
   // 6b. OSD init
   // -------------------------------------------------------------------------
   lcdtap::OsdConfig osdCfg;
   lcdtap::getDefaultOsdConfig(&osdCfg);
+  osdCfg.onMenuOpen = onOsdMenuOpen;
+  osdCfg.userData = nullptr;
   gOsd.init(osdCfg);
 
   // -------------------------------------------------------------------------
@@ -391,21 +593,9 @@ int main() {
                                      /*enabled=*/true, &gpioIrqHandler);
 
   // -------------------------------------------------------------------------
-  // 8. Input slave PIO + DMA
-  //    Must come after dvi_init() so DVI claims its DMA channels first.
+  // 8. Input slave PIO + DMA (after dvi_init so DVI claims its channels first)
   // -------------------------------------------------------------------------
-  if (fastMode) {
-    // Fast Mode: parallel slave via external shift-register circuit
-    uint pioProgOffset = pio_add_program(SPI_PIO, &par_slave_with_dcx_program);
-    parSlaveInit(pioProgOffset);
-  } else {
-    // Normal Mode: direct SPI slave — CS rising edge resets SM on transaction
-    // end
-    gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
-    gSpiProgOffset = pio_add_program(SPI_PIO, &spi_slave_with_dcx_program);
-    spiSlaveInit(gSpiProgOffset);
-  }
-  spiDmaInit();
+  switchInterface(gCurrentIface);
 
   // -------------------------------------------------------------------------
   // 9. Launch Core 1 for DVI TMDS output
@@ -414,11 +604,10 @@ int main() {
 
   // -------------------------------------------------------------------------
   // 10. Main loop (Core 0)
-  //     processSpiRingBuf() is called at three points per iteration:
+  //     processInputBuf() is called at three points per iteration:
   //       (a) inside the q_colour_free spin — drains while waiting
   //       (b) just before getScanline — drains during scanline preparation
   //       (c) after queue_add_blocking_u32 — drains after handing off
-  //     This prevents the ring buffer from overrunning.
   // -------------------------------------------------------------------------
   uint32_t scanY = 0;
   uint32_t frame = 0;
@@ -427,31 +616,41 @@ int main() {
   while (true) {
     uint16_t *buf;
     while (!queue_try_remove_u32(&dvi0.q_colour_free, &buf)) {
-      processSpiRingBuf();  // (a) drain while waiting for free buffer
+      processInputBuf();  // (a) drain while waiting for free buffer
     }
 
-    // Fill the DVI buffer directly — no intermediate copy needed.
     gInst->fillScanline(static_cast<uint16_t>(scanY), buf);
-    // Overlay OSD (no-op when OSD is hidden).
     gOsd.fillScanline(static_cast<uint16_t>(scanY), buf);
 
-    // Hand the filled scanline to DVI Core 1.
     queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);
 
-    // Advance scanline counter; detect frame boundary.
     if (++scanY >= dviH) {
       scanY = 0;
-      // Update OSD with current key state (once per frame).
       uint64_t nowMs =
           static_cast<uint64_t>(to_ms_since_boot(get_absolute_time()));
       uint8_t action = gOsd.update(nowMs, *gInst, readKeys());
       if (action == lcdtap::OSD_ACTION_APPLY) {
-        saveConfig(gInst->getConfig());
+        const lcdtap::OsdMenuItem *ifaceItem = nullptr;
+        gOsd.getItemById(OSD_USER_ITEM_ID_INTERFACE, &ifaceItem);
+        InterfaceType newIface =
+            ifaceItem ? static_cast<InterfaceType>(ifaceItem->value)
+                      : gCurrentIface;
+
+        ConfigFile toSave;
+        toSave.libConfig = gInst->getConfig();
+        toSave.interfaceType = newIface;
+        saveConfig(toSave);
+
+        if (newIface != gCurrentIface) {
+          switchInterface(newIface);
+        }
       }
       if (++frame % LED_TOGGLE_FRAMES == 0u) {
         led = !led;
         gpio_put(PIN_LED, led ? 1 : 0);
       }
     }
+
+    processInputBuf();  // (b)+(c) drain after handing off scanline
   }
 }

@@ -28,10 +28,13 @@ add_executable(lcdtap_pico2_universal
 
 # Generate PIO headers
 pico_generate_pio_header(lcdtap_pico2_universal
-    ${CMAKE_CURRENT_LIST_DIR}/src/par_slave.pio
+    ${CMAKE_CURRENT_LIST_DIR}/src/spi_4line_mode0.pio
 )
 pico_generate_pio_header(lcdtap_pico2_universal
-    ${CMAKE_CURRENT_LIST_DIR}/src/spi_slave.pio
+    ${CMAKE_CURRENT_LIST_DIR}/src/spi_3line_mode0.pio
+)
+pico_generate_pio_header(lcdtap_pico2_universal
+    ${CMAKE_CURRENT_LIST_DIR}/src/parallel_8bit.pio
 )
 
 target_include_directories(lcdtap_pico2_universal PRIVATE
@@ -63,6 +66,7 @@ target_link_libraries(lcdtap_pico2_universal
     hardware_dma
     hardware_flash
     hardware_gpio
+    hardware_i2c
     hardware_irq
     hardware_pio
     hardware_sync

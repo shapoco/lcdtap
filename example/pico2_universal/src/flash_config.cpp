@@ -5,9 +5,8 @@
 #include "hardware/flash.h"
 #include "hardware/sync.h"
 
-static_assert(sizeof(lcdtap::LcdTapConfig) + sizeof(uint32_t) <=
-                  FLASH_PAGE_SIZE,
-              "LcdTapConfig too large for one flash page");
+static_assert(sizeof(ConfigFile) + sizeof(uint32_t) <= FLASH_PAGE_SIZE,
+              "ConfigFile too large for one flash page");
 
 // Offset from the start of flash (not XIP base) to the last sector.
 static constexpr uint32_t kFlashOffset =
@@ -26,16 +25,16 @@ static uint32_t crc32(const uint8_t *data, size_t len) {
   return ~crc;
 }
 
-bool loadConfig(lcdtap::LcdTapConfig *out) {
+bool loadConfig(ConfigFile *out) {
   const uint8_t *p = reinterpret_cast<const uint8_t *>(kFlashXipAddr);
   uint32_t stored;
-  memcpy(&stored, p + sizeof(lcdtap::LcdTapConfig), sizeof(uint32_t));
-  if (crc32(p, sizeof(lcdtap::LcdTapConfig)) != stored) return false;
-  memcpy(out, p, sizeof(lcdtap::LcdTapConfig));
+  memcpy(&stored, p + sizeof(ConfigFile), sizeof(uint32_t));
+  if (crc32(p, sizeof(ConfigFile)) != stored) return false;
+  memcpy(out, p, sizeof(ConfigFile));
   return true;
 }
 
-void saveConfig(const lcdtap::LcdTapConfig &cfg) {
+void saveConfig(const ConfigFile &cfg) {
   // Page buffer must be in RAM — flash is inaccessible during erase/program.
   uint8_t buf[FLASH_PAGE_SIZE] = {};
   memcpy(buf, &cfg, sizeof(cfg));
