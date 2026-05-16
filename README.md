@@ -19,6 +19,10 @@ instructions, pin assignment, and configuration details.
 
 See [releases](https://github.com/shapoco/lcdtap/releases) for pre-built UF2 binaries.
 
+## Video
+
+https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
+
 ## Library usage
 
 Include the library header:
