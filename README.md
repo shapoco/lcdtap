@@ -27,10 +27,6 @@ https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
 
 ## Configuration for M5Stack CoreS3
 
-### Firmware
-
-Use pre-built firmware `lcdtap_pico2_st7789.uf2`
-
 ### Connection
 
 The M5Stack CoreS3 does not expose the CS signal on the connector, so it must be routed directly from the board. Solder a wire to R49 on the back of the board. The remaining signals can be obtained from the rear connector. On CoreS3, MISO is used as DCX.
@@ -40,7 +36,7 @@ The M5Stack CoreS3 does not expose the CS signal on the connector, so it must be
 |LcdTap (Pico2)|Connection|
 |:--|:--|
 |GND|CoreS3's GND|
-|GPIO0 (CFG_CLK_MODE)|Pico2's GND (Normal Mode)|
+|GPIO0 (CFG_CLK_MODE)|Open or GND (Normal Mode)|
 |GPIO1 (RESX)|Pico2's 3V3|
 |GPIO2 (SCLK)|CoreS3's SPI_SCLK|
 |GPIO4 (MOSI)|CoreS3's SPI_MOSI|
@@ -49,8 +45,31 @@ The M5Stack CoreS3 does not expose the CS signal on the connector, so it must be
 |GPIO20 (CFG_LCD_SIZE)|Pico2's 3V3 (320x240)|
 |GPIO21 (CFG_DVI_RES)|Select according to your display|
 |GPIO22 (CFG_SWAP_RB)|Pico2's 3V3 (swap R/B)|
-|GPIO26/27 (CFG_ROT0/1)|Pico2's GND (no rotation)|
+|GPIO26/27 (CFG_ROT0/1)|Open or GND|
 |GPIO28 (CFG_INV_POL)|Pico2's 3V3 (inverted)|
+
+### Firmware
+
+Use pre-built firmware `lcdtap_pico2_st7789.uf2`
+
+## Configuration for TinyJoyPad
+
+### Connection
+
+|LcdTap (Pico2)|Connection|
+|:--|:--|
+|GND|TinyJoyPad's GND|
+|GPIO8 (SDA)|TinyJoyPad's SDA|
+|GPIO9 (SCL)|TinyJoyPad's SCL|
+|GPIO20 (CFG_INPUT_MODE)|Open or GND| 
+|GPIO21 (CFG_DVI_RES)|Select according to your display|
+|GPIO26/27 (CFG_ROT0/1)|binary rotary switch or DIP-switch|
+
+See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
+
+### Firmware
+
+Use pre-built firmware `lcdtap_pico2_ssd1306.uf2`
 
 ## License
 
