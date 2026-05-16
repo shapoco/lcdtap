@@ -23,6 +23,7 @@ add_subdirectory(
 
 add_executable(lcdtap_pico2_universal
     src/main.cpp
+    src/flash_config.cpp
 )
 
 # Generate PIO headers
@@ -60,9 +61,11 @@ target_link_libraries(lcdtap_pico2_universal
     pico_multicore
     hardware_clocks
     hardware_dma
+    hardware_flash
     hardware_gpio
     hardware_irq
     hardware_pio
+    hardware_sync
     hardware_vreg
 )
 

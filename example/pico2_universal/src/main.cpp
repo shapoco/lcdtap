@@ -20,6 +20,7 @@
 #include "lcdtap/osd.hpp"
 
 #include "config.h"
+#include "flash_config.hpp"
 #include "par_slave.pio.h"
 #include "spi_slave.pio.h"
 
@@ -336,6 +337,17 @@ int main() {
   cfg.dviWidth = static_cast<uint16_t>(dviW);
   cfg.dviHeight = static_cast<uint16_t>(dviH);
 
+  // Restore settings saved to flash; DVI dimensions are fixed at boot so keep
+  // them.
+  {
+    lcdtap::LcdTapConfig saved;
+    if (loadConfig(&saved)) {
+      saved.dviWidth = cfg.dviWidth;
+      saved.dviHeight = cfg.dviHeight;
+      cfg = saved;
+    }
+  }
+
   lcdtap::HostInterface host;
   host.alloc = poolAlloc;
   host.free = poolFree;
@@ -432,7 +444,10 @@ int main() {
       // Update OSD with current key state (once per frame).
       uint64_t nowMs =
           static_cast<uint64_t>(to_ms_since_boot(get_absolute_time()));
-      gOsd.update(nowMs, *gInst, readKeys());
+      uint8_t action = gOsd.update(nowMs, *gInst, readKeys());
+      if (action == lcdtap::OSD_ACTION_APPLY) {
+        saveConfig(gInst->getConfig());
+      }
       if (++frame % LED_TOGGLE_FRAMES == 0u) {
         led = !led;
         gpio_put(PIN_LED, led ? 1 : 0);
