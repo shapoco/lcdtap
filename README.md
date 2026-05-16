@@ -76,6 +76,30 @@ See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.sh
 
 Use pre-built firmware `lcdtap_pico2_ssd1306.uf2`
 
+## OSD (On-Screen Display)
+
+The library includes an optional OSD overlay (`lcdtap/osd.hpp`) that lets users
+change settings at runtime using physical buttons — no host re-flash required.
+
+Press the **Enter** button to open the menu:
+
+```
+==== LcdTap Configuration ==============
+Controller Type   : ◀ ST7789     ▶
+Pixel Format      : ◀ RGB565     ▶
+LCD Width         :   320            px
+LCD Height        :   240            px
+Inversion         :   OFF
+Swap R/B          :   OFF
+Output Resolution : ◀ 480p@60Hz  ▶
+Output Rotation   : ◀ 0          ▶  deg
+Scale Mode        : ◀ FIT        ▶
+Apply             :
+Cancel            :
+```
+
+See [lib/README.md](lib/README.md) for the full API reference.
+
 ## License
 
 MIT License — see [LICENSE](LICENSE).

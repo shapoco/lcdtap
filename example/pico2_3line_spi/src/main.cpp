@@ -27,19 +27,19 @@ static_assert(PIN_SPI_SCLK == SPI_SCLK_PIN,
               "PIN_SPI_SCLK mismatch with 3line_spi_slave.pio");
 
 // =============================================================================
-// Memory pool (bump allocator for LcdTap)
+// Memory pool — used exclusively for the LcdTap framebuffer.
+// Always returns the pool start; safe because only one allocation exists at
+// a time. poolFree is a no-op: the pool is reused on the next alloc call.
 // =============================================================================
 static uint8_t memPool[MEM_POOL_SIZE];
-static size_t memPoolOffset = 0;
 
 static void *poolAlloc(size_t size) {
-  // 4-byte align
   size = (size + 3u) & ~3u;
-  if (memPoolOffset + size > sizeof(memPool)) return nullptr;
-  void *p = memPool + memPoolOffset;
-  memPoolOffset += size;
-  return p;
+  if (size > sizeof(memPool)) return nullptr;
+  return memPool;
 }
+
+static void poolFree(void *ptr) { (void)ptr; }
 
 // =============================================================================
 // Ring buffer  (word = [bit8: DCX, bits7:0: data byte])
@@ -55,8 +55,9 @@ static uint32_t spiReadIdx = 0;  // index into spiRingBuf[]
 // =============================================================================
 static struct dvi_inst dvi0;
 
-// Pre-allocated RGB565 scanline buffers, recycled via q_colour_free.
-static uint16_t *scanlineBufs[N_SCANLINE_BUFS];
+// Static RGB565 scanline buffers, recycled via q_colour_free.
+// Sized to DVI_MAX_W so they fit any supported DVI timing without allocation.
+static uint16_t scanlineBufs[N_SCANLINE_BUFS][DVI_MAX_W];
 
 // =============================================================================
 // LcdTap instance (set after init so the RESX callback can reach it)
@@ -260,10 +261,8 @@ int main() {
   const uint32_t dviH = timing->v_active_lines / DVI_VERTICAL_REPEAT;
 
   for (int i = 0; i < N_SCANLINE_BUFS; ++i) {
-    scanlineBufs[i] =
-        static_cast<uint16_t *>(poolAlloc(dviW * sizeof(uint16_t)));
-    if (!scanlineBufs[i]) panic("scanline buf alloc failed");
-    queue_add_blocking_u32(&dvi0.q_colour_free, &scanlineBufs[i]);
+    uint16_t *p = scanlineBufs[i];
+    queue_add_blocking_u32(&dvi0.q_colour_free, &p);
   }
 
   // -------------------------------------------------------------------------
@@ -283,7 +282,7 @@ int main() {
 
   lcdtap::HostInterface host;
   host.alloc = poolAlloc;
-  host.free = [](void *) {};
+  host.free = poolFree;
   host.log = nullptr;
   host.userData = nullptr;
 

@@ -67,6 +67,8 @@ struct LcdTapConfig {
 
   bool invertInvPolarity;  // true: INVON→non-inverted / INVOFF→inverted
   bool swapRB;             // true: invert cachedBGR (swap R and B channels)
+
+  uint8_t outputRotation;  // 0:none, 1:90°CW, 2:180°, 3:270°CW
 };
 
 //=============================================================================
@@ -137,6 +139,14 @@ class LcdTap {
   // Does not affect the controller's internal state.
   // Only the readout pattern of fillScanline() changes.
   void setOutputRotation(int rot);
+
+  // Returns the current configuration.
+  LcdTapConfig getConfig() const;
+
+  // Update configuration and reallocate the framebuffer.
+  // Returns OK on success, OUT_OF_MEMORY if the new framebuffer allocation
+  // fails (the previous state is left intact in that case).
+  Status updateConfig(const LcdTapConfig& cfg);
 
   //--- Test / debug ---
 

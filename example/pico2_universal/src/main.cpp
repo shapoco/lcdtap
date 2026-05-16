@@ -17,6 +17,7 @@
 #include "dvi_timing.h"
 
 #include "lcdtap/lcdtap.hpp"
+#include "lcdtap/osd.hpp"
 
 #include "config.h"
 #include "par_slave.pio.h"
@@ -66,6 +67,9 @@ static uint16_t scanlineBufs[N_SCANLINE_BUFS][DVI_MAX_W];
 // LcdTap instance (set after init so the RESX callback can reach it)
 // =============================================================================
 static lcdtap::LcdTap *gInst = nullptr;
+
+// OSD instance for runtime configuration
+static lcdtap::Osd gOsd;
 
 // PIO program offset — stored so gpioIrqHandler can reset the SM PC on CS
 // de-assertion in Normal Mode (pio_sm_restart does not reset the PC).
@@ -228,33 +232,50 @@ static void processSpiRingBuf() {
 }
 
 // =============================================================================
+// Read key inputs; returns OSD_KEY_XXX bitmask.
+// All keys are active-low with internal pull-ups.
+// =============================================================================
+static uint8_t readKeys() {
+  uint8_t keys = 0;
+  if (!gpio_get(PIN_KEY_UP)) keys |= lcdtap::OSD_KEY_UP;
+  if (!gpio_get(PIN_KEY_DOWN)) keys |= lcdtap::OSD_KEY_DOWN;
+  if (!gpio_get(PIN_KEY_LEFT)) keys |= lcdtap::OSD_KEY_LEFT;
+  if (!gpio_get(PIN_KEY_RIGHT)) keys |= lcdtap::OSD_KEY_RIGHT;
+  if (!gpio_get(PIN_KEY_ENTER)) keys |= lcdtap::OSD_KEY_ENTER;
+  return keys;
+}
+
+// =============================================================================
 // main
 // =============================================================================
 int main() {
   // -------------------------------------------------------------------------
-  // 1. Read boot-time configuration GPIOs
+  // 1. Read boot-time configuration GPIOs and initialize key inputs
   //    Do this first, before the system clock changes, while the default
   //    125 MHz clock is running and the GPIO input synchronisers are stable.
   // -------------------------------------------------------------------------
+
+  // Key inputs: active-low with internal pull-up.
   for (uint pin :
-       {PIN_CFG_LCD_SIZE, PIN_CFG_DVI_RES, PIN_CFG_CLK_MODE, PIN_CFG_ROT0,
-        PIN_CFG_ROT1, PIN_CFG_INV_POL, PIN_CFG_SWAP_RB}) {
+       {PIN_KEY_UP, PIN_KEY_DOWN, PIN_KEY_LEFT, PIN_KEY_RIGHT, PIN_KEY_ENTER}) {
+    gpio_init(pin);
+    gpio_set_dir(pin, GPIO_IN);
+    gpio_pull_up(pin);
+  }
+
+  // Boot-time config straps: pull-down, read once.
+  for (uint pin : {PIN_CFG_CLK_MODE, PIN_CFG_DVI_RES}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
     gpio_pull_down(pin);
   }
   sleep_ms(1);  // allow pull-downs to settle
 
-  const bool lcd320 = gpio_get(PIN_CFG_LCD_SIZE);
-  const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
   const bool fastMode = gpio_get(PIN_CFG_CLK_MODE);
-  const bool invPolarity = gpio_get(PIN_CFG_INV_POL);
-  const bool swapRB = gpio_get(PIN_CFG_SWAP_RB);
-  const int rot =
-      static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
+  const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
 
-  const uint16_t lcdW = lcd320 ? LCDTAP_LCD_SIZE_ALT_W : LCDTAP_LCD_SIZE_W;
-  const uint16_t lcdH = lcd320 ? LCDTAP_LCD_SIZE_ALT_H : LCDTAP_LCD_SIZE_H;
+  const uint16_t lcdW = LCDTAP_LCD_SIZE_W;
+  const uint16_t lcdH = LCDTAP_LCD_SIZE_H;
 
   const struct dvi_timing *timing =
       dvi720p ? &dvi_timing_1280x720p_reduced_30hz  // 319.2 MHz bit clock
@@ -310,8 +331,6 @@ int main() {
   cfg.lcdWidth = lcdW;
   cfg.lcdHeight = lcdH;
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
-  cfg.invertInvPolarity = invPolarity;
-  cfg.swapRB = swapRB;
 
   // Use effective (colour-buffer) dimensions, not physical DVI dimensions.
   cfg.dviWidth = static_cast<uint16_t>(dviW);
@@ -345,7 +364,12 @@ int main() {
 
   gInst = &inst;  // expose to IRQ handler
 
-  inst.setOutputRotation(rot);  // apply boot-time rotation setting
+  // -------------------------------------------------------------------------
+  // 6b. OSD init
+  // -------------------------------------------------------------------------
+  lcdtap::OsdConfig osdCfg;
+  lcdtap::getDefaultOsdConfig(&osdCfg);
+  gOsd.init(osdCfg);
 
   // -------------------------------------------------------------------------
   // 7. RESX interrupt
@@ -387,7 +411,6 @@ int main() {
   uint32_t scanY = 0;
   uint32_t frame = 0;
   bool led = false;
-  int currentRot = rot;
 
   while (true) {
     uint16_t *buf;
@@ -397,6 +420,8 @@ int main() {
 
     // Fill the DVI buffer directly — no intermediate copy needed.
     gInst->fillScanline(static_cast<uint16_t>(scanY), buf);
+    // Overlay OSD (no-op when OSD is hidden).
+    gOsd.fillScanline(static_cast<uint16_t>(scanY), buf);
 
     // Hand the filled scanline to DVI Core 1.
     queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);
@@ -404,13 +429,10 @@ int main() {
     // Advance scanline counter; detect frame boundary.
     if (++scanY >= dviH) {
       scanY = 0;
-      // Check rotation GPIO and update if changed
-      int newRot = static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) |
-                                    gpio_get(PIN_CFG_ROT0));
-      if (newRot != currentRot) {
-        currentRot = newRot;
-        gInst->setOutputRotation(currentRot);
-      }
+      // Update OSD with current key state (once per frame).
+      uint64_t nowMs =
+          static_cast<uint64_t>(to_ms_since_boot(get_absolute_time()));
+      gOsd.update(nowMs, *gInst, readKeys());
       if (++frame % LED_TOGGLE_FRAMES == 0u) {
         led = !led;
         gpio_put(PIN_LED, led ? 1 : 0);

@@ -25,6 +25,7 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->scaleMode = ScaleMode::FIT;
       cfg->invertInvPolarity = false;
       cfg->swapRB = false;
+      cfg->outputRotation = 0;
       break;
     case ControllerType::SSD1306:
       cfg->controller = ControllerType::SSD1306;
@@ -36,6 +37,7 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->scaleMode = ScaleMode::FIT;
       cfg->invertInvPolarity = false;
       cfg->swapRB = false;
+      cfg->outputRotation = 0;
       break;
   }
 }
@@ -267,7 +269,7 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
   ctrl->status = Status::OK;
   ctrl->hwReset = false;
   ctrl->framebuf = nullptr;
-  ctrl->outputRotation = 0;
+  ctrl->outputRotation = config.outputRotation & 3u;
 
   if (config.lcdWidth == 0 || config.lcdHeight == 0 || config.dviWidth == 0 ||
       config.dviHeight == 0) {
@@ -406,6 +408,42 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   // Right black border
   memset(d, 0,
          (size_t)(dviW - ctrl->displayX - ctrl->displayW) * sizeof(uint16_t));
+}
+
+LcdTapConfig LcdTap::getConfig() const {
+  if (!impl_) return {};
+  const ControllerBase* ctrl = static_cast<const ControllerBase*>(impl_);
+  LcdTapConfig cfg = ctrl->config;
+  cfg.outputRotation = ctrl->outputRotation;
+  return cfg;
+}
+
+Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
+  if (!impl_) return Status::NOT_READY;
+  ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
+  if (ctrl->status != Status::OK) return ctrl->status;
+
+  if (cfg.lcdWidth == 0 || cfg.lcdHeight == 0 || cfg.dviWidth == 0 ||
+      cfg.dviHeight == 0) {
+    return Status::INVALID_PARAM;
+  }
+
+  // Allocate new framebuffer before freeing the old one
+  size_t currFbSize =
+      (size_t)ctrl->config.lcdWidth * ctrl->config.lcdHeight * sizeof(uint16_t);
+  size_t newFbSize = (size_t)cfg.lcdWidth * cfg.lcdHeight * sizeof(uint16_t);
+  if (newFbSize > currFbSize) {
+    uint16_t* newFb = static_cast<uint16_t*>(ctrl->host.alloc(newFbSize));
+    if (!newFb) return Status::OUT_OF_MEMORY;
+    ctrl->host.free(ctrl->framebuf);
+    ctrl->framebuf = newFb;
+  }
+
+  ctrl->config = cfg;
+  ctrl->outputRotation = cfg.outputRotation & 3u;
+  ctrl->calcScaleParams();
+  ctrl->updateWriteCache();
+  return Status::OK;
 }
 
 uint16_t* LcdTap::getFramebuf() {

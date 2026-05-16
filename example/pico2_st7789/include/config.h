@@ -115,8 +115,11 @@ static constexpr uint32_t SPI_RING_BUF_WORDS =
 // =============================================================================
 // DVI scanline buffers (RGB565, fed to PicoDVI q_colour_valid)
 // Must be <= q_colour_free queue depth (8, set in dvi_init).
+// DVI_MAX_W is the maximum effective width (h_active_pixels/2) across all
+// supported DVI timings. Used to statically size the scanline buffers.
 // =============================================================================
 static constexpr int N_SCANLINE_BUFS = 4;
+static constexpr uint32_t DVI_MAX_W = 640u;  // 1280x720: 1280/2 = 640
 
 // =============================================================================
 // LED blink interval (DVI output frames)
@@ -124,11 +127,13 @@ static constexpr int N_SCANLINE_BUFS = 4;
 static constexpr uint32_t LED_TOGGLE_FRAMES = 30u;
 
 // =============================================================================
-// Memory pool for LcdTap internal allocations (bump allocator)
-// 240x320 RGB565 framebuffer = 153 600 bytes
-// + scanline buf (320x2 = 640) + DVI bufs (4x320x2 = 2560) + Impl (~256)
+// Memory pool for the LcdTap framebuffer (sole user of the pool).
+// Scanline buffers are now statically allocated (see DVI_MAX_W above).
+// Sized to fit the largest practical framebuffer: 320x480 RGB565 = 307 200 B.
+// Requests that exceed the pool return nullptr; updateConfig() keeps the
+// existing framebuffer in that case.
 // =============================================================================
-static constexpr size_t MEM_POOL_SIZE = 200u * 1024u;
+static constexpr size_t MEM_POOL_SIZE = 310u * 1024u;
 
 // =============================================================================
 // Data batching buffer for inputData() calls

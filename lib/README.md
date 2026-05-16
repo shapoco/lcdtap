@@ -39,6 +39,8 @@ struct LcdTapConfig {
                               // false (default): INVON → inverted (ST7789 spec)
   bool swapRB;                // true: swap R and B channels (invert cachedBGR)
                               // false (default): no swap
+
+  uint8_t outputRotation;     // 0: none (default), 1: 90° CW, 2: 180°, 3: 270° CW
 };
 ```
 
@@ -79,6 +81,7 @@ Default values for `ControllerType::ST7789`:
 | `scaleMode`        | `FIT`                |
 | `invertInvPolarity`| `false`              |
 | `swapRB`           | `false`              |
+| `outputRotation`   | `0`                  |
 
 ## `HostInterface` — platform callbacks
 
@@ -127,6 +130,13 @@ public:
     // rot=1  90° clockwise   — aspect ratio swapped for FIT / PIXEL_PERFECT
     // rot=2  180° (flip)     — aspect ratio unchanged
     // rot=3  270° clockwise  — aspect ratio swapped for FIT / PIXEL_PERFECT
+
+  // Runtime config update
+  LcdTapConfig getConfig() const;     // returns a copy of the current config
+  Status updateConfig(const LcdTapConfig& cfg);
+    // Reallocates the framebuffer and recalculates scaling.
+    // Returns OUT_OF_MEMORY if the new allocation fails (previous state intact).
+    // Note: host.alloc/free must support actual deallocation (e.g. malloc/free).
 
   // Debug / test
   uint16_t* getFramebuf();            // direct access to the internal framebuffer
@@ -183,3 +193,71 @@ ST7789 command code constants are available in a separate header:
 // lcdtap::st7789::CMD_NOP, CMD_SWRESET, CMD_SLPOUT, CMD_INVOFF, CMD_INVON,
 // CMD_DISPON, CMD_CASET, CMD_RASET, CMD_RAMWR, CMD_MADCTL, CMD_COLMOD
 ```
+
+## OSD — On-Screen Display overlay
+
+`osd.hpp` provides a text-based configuration menu that overlays the DVI output at
+runtime. The OSD renders at 320×240 px (40 columns × 15 rows of 8×16 px glyphs)
+starting at the top-left corner of the DVI frame.
+
+```cpp
+#include <lcdtap/osd.hpp>
+```
+
+### Quick start
+
+```cpp
+// 1. Build OsdConfig
+lcdtap::OsdConfig osdCfg;
+lcdtap::getDefaultOsdConfig(&osdCfg);
+
+// 2. Initialise the OSD (hidden by default)
+lcdtap::Osd osd;
+osd.init(osdCfg);
+
+// 3. In the main loop, call update() once per frame
+//    nowMs  : current time in milliseconds
+//    inst   : the LcdTap instance
+//    input  : bitfield of pressed keys (OSD_KEY_XXX)
+uint8_t action = osd.update(nowMs, inst, input);
+
+// 4. After LcdTap::fillScanline(), let the OSD overlay it
+inst.fillScanline(y, scanlineBuf);
+osd.fillScanline(y, scanlineBuf);   // no-op while OSD is hidden
+```
+
+### Key codes
+
+| Constant        | Bit  | Purpose          |
+|-----------------|------|------------------|
+| `OSD_KEY_UP`    | 0    | Move selection up |
+| `OSD_KEY_DOWN`  | 1    | Move selection down |
+| `OSD_KEY_LEFT`  | 2    | Decrease / previous value |
+| `OSD_KEY_RIGHT` | 3    | Increase / next value |
+| `OSD_KEY_ENTER` | 4    | Open OSD / confirm action |
+
+### Behaviour
+
+- OSD is **hidden** until `OSD_KEY_ENTER` is pressed.
+- **Up / Down** moves the highlighted row (wraps around).
+- **Left / Right** changes the value of the selected item.
+  - `INTEGER`: clamped at min / max.
+  - `BOOL`: Left → OFF, Right → ON.
+  - `ENUM`: wraps around.
+- Selecting **Apply** applies the new config to `LcdTap` via `updateConfig()` and
+  closes the OSD. Returns `OSD_ACTION_APPLY`.
+- Selecting **Cancel** discards changes and closes the OSD. Returns
+  `OSD_ACTION_CANCEL`.
+- The left/right arrow indicators (`◀ ▶`) and the **HIT ENTER** label on action
+  rows blink at 1 Hz while the row is selected.
+- Key repeat fires after a 500 ms initial delay, then at 5 Hz.
+
+### Notes
+
+- `host.alloc` / `host.free` in `HostInterface` **must** support actual
+  deallocation (e.g. `malloc` / `free`) when `updateConfig()` is used.
+- The DVI output resolution (`dviWidth` / `dviHeight`) is **not** changed by the
+  OSD; it is preserved from the running config when Apply is pressed. Change the
+  DVI resolution at boot time (e.g. via GPIO).
+- The `outputRotation` field in `LcdTapConfig` is stored and restored by the OSD
+  menu.

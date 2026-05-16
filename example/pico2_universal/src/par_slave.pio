@@ -1,0 +1,90 @@
+; Parallel slave receiver with D/CX capture.
+;
+; Sits after a 74HC595 (8-bit serial-in / parallel-out shift register) and a
+; 74HC4040 (binary ripple counter used as a divide-by-8 circuit).
+; The 74HC4040 output is inverted by a 74AHC1G04 to generate BCLK.
+; BCLK is HIGH when idle (CS de-asserted) and LOW during byte transfer.
+;
+; The 74HC4040 CLR is tied to the SPI CS signal (active-high CLR), so the
+; counter is held at 0 while CS is de-asserted (BCLK stays HIGH).
+; No CS pin is needed on the Pico 2 side.
+;
+; Pin mapping (configure SM before enabling):
+;   IN_BASE  = PIN_PAR_DATA_BASE  (GPIO 4, D[0] = 74HC595 Q1)
+;   JMP_PIN  = PIN_PAR_DCX        (GPIO 3)
+;   BCLK referenced by absolute GPIO number via 'wait gpio'.
+;
+; 74HC595 output → GPIO mapping (MSB-first SPI, 8 clocks):
+;   Q1 (last bit in  = D0, LSB) → GPIO 4  = IN_BASE + 0
+;   Q2                          → GPIO 5
+;   Q3                          → GPIO 6
+;   Q4                          → GPIO 7
+;   Q5                          → GPIO 8
+;   Q6                          → GPIO 9
+;   Q7                          → GPIO 10
+;   Q8 (first bit in = D7, MSB) → GPIO 11 = IN_BASE + 7
+;
+; ISR shift direction: LEFT  (D7 ends up in bit[7], D0 in bit[0])
+; AUTOPUSH: disabled  (manual push after each 9-bit word)
+; FIFO join: RX only  (8-deep receive FIFO)
+;
+; Output word layout (32-bit):
+;   bits[31:9] = 0
+;   bit [8]    = DCX  (0 = command, 1 = data)
+;   bits[7:0]  = received byte
+;
+; Timing:
+;   BCLK = SCLK/8.  At SCLK 62.5 MHz, BCLK max = 7.8125 MHz (period 128 ns).
+;   BCLK low phase lasts 4 SCLK cycles (~64 ns).
+;   74HC595 Q outputs are stable from the 8th SCLK rising edge onward;
+;   the 74HC4040 and 74AHC1G04 add ~10 ns propagation before BCLK rises.
+;   The PIO samples on the BCLK rising edge, well after the outputs settle.
+;
+; Startup sync:
+;   BCLK is HIGH when idle.  Wait for BCLK to be HIGH before entering the
+;   main loop, so that a BCLK that is already LOW on startup (Pico powered
+;   mid-transaction) does not cause a spurious sample.
+
+.define public PAR_BCLK_PIN  2
+
+.program par_slave_with_dcx
+
+    ; --- startup sync (runs once) -------------------------------------------
+    ; If BCLK is already LOW when the SM starts, wait for it to go HIGH first.
+    wait 1 gpio PAR_BCLK_PIN
+
+; ---- per-byte loop ----------------------------------------------------------
+.wrap_target
+    wait 0 gpio PAR_BCLK_PIN    ; wait for BCLK LOW  (byte transfer in progress)
+    wait 1 gpio PAR_BCLK_PIN    ; wait for BCLK HIGH (byte complete, data latched by 74HC595)
+
+    ; Sample DCX before reading parallel data.
+    ; JMP_PIN is configured to PIN_PAR_DCX.
+    set  y, 0
+    jmp  pin, dcx_high
+    jmp  do_sample
+dcx_high:
+    set  y, 1
+
+do_sample:
+    ; Shift the DCX flag into ISR.  After 8 more left-shifts it sits at bit[8].
+    in   y, 1
+
+    ; The 74HC595 Q outputs are guaranteed to be stable at the BCLK rising edge
+    nop
+    nop
+    nop
+    nop
+
+    ; Sample all 8 parallel data bits in one instruction.
+    ; With LEFT shift and IN_BASE = GPIO 4:
+    ;   GPIO 4  (Q1, D0) → ISR bit[0]
+    ;   GPIO 11 (Q8, D7) → ISR bit[7]
+    ; Combined with the DCX bit above: bit[8]=DCX, bits[7:0]=byte.
+    in   pins, 8
+
+    ; Push the completed 9-bit word.  noblock drops the word if the FIFO is
+    ; full rather than stalling, which prevents the PIO from falling behind
+    ; BCLK under heavy DVI load.
+    push noblock
+.wrap
