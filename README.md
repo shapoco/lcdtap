@@ -3,19 +3,21 @@
 A library and example that receives LCD controller commands (via SPI or I2C)
 and outputs the framebuffer as a DVI-D signal.
 
+![](image/cover.png)
+
 ## Example: Raspberry Pi Pico2
 
-### for ST7789
+### for ST7789, ILI9341, etc.
 
-See [example/pico2_st7789/README.md](example/pico2_st7789/README.md) for build
+See [pico2_st7789](example/pico2_st7789/README.md) for build
 instructions, pin assignment, and configuration details.
 
 ### for SSD1306
 
-See [example/pico2_ssd1306/README.md](example/pico2_ssd1306/README.md) for build
+See [pico2_ssd1306](example/pico2_ssd1306/README.md) for build
 instructions, pin assignment, and configuration details.
 
-## Download Binary
+## Download Pre-built Binary
 
 See [releases](https://github.com/shapoco/lcdtap/releases) for pre-built UF2 binaries.
 

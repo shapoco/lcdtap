@@ -50,6 +50,10 @@ The program samples MOSI and DCX simultaneously on each SCLK rising edge
 SPI clock is **84 MHz**. A GPIO interrupt on CS (rising edge) resets the PIO
 state machine between transactions, discarding any partially received byte.
 
+## Video output
+
+DVI signal generation uses Luke Wren's excellent library [PicoDVI](https://github.com/Wren6991/PicoDVI), and signal output uses his [Pico-DVI-Sock](https://github.com/Wren6991/Pico-DVI-Sock).
+
 ## Pin assignment
 
 | GPIO  | Direction | Function |
@@ -94,22 +98,3 @@ next frame without restarting.
 The scale mode is fixed to **FIT** (aspect-ratio-preserving letterbox /
 pillarbox). The framebuffer size defaults to 128×64 pixels (overridable at
 build time; see Build instructions).
-
-## DVI output (PicoDVI / libdvi)
-
-DVI output is handled by [PicoDVI](https://github.com/Wren6991/PicoDVI)
-(`libdvi`).
-
-- **Core 1** runs `dvi_scanbuf_main_16bpp()` in an infinite loop, consuming
-  RGB565 scanline buffers from the `q_colour_valid` queue and serialising TMDS
-  data to the DVI connector via PIO0 and DMA.
-- **Core 0** (main loop) calls `inst.fillScanline()` for each line and
-  pushes the filled buffer to `q_colour_valid`.
-
-The system clock is raised to match the TMDS bit-clock requirement (252 MHz for
-640×480, 319.2 MHz for 1280×720 reduced), and the voltage regulator is set to
-1.20 V to support these higher frequencies.
-
-PicoDVI uses PIO0 and claims its DMA channels inside `dvi_init()`. In SPI mode,
-the SPI slave PIO program runs on PIO1 (SM0), and its DMA channel is
-claimed after `dvi_init()` to avoid conflicts.

@@ -28,6 +28,10 @@ cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk \
 | `LCDTAP_LCD_SIZE_ALT_W` | `320` | Framebuffer width when GPIO 20 (LCD\_SIZE) = HIGH |
 | `LCDTAP_LCD_SIZE_ALT_H` | `240` | Framebuffer height when GPIO 20 (LCD\_SIZE) = HIGH |
 
+## Video output
+
+DVI signal generation uses Luke Wren's excellent library [PicoDVI](https://github.com/Wren6991/PicoDVI), and signal output uses his [Pico-DVI-Sock](https://github.com/Wren6991/Pico-DVI-Sock).
+
 ## 3-line serial interface
 
 This program implements the ILI9342 **3-line serial protocol**.  Each
@@ -85,22 +89,3 @@ The default (LOW) matches the standard polarity.
 
 `SWAP_RB` overrides the R/B channel swap regardless of the MADCTL BGR bit.
 Pull HIGH to swap R and B channels; useful when the display panel wiring inverts the colour order.
-
-## DVI output (PicoDVI / libdvi)
-
-DVI output is handled by [PicoDVI](https://github.com/Wren6991/PicoDVI)
-(`libdvi`).
-
-- **Core 1** runs `dvi_scanbuf_main_16bpp()` in an infinite loop, consuming
-  RGB565 scanline buffers from the `q_colour_valid` queue and serialising TMDS
-  data to the DVI connector via PIO0 and DMA.
-- **Core 0** (main loop) calls `inst.fillScanline()` for each line and
-  pushes the filled buffer to `q_colour_valid`.
-
-The system clock is raised to match the TMDS bit-clock requirement (252 MHz for
-640×480, 319.2 MHz for 1280×720 reduced), and the voltage regulator is set to
-1.20 V to support these higher frequencies.
-
-PicoDVI uses PIO0 and claims its DMA channels inside `dvi_init()`. The 3-line
-SPI slave PIO program runs on PIO1 (SM0), and its DMA channel is claimed after
-`dvi_init()` to avoid conflicts.
