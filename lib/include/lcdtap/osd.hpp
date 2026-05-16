@@ -27,6 +27,10 @@ static const uint8_t OSD_ACTION_NONE = 0;
 static const uint8_t OSD_ACTION_CANCEL = 1;
 static const uint8_t OSD_ACTION_APPLY = 2;
 
+// User-defined item IDs must be >= this value. IDs below are reserved for
+// built-in items managed internally by the Osd class.
+static const uint16_t OSD_USER_ITEM_ID_BASE = 0x8000u;
+
 //=============================================================================
 // Menu item type
 //=============================================================================
@@ -41,6 +45,7 @@ enum class OsdMenuType : uint8_t {
 // Menu item descriptor
 //=============================================================================
 struct OsdMenuItem {
+  uint16_t id;  // Unique identifier; 0 = unassigned
   OsdMenuType type;
   const char* name;     // Item label
   const char* unit;     // Unit string shown after the value (e.g. "px", "deg")
@@ -83,13 +88,20 @@ class Osd {
   // dst  : buffer of dviWidth uint16_t values (modified in-place for OSD rows).
   void fillScanline(uint16_t line, uint16_t* dst) const;
 
+  int getItemCount() const;
+  int getSelectedIndex() const;
+  void setSelectedIndex(int index);
+  void getItemByIndex(int index, const OsdMenuItem** item) const;
+  void getItemById(uint16_t id, const OsdMenuItem** item) const;
+  void insertItem(int index, const OsdMenuItem& item);
+
  private:
   // OSD raster dimensions
   static constexpr int COLS = 40;
   static constexpr int ROWS = 15;
   static constexpr int OSD_WIDTH = 320;   // COLS * GLYPH_WIDTH  (40*8)
   static constexpr int OSD_HEIGHT = 240;  // ROWS * GLYPH_HEIGHT (15*16)
-  static constexpr int MAX_ITEMS = 14;
+  static constexpr int MAX_ITEMS = 32;
 
   // Key repeat timing (ms)
   static constexpr uint64_t KEY_REPEAT_DELAY_MS = 500;
@@ -121,6 +133,7 @@ class Osd {
   OsdMenuItem items_[MAX_ITEMS];
   int numItems_;
   int selectedItem_;
+  int scrollOffset_;  // index of the first visible item
   bool visible_;
   bool blinkOn_;
 
@@ -137,7 +150,10 @@ class Osd {
   // Rebuild the entire text buffer from items_ and display state.
   void renderAll();
   void renderTitle();
-  void renderItem(int idx);
+  void renderItem(int idx, int row);
+
+  // Adjust scrollOffset_ so that selectedItem_ is visible.
+  void updateScroll();
 
   // Apply the pending config stored in items_[] to lcdtap.
   void applyConfig(LcdTap& lcdtap) const;

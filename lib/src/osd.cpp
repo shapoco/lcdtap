@@ -29,6 +29,20 @@ static const char* kRotationNames[] = {"0", "90", "180", "270"};
 static const char* kScaleModeNames[] = {"STRETCH", "FIT", "PIXEL_PERF"};
 static constexpr int kNumScaleModes = 3;
 
+// Internal item IDs (< OSD_USER_ITEM_ID_BASE)
+namespace {
+constexpr uint16_t ITEM_ID_CONTROLLER = 1u;
+constexpr uint16_t ITEM_ID_PIXEL_FMT = 2u;
+constexpr uint16_t ITEM_ID_LCD_WIDTH = 3u;
+constexpr uint16_t ITEM_ID_LCD_HEIGHT = 4u;
+constexpr uint16_t ITEM_ID_INVERSION = 5u;
+constexpr uint16_t ITEM_ID_SWAP_RB = 6u;
+constexpr uint16_t ITEM_ID_OUTPUT_ROT = 7u;
+constexpr uint16_t ITEM_ID_SCALE_MODE = 8u;
+constexpr uint16_t ITEM_ID_APPLY = 9u;
+constexpr uint16_t ITEM_ID_CANCEL = 10u;
+}  // namespace
+
 //=============================================================================
 // getDefaultOsdConfig
 //=============================================================================
@@ -43,6 +57,7 @@ void Osd::init(const OsdConfig& cfg) {
   cfg_ = cfg;
   numItems_ = 0;
   selectedItem_ = 0;
+  scrollOffset_ = 0;
   visible_ = false;
   blinkOn_ = true;
   lastInput_ = 0;
@@ -92,10 +107,12 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
     if (activeKeys & OSD_KEY_UP) {
       selectedItem_ =
           (selectedItem_ == 0) ? (numItems_ - 1) : (selectedItem_ - 1);
+      updateScroll();
     }
     if (activeKeys & OSD_KEY_DOWN) {
       selectedItem_ =
           (selectedItem_ == numItems_ - 1) ? 0 : (selectedItem_ + 1);
+      updateScroll();
     }
 
     OsdMenuItem& sel = items_[selectedItem_];
@@ -161,7 +178,8 @@ void Osd::fillScanline(uint16_t line, uint16_t* dst) const {
   const int pixRow = line & 0xFu;  // line % GLYPH_HEIGHT
 
   const bool isTitle = (textRow == 0);
-  const bool isSel = !isTitle && (textRow == selectedItem_ + 1);
+  const bool isSel =
+      !isTitle && (textRow == (selectedItem_ - scrollOffset_) + 1);
 
   const uint16_t bg =
       isTitle ? COLOR_TITLE_BG : (isSel ? COLOR_SEL_BG : COLOR_BG);
@@ -194,12 +212,16 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
   LcdTapConfig cfg = lcdtap.getConfig();
   numItems_ = 0;
 
-  // Helper lambda to append an item
-  auto add = [this]() -> OsdMenuItem& { return items_[numItems_++]; };
+  // Helper lambda to append an item and assign its ID
+  auto add = [this](uint16_t id) -> OsdMenuItem& {
+    OsdMenuItem& it = items_[numItems_++];
+    it.id = id;
+    return it;
+  };
 
   // Controller Type
   {
-    OsdMenuItem& it = add();
+    OsdMenuItem& it = add(ITEM_ID_CONTROLLER);
     it.type = OsdMenuType::ENUM;
     it.name = "Controller Type";
     it.unit = "";
@@ -219,7 +241,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
         break;
       }
     }
-    OsdMenuItem& it = add();
+    OsdMenuItem& it = add(ITEM_ID_PIXEL_FMT);
     it.type = OsdMenuType::ENUM;
     it.name = "Pixel Format";
     it.unit = "";
@@ -232,7 +254,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // LCD Width
   {
-    OsdMenuItem& it = add();
+    OsdMenuItem& it = add(ITEM_ID_LCD_WIDTH);
     it.type = OsdMenuType::INTEGER;
     it.name = "LCD Width";
     it.unit = "px";
@@ -245,7 +267,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // LCD Height
   {
-    OsdMenuItem& it = add();
+    OsdMenuItem& it = add(ITEM_ID_LCD_HEIGHT);
     it.type = OsdMenuType::INTEGER;
     it.name = "LCD Height";
     it.unit = "px";
@@ -258,7 +280,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Inversion
   {
-    OsdMenuItem& it = add();
+    OsdMenuItem& it = add(ITEM_ID_INVERSION);
     it.type = OsdMenuType::BOOL;
     it.name = "Inversion";
     it.unit = "";
@@ -271,7 +293,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Swap R/B
   {
-    OsdMenuItem& it = add();
+    OsdMenuItem& it = add(ITEM_ID_SWAP_RB);
     it.type = OsdMenuType::BOOL;
     it.name = "Swap R/B";
     it.unit = "";
@@ -284,7 +306,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Output Rotation
   {
-    OsdMenuItem& it = add();
+    OsdMenuItem& it = add(ITEM_ID_OUTPUT_ROT);
     it.type = OsdMenuType::ENUM;
     it.name = "Output Rotation";
     it.unit = "deg";
@@ -297,7 +319,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Scale Mode
   {
-    OsdMenuItem& it = add();
+    OsdMenuItem& it = add(ITEM_ID_SCALE_MODE);
     it.type = OsdMenuType::ENUM;
     it.name = "Scale Mode";
     it.unit = "";
@@ -310,7 +332,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Apply
   {
-    OsdMenuItem& it = add();
+    OsdMenuItem& it = add(ITEM_ID_APPLY);
     it.type = OsdMenuType::ACTION;
     it.name = "Apply";
     it.unit = "";
@@ -323,7 +345,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Cancel
   {
-    OsdMenuItem& it = add();
+    OsdMenuItem& it = add(ITEM_ID_CANCEL);
     it.type = OsdMenuType::ACTION;
     it.name = "Cancel";
     it.unit = "";
@@ -335,6 +357,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
   }
 
   selectedItem_ = 0;
+  scrollOffset_ = 0;
   renderAll();
 }
 
@@ -344,9 +367,14 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
 void Osd::renderAll() {
   renderTitle();
-  for (int i = 0; i < numItems_; ++i) renderItem(i);
-  // Clear unused rows at the bottom
-  for (int r = numItems_ + 1; r < ROWS; ++r) fillRow(r, ' ');
+  constexpr int VISIBLE = ROWS - 1;
+  for (int slot = 0; slot < VISIBLE; ++slot) {
+    int idx = scrollOffset_ + slot;
+    if (idx < numItems_)
+      renderItem(idx, slot + 1);
+    else
+      fillRow(slot + 1, ' ');
+  }
 }
 
 void Osd::renderTitle() {
@@ -354,8 +382,7 @@ void Osd::renderTitle() {
   writeStr(0, 0, "==== LcdTap Configuration ==============");
 }
 
-void Osd::renderItem(int idx) {
-  const int row = idx + 1;  // row 0 is the title
+void Osd::renderItem(int idx, int row) {
   fillRow(row, ' ');
 
   const OsdMenuItem& item = items_[idx];
@@ -404,21 +431,26 @@ void Osd::renderItem(int idx) {
 LcdTapConfig Osd::buildConfig() const {
   LcdTapConfig cfg = {};
 
-  // Fixed-order items (always present): 0-5
-  cfg.controller = static_cast<ControllerType>(items_[0].value);
+  auto get = [this](uint16_t id, int16_t def) -> int16_t {
+    const OsdMenuItem* it = nullptr;
+    getItemById(id, &it);
+    return it ? it->value : def;
+  };
 
-  const int pfIdx = (items_[1].value >= 0 && items_[1].value < kNumPixelFormats)
-                        ? items_[1].value
-                        : 2;  // default RGB565
-  cfg.pixelFormat = kPixelFormatMap[pfIdx];
+  cfg.controller = static_cast<ControllerType>(get(ITEM_ID_CONTROLLER, 0));
 
-  cfg.lcdWidth = static_cast<uint16_t>(items_[2].value);
-  cfg.lcdHeight = static_cast<uint16_t>(items_[3].value);
-  cfg.invertInvPolarity = (items_[4].value != 0);
-  cfg.swapRB = (items_[5].value != 0);
+  const int pfIdx = get(ITEM_ID_PIXEL_FMT, 2);
+  cfg.pixelFormat = (pfIdx >= 0 && pfIdx < kNumPixelFormats)
+                        ? kPixelFormatMap[pfIdx]
+                        : PixelFormat::RGB565;
+
+  cfg.lcdWidth = static_cast<uint16_t>(get(ITEM_ID_LCD_WIDTH, 240));
+  cfg.lcdHeight = static_cast<uint16_t>(get(ITEM_ID_LCD_HEIGHT, 320));
+  cfg.invertInvPolarity = (get(ITEM_ID_INVERSION, 0) != 0);
+  cfg.swapRB = (get(ITEM_ID_SWAP_RB, 0) != 0);
   // dviWidth / dviHeight: not set here; preserved by applyConfig()
-  cfg.outputRotation = static_cast<uint8_t>(items_[6].value & 3u);
-  cfg.scaleMode = static_cast<ScaleMode>(items_[7].value);
+  cfg.outputRotation = static_cast<uint8_t>(get(ITEM_ID_OUTPUT_ROT, 0) & 3u);
+  cfg.scaleMode = static_cast<ScaleMode>(get(ITEM_ID_SCALE_MODE, 0));
 
   return cfg;
 }
@@ -468,6 +500,71 @@ void Osd::formatValue(char* buf, int bufLen, const OsdMenuItem& item) const {
                static_cast<int>(item.value));
       break;
     default: buf[0] = '\0'; break;
+  }
+}
+
+//=============================================================================
+// Osd::updateScroll
+//=============================================================================
+
+void Osd::updateScroll() {
+  constexpr int VISIBLE = ROWS - 1;
+  if (selectedItem_ < scrollOffset_) scrollOffset_ = selectedItem_;
+  if (selectedItem_ >= scrollOffset_ + VISIBLE)
+    scrollOffset_ = selectedItem_ - VISIBLE + 1;
+  int maxOffset = numItems_ - VISIBLE;
+  if (maxOffset < 0) maxOffset = 0;
+  if (scrollOffset_ > maxOffset) scrollOffset_ = maxOffset;
+  if (scrollOffset_ < 0) scrollOffset_ = 0;
+}
+
+//=============================================================================
+// Osd public item API
+//=============================================================================
+
+int Osd::getItemCount() const { return numItems_; }
+
+int Osd::getSelectedIndex() const { return selectedItem_; }
+
+void Osd::setSelectedIndex(int index) {
+  if (numItems_ == 0) {
+    selectedItem_ = 0;
+    scrollOffset_ = 0;
+    return;
+  }
+  if (index < 0) index = 0;
+  if (index >= numItems_) index = numItems_ - 1;
+  selectedItem_ = index;
+  updateScroll();
+}
+
+void Osd::getItemByIndex(int index, const OsdMenuItem** item) const {
+  *item = (index >= 0 && index < numItems_) ? &items_[index] : nullptr;
+}
+
+void Osd::getItemById(uint16_t id, const OsdMenuItem** item) const {
+  for (int i = 0; i < numItems_; ++i) {
+    if (items_[i].id == id) {
+      *item = &items_[i];
+      return;
+    }
+  }
+  *item = nullptr;
+}
+
+void Osd::insertItem(int index, const OsdMenuItem& item) {
+  if (numItems_ >= MAX_ITEMS) return;
+  // Negative index: -1 = append, -2 = before last, etc.
+  if (index < 0) index = numItems_ + 1 + index;
+  if (index < 0) index = 0;
+  if (index > numItems_) index = numItems_;
+  for (int i = numItems_; i > index; --i) items_[i] = items_[i - 1];
+  items_[index] = item;
+  ++numItems_;
+  // Keep the same item visually selected after insertion
+  if (index <= selectedItem_) {
+    ++selectedItem_;
+    updateScroll();
   }
 }
 
