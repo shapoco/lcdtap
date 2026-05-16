@@ -29,9 +29,14 @@ https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
 
 ### Connection
 
-The M5Stack CoreS3 does not expose the CS signal on the connector, so it must be routed directly from the board. Solder a wire to R49 on the back of the board. The remaining signals can be obtained from the rear connector. On CoreS3, MISO is used as DCX.
+The M5Stack CoreS3 does not have the CS signal exposed on the connector, so one of the following solutions is required.
 
-![](./image/m5stack_cores3_cs.jpg)
+- Wire directly to R49 on the back of the board: Hardware modification is required, but no software changes are needed.<br>
+    ![](./image/m5stack_cores3_cs.jpg)
+- [Route CS signal to M-Bus](https://x.com/lovyan03/status/2055491122949165549): Requires modifying M5GFX and recompiling, but no hardware modification is needed.
+- Fix CS signal to Low: No software or hardware changes required, but only applicable if the SPI bus is not used for anything other than LCD control.
+
+The remaining signals can be obtained from the rear connector. On CoreS3, MISO is used as DCX.
 
 |LcdTap (Pico2)|Connection|
 |:--|:--|
@@ -41,7 +46,7 @@ The M5Stack CoreS3 does not expose the CS signal on the connector, so it must be
 |GPIO2 (SCLK)|CoreS3's SPI_SCLK|
 |GPIO4 (MOSI)|CoreS3's SPI_MOSI|
 |GPIO5 (DCX)|CoreS3's SPI_MISO|
-|GPIO6 (CS)|CoreS3's R49 (back of board, see photo)|
+|GPIO6 (CS)|(See above instructions)|
 |GPIO20 (CFG_LCD_SIZE)|Pico2's 3V3 (320x240)|
 |GPIO21 (CFG_DVI_RES)|Select according to your display|
 |GPIO22 (CFG_SWAP_RB)|Pico2's 3V3 (swap R/B)|
