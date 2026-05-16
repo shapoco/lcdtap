@@ -1,4 +1,4 @@
-# Sample program for Raspberry Pi Pico2 — ILI9342 (3-line SPI)
+# Example Design for 3-line SPI Mode
 
 > [!WARNING]
 > This is **untested reference code**. It has not been verified on real

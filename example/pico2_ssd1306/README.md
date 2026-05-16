@@ -1,4 +1,4 @@
-# Sample program for Raspberry Pi Pico2 — SSD1306
+# Example Design for SSD1306, SSD1309, etc.
 
 ## Schematic
 

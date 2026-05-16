@@ -1,4 +1,4 @@
-# Sample program for Raspberry Pi Pico2
+# Example Design for ST7789, ILI9341, etc.
 
 ## Build instructions
 

@@ -17,6 +17,7 @@ mkdir -p "${RELEASE_DIR}"
 
 # Copy top-level README
 cp "${SCRIPT_DIR}/README.md" "${RELEASE_DIR}/"
+cp -r "${SCRIPT_DIR}/image" "${RELEASE_DIR}/"
 
 # Copy per-example artifacts
 for example_dir in "${SCRIPT_DIR}/example"/*/; do
