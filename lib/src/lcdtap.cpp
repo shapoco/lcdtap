@@ -99,7 +99,7 @@ void ControllerBase::resetCommon() {
   sleeping = true;
   displayOn = false;
   inverted = false;
-  pixelFormat = PixelFormat::RGB565;
+  pixelFormat = config.pixelFormat;
   currentCmd = 0x00;
   cmdDataLen = 0;
   casetXS = 0;
@@ -441,6 +441,7 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
 
   ctrl->config = cfg;
   ctrl->outputRotation = cfg.outputRotation & 3u;
+  ctrl->pixelFormat = cfg.pixelFormat;
   ctrl->calcScaleParams();
   ctrl->updateWriteCache();
   return Status::OK;
