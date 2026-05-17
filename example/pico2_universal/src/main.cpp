@@ -119,20 +119,31 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
 }
 
 // =============================================================================
+// Reset PIO State Machine
+// =============================================================================
+static void resetPioSm() {
+  pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
+  pio_sm_clear_fifos(SPI_PIO, SPI_SM);
+  pio_sm_restart(SPI_PIO, SPI_SM);
+  pio_sm_exec(SPI_PIO, SPI_SM, pio_encode_jmp(gSpiProgOffset));
+  pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
+}
+
+// =============================================================================
 // GPIO interrupt handler  (RESX pin; CS pin for SPI modes)
 // =============================================================================
 static void gpioIrqHandler(uint gpio, uint32_t events) {
   if (gpio == PIN_RESX && gInst) {
-    gInst->inputReset((events & GPIO_IRQ_EDGE_FALL) != 0u);
+    if (events & GPIO_IRQ_EDGE_FALL) {
+      gInst->inputReset(true);
+      resetPioSm();
+    }
+    gInst->inputReset(!gpio_get(PIN_RESX));
   }
   if (gpio == PIN_SPI_CS && (events & GPIO_IRQ_EDGE_RISE)) {
     // CS rising edge: transaction ended or aborted.  Reset the SM so any
     // partial byte is discarded and it is ready for the next transaction.
-    pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
-    pio_sm_clear_fifos(SPI_PIO, SPI_SM);
-    pio_sm_restart(SPI_PIO, SPI_SM);
-    pio_sm_exec(SPI_PIO, SPI_SM, pio_encode_jmp(gSpiProgOffset));
-    pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
+    resetPioSm();
   }
 }
 

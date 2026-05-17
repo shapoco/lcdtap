@@ -72,21 +72,32 @@ static lcdtap::LcdTap *gInst = nullptr;
 static uint gSpiProgOffset = 0u;
 
 // =============================================================================
+// Reset PIO State Machine
+// =============================================================================
+static void resetPioSm() {
+  pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
+  pio_sm_clear_fifos(SPI_PIO, SPI_SM);
+  pio_sm_restart(SPI_PIO, SPI_SM);
+  pio_sm_exec(SPI_PIO, SPI_SM, pio_encode_jmp(gSpiProgOffset));
+  pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
+}
+
+// =============================================================================
 // GPIO interrupt handler  (RESX pin; CS pin in Normal Mode)
 // =============================================================================
 static void gpioIrqHandler(uint gpio, uint32_t events) {
   if (gpio == PIN_RESX && gInst) {
-    gInst->inputReset((events & GPIO_IRQ_EDGE_FALL) != 0u);
+    if (events & GPIO_IRQ_EDGE_FALL) {
+      gInst->inputReset(true);
+      resetPioSm();
+    }
+    gInst->inputReset(!gpio_get(PIN_RESX));
   }
   if (gpio == PIN_SPI_CS && (events & GPIO_IRQ_EDGE_RISE)) {
     // CS rising edge (Normal Mode): transaction ended or aborted.  Reset the
     // SM so any partial byte is discarded and it is ready for the next
     // transaction.
-    pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
-    pio_sm_clear_fifos(SPI_PIO, SPI_SM);
-    pio_sm_restart(SPI_PIO, SPI_SM);
-    pio_sm_exec(SPI_PIO, SPI_SM, pio_encode_jmp(gSpiProgOffset));
-    pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
+    resetPioSm();
   }
 }
 
@@ -360,8 +371,8 @@ int main() {
   // -------------------------------------------------------------------------
   if (fastMode) {
     // Fast Mode: parallel slave via external shift-register circuit
-    uint pioProgOffset = pio_add_program(SPI_PIO, &par_slave_with_dcx_program);
-    parSlaveInit(pioProgOffset);
+    gSpiProgOffset = pio_add_program(SPI_PIO, &par_slave_with_dcx_program);
+    parSlaveInit(gSpiProgOffset);
   } else {
     // Normal Mode: direct SPI slave — CS rising edge resets SM on transaction
     // end
