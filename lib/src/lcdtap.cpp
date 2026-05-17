@@ -439,11 +439,15 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
     ctrl->framebuf = newFb;
   }
 
+  bool sleeping = ctrl->sleeping;
+  bool displayOn = ctrl->displayOn;
   ctrl->config = cfg;
   ctrl->outputRotation = cfg.outputRotation & 3u;
   ctrl->pixelFormat = cfg.pixelFormat;
   ctrl->calcScaleParams();
-  ctrl->updateWriteCache();
+  ctrl->softReset();
+  ctrl->sleeping = sleeping;
+  ctrl->displayOn = displayOn;
   return Status::OK;
 }
 
