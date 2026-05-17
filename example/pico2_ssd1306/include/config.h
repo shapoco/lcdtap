@@ -106,11 +106,6 @@ static constexpr uint32_t LED_TOGGLE_FRAMES = 30u;
 static constexpr size_t MEM_POOL_SIZE = 32u * 1024u;
 
 // =============================================================================
-// Data batching buffer for inputData() calls (SPI mode)
-// =============================================================================
-static constexpr size_t DATA_BATCH_CAP = 256u;
-
-// =============================================================================
 // Framebuffer size defaults (overridable via cmake -DLCDTAP_LCD_SIZE_W=...
 // etc.)
 // =============================================================================

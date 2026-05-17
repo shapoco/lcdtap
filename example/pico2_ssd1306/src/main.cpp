@@ -62,8 +62,8 @@ static uint32_t spiReadIdx = 0;
 // Same word format: bit[8]=DCX, bits[7:0]=data byte.
 // =============================================================================
 static uint32_t i2cRingBuf[I2C_RING_BUF_WORDS];
-static volatile uint32_t i2cWriteIdx = 0;  // written by IRQ
-static uint32_t i2cReadIdx = 0;            // read by main loop
+static volatile uint32_t i2cWriteIdx = 0;  // bounded: 0..I2C_RING_BUF_WORDS-1
+static uint32_t i2cReadIdx = 0;
 
 // I2C control-byte state machine
 enum class I2cRxState { WAIT_CTRL, STREAM_CMD, STREAM_DATA };
@@ -180,8 +180,8 @@ static void i2cSlaveIrqHandler() {
       uint32_t word = (i2cRxState == I2cRxState::STREAM_DATA)
                           ? (0x100u | byte)
                           : static_cast<uint32_t>(byte);
-      i2cRingBuf[i2cWriteIdx & (I2C_RING_BUF_WORDS - 1u)] = word;
-      i2cWriteIdx++;
+      i2cRingBuf[i2cWriteIdx] = word;
+      i2cWriteIdx = (i2cWriteIdx + 1u) & (I2C_RING_BUF_WORDS - 1u);
     }
   }
 
@@ -220,28 +220,8 @@ static void i2cSlaveInit() {
 }
 
 // =============================================================================
-// Drain SPI ring buffer and feed to LcdTap
+// Drain the SPI ring buffer and feed bytes to LcdTap
 // =============================================================================
-static uint8_t dataBatch[DATA_BATCH_CAP];
-static size_t dataBatchLen = 0;
-
-static void flushDataBatch() {
-  if (dataBatchLen != 0) {
-    gInst->inputData(dataBatch, dataBatchLen);
-    dataBatchLen = 0;
-  }
-}
-
-static inline void processWord(uint32_t word) {
-  if (word & 0x100u) {
-    dataBatch[dataBatchLen++] = static_cast<uint8_t>(word);
-    if (dataBatchLen >= DATA_BATCH_CAP) flushDataBatch();
-  } else {
-    flushDataBatch();
-    gInst->inputCommand(static_cast<uint8_t>(word));
-  }
-}
-
 static void processSpiRingBuf() {
   uint32_t writeAddr = dma_channel_hw_addr((uint)spiDmaCh)->write_addr;
   uint32_t writeIdx =
@@ -252,18 +232,75 @@ static void processSpiRingBuf() {
     spiReadIdx = writeIdx;
     return;
   }
+
+  uint32_t dataStart = spiReadIdx;
   while (spiReadIdx != writeIdx) {
-    processWord(spiRingBuf[spiReadIdx]);
+    uint32_t lastReadIdx = spiReadIdx;
+    uint32_t word = spiRingBuf[spiReadIdx];
     spiReadIdx = (spiReadIdx + 1u) & (SPI_RING_BUF_WORDS - 1u);
+
+    if (word & 0x100u) {
+      if (spiReadIdx == 0) {
+        gInst->inputData((uint8_t *)&spiRingBuf[dataStart],
+                         (SPI_RING_BUF_WORDS - dataStart), sizeof(uint32_t));
+        dataStart = 0;
+      }
+    } else {
+      uint32_t dataLen = lastReadIdx - dataStart;
+      if (dataLen != 0) {
+        gInst->inputData((uint8_t *)&spiRingBuf[dataStart], dataLen,
+                         sizeof(uint32_t));
+      }
+      gInst->inputCommand(static_cast<uint8_t>(word));
+      dataStart = spiReadIdx;
+    }
+  }
+
+  uint32_t dataLen = spiReadIdx - dataStart;
+  if (dataLen != 0) {
+    gInst->inputData((uint8_t *)&spiRingBuf[dataStart], dataLen,
+                     sizeof(uint32_t));
   }
 }
 
+// =============================================================================
+// Drain the I2C ring buffer and feed bytes to LcdTap
+// =============================================================================
 static void processI2cRingBuf() {
-  if (!gInst) return;
   uint32_t writeIdx = i2cWriteIdx;  // snapshot of volatile
+
+  if (!gInst) {
+    i2cReadIdx = writeIdx;
+    return;
+  }
+
+  uint32_t dataStart = i2cReadIdx;
   while (i2cReadIdx != writeIdx) {
-    processWord(i2cRingBuf[i2cReadIdx & (I2C_RING_BUF_WORDS - 1u)]);
-    ++i2cReadIdx;
+    uint32_t lastReadIdx = i2cReadIdx;
+    uint32_t word = i2cRingBuf[i2cReadIdx];
+    i2cReadIdx = (i2cReadIdx + 1u) & (I2C_RING_BUF_WORDS - 1u);
+
+    if (word & 0x100u) {
+      if (i2cReadIdx == 0) {
+        gInst->inputData((uint8_t *)&i2cRingBuf[dataStart],
+                         (I2C_RING_BUF_WORDS - dataStart), sizeof(uint32_t));
+        dataStart = 0;
+      }
+    } else {
+      uint32_t dataLen = lastReadIdx - dataStart;
+      if (dataLen != 0) {
+        gInst->inputData((uint8_t *)&i2cRingBuf[dataStart], dataLen,
+                         sizeof(uint32_t));
+      }
+      gInst->inputCommand(static_cast<uint8_t>(word));
+      dataStart = i2cReadIdx;
+    }
+  }
+
+  uint32_t dataLen = i2cReadIdx - dataStart;
+  if (dataLen != 0) {
+    gInst->inputData((uint8_t *)&i2cRingBuf[dataStart], dataLen,
+                     sizeof(uint32_t));
   }
 }
 
