@@ -151,7 +151,8 @@ void Ssd1306Controller::dispatchCommand(uint8_t cmd) {
     case CMD_SET_CLK_DIV:
     case CMD_SET_PRECHARGE:
     case CMD_SET_COM_PINS:
-    case CMD_SET_VCOMH: expectedParams = 1; break;
+    case CMD_SET_VCOMH:
+    case CMD_CHARGE_PUMP: expectedParams = 1; break;
     case CMD_NOP:
     default: break;
   }
@@ -164,12 +165,13 @@ void Ssd1306Controller::feedDataByte(uint8_t /*byte*/) {}
 bool Ssd1306Controller::isRamWriteCommand() const { return true; }
 
 // MONO_VPACK: 1 byte = 8 vertical pixels (bit0=top, bit7=bottom)
-void Ssd1306Controller::processRamwrData(const uint8_t* data, uint32_t length,
+void Ssd1306Controller::processRamwrData(const uint8_t* data, uint32_t numElems,
                                          uint32_t stride) {
   const uint16_t lcdW = config.lcdWidth;
   const uint16_t lcdH = config.lcdHeight;
+  const uint32_t byteLen = numElems * stride;
 
-  for (uint32_t i = 0; i < length; i += stride) {
+  for (uint32_t i = 0; i < byteLen; i += stride) {
     uint8_t byte = data[i];
 
     // Write 8 pixels vertically from 1 byte

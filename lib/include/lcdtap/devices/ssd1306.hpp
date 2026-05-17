@@ -80,6 +80,9 @@ static constexpr uint8_t CMD_SET_COM_PINS = 0xDA;
 // Vcomh deselect level (1-byte parameter: ignored)
 static constexpr uint8_t CMD_SET_VCOMH = 0xDB;
 
+// Charge pump setting (1-byte parameter: 0x10=disable, 0x14=enable; ignored)
+static constexpr uint8_t CMD_CHARGE_PUMP = 0x8Du;
+
 // NOP
 static constexpr uint8_t CMD_NOP = 0xE3;
 
