@@ -51,7 +51,7 @@ Press the Enter key to open the configuration menu.
 | 8     | IN        | SDA | | v | I2C data |
 | 9     | IN        | SCL | | v | I2C clock |
 
-### 4-Line/3-Line SPI Mode (default)
+### 4-Line/3-Line SPI Mode
 
 | GPIO  | Direction | Name | Active-low | Internal Pull-up | Description |
 |:--:|:--:|:--|:--:|:--:|:--|
