@@ -86,8 +86,6 @@ See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.sh
 |GPIO27 (CFG_ROT\[0\])|Open or 3V3|
 |GPIO28 (CFG_ROT\[1\])|GND (Rotate 180°)|
 
-![](image/arduboy_conn_front.jpg)
-
 ![](image/arduboy_conn_back.jpg)
 
 ### Firmware
