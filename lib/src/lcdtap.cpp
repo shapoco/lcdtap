@@ -432,7 +432,47 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
     return Status::INVALID_PARAM;
   }
 
-  // Allocate new framebuffer before freeing the old one
+  // If the controller type changes, destroy the old controller and create a new
+  // one.  The new controller starts from a clean state (sleeping/displayOn are
+  // not preserved because the new controller has not yet received any
+  // commands).
+  if (cfg.controller != ctrl->config.controller) {
+    HostInterface host = ctrl->host;
+    if (ctrl->framebuf) host.free(ctrl->framebuf);
+    delete ctrl;
+    impl_ = nullptr;
+
+    switch (cfg.controller) {
+      case ControllerType::ST7789:
+        ctrl = new (std::nothrow) St7789Controller();
+        break;
+      case ControllerType::SSD1306:
+        ctrl = new (std::nothrow) Ssd1306Controller();
+        break;
+      default: return Status::OUT_OF_MEMORY;
+    }
+    if (!ctrl) return Status::OUT_OF_MEMORY;
+
+    ctrl->host = host;
+    ctrl->status = Status::OK;
+    ctrl->hwReset = false;
+    ctrl->framebuf = nullptr;
+    impl_ = ctrl;
+
+    size_t fbSize = (size_t)cfg.lcdWidth * cfg.lcdHeight * sizeof(uint16_t);
+    ctrl->framebuf = static_cast<uint16_t*>(host.alloc(fbSize));
+    if (!ctrl->framebuf) return Status::OUT_OF_MEMORY;
+
+    ctrl->config = cfg;
+    ctrl->outputRotation = cfg.outputRotation & 3u;
+    ctrl->pixelFormat = cfg.pixelFormat;
+    ctrl->calcScaleParams();
+    ctrl->softReset();
+    return Status::OK;
+  }
+
+  // Same controller type: update config in-place.
+  // Allocate new framebuffer before freeing the old one.
   size_t currFbSize =
       (size_t)ctrl->config.lcdWidth * ctrl->config.lcdHeight * sizeof(uint16_t);
   size_t newFbSize = (size_t)cfg.lcdWidth * cfg.lcdHeight * sizeof(uint16_t);
