@@ -99,8 +99,8 @@ static lcdtap::LcdTap *gInst = nullptr;
 // OSD instance for runtime configuration
 static lcdtap::Osd gOsd;
 
-// PIO program offset — stored so gpioIrqHandler can reset the SM PC on CS
-// de-assertion (pio_sm_restart does not reset the PC).
+// PIO program offset — stored so resetPioSm can jump back to the start
+// (pio_sm_restart does not reset the PC).
 static uint gSpiProgOffset = 0u;
 
 // =============================================================================
@@ -193,11 +193,6 @@ static void gpioIrqHandler(uint gpio, uint32_t events) {
       resetPioSm();
     }
     gInst->inputReset(!gpio_get(PIN_RST));
-  }
-  if (gpio == PIN_SPI_CS && (events & GPIO_IRQ_EDGE_RISE)) {
-    // CS rising edge: transaction ended or aborted.  Reset the SM so any
-    // partial byte is discarded and it is ready for the next transaction.
-    resetPioSm();
   }
 }
 
@@ -383,11 +378,6 @@ static void switchInterface(InterfaceType newIface) {
       }
       pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
       pio_sm_clear_fifos(SPI_PIO, SPI_SM);
-      if (gCurrentIface == InterfaceType::SPI_4LINE ||
-          gCurrentIface == InterfaceType::SPI_3LINE ||
-          gCurrentIface == InterfaceType::PARALLEL) {
-        gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, false);
-      }
       if (gCurrentPioProgram) {
         pio_remove_program(SPI_PIO, gCurrentPioProgram, gSpiProgOffset);
         gCurrentPioProgram = nullptr;
@@ -404,21 +394,18 @@ static void switchInterface(InterfaceType newIface) {
   switch (newIface) {
     case InterfaceType::I2C: i2cSlaveInit(); break;
     case InterfaceType::SPI_4LINE:
-      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
       gCurrentPioProgram = &spi_4line_mode0_program;
       gSpiProgOffset = pio_add_program(SPI_PIO, gCurrentPioProgram);
       spiSlaveInit(gSpiProgOffset);
       spiDmaInit();
       break;
     case InterfaceType::SPI_3LINE:
-      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
       gCurrentPioProgram = &spi_3line_mode0_program;
       gSpiProgOffset = pio_add_program(SPI_PIO, gCurrentPioProgram);
       spi3lineSlaveInit(gSpiProgOffset);
       spiDmaInit();
       break;
     case InterfaceType::PARALLEL:
-      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
       gCurrentPioProgram = &parallel_8bit_program;
       gSpiProgOffset = pio_add_program(SPI_PIO, gCurrentPioProgram);
       parSlaveInit(gSpiProgOffset);

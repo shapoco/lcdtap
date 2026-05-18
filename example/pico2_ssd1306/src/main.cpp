@@ -82,8 +82,8 @@ static uint16_t scanlineBufs[N_SCANLINE_BUFS][DVI_MAX_W];
 // =============================================================================
 static lcdtap::LcdTap *gInst = nullptr;
 
-// PIO program offset — stored so gpioIrqHandler can reset the SM PC on CS
-// de-assertion (pio_sm_restart does not reset the PC).
+// PIO program offset — stored so resetPioSm can jump back to the start
+// (pio_sm_restart does not reset the PC).
 static uint gSpiProgOffset = 0u;
 
 // =============================================================================
@@ -107,11 +107,6 @@ static void gpioIrqHandler(uint gpio, uint32_t events) {
       resetPioSm();
     }
     gInst->inputReset(!gpio_get(PIN_RST));
-  }
-  if (gpio == PIN_SPI_CS && (events & GPIO_IRQ_EDGE_RISE)) {
-    // CS rising edge: transaction ended or aborted.  Reset the SM so any
-    // partial byte is discarded and it is ready for the next transaction.
-    resetPioSm();
   }
 }
 
@@ -413,9 +408,6 @@ int main() {
     gpio_set_irq_enabled_with_callback(PIN_RST,
                                        GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
                                        true, &gpioIrqHandler);
-    // CS: rising edge only — resets the PIO SM on transaction end/abort.
-    // Shares the callback already registered for RST above.
-    gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
 
     // SPI slave PIO + DMA (after dvi_init so DVI claims its channels first)
     gSpiProgOffset = pio_add_program(SPI_PIO, &spi_4line_mode0_program);
