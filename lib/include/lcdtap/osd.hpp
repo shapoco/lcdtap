@@ -147,6 +147,7 @@ class Osd {
   // clang-format on
   static constexpr uint8_t PAL_BLACK = 0;
   static constexpr uint8_t PAL_DARK_GRAY = 1;
+  static constexpr uint8_t PAL_GRAY = 2;
   static constexpr uint8_t PAL_SILVER = 3;
   static constexpr uint8_t PAL_WHITE = 4;
   static constexpr uint8_t PAL_RED = 5;

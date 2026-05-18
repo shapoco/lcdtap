@@ -642,7 +642,7 @@ void Osd::renderDumpView(LcdTap& lcdtap) {
       break;
     default:  // COMPLETE
       stateStr = "COMPLETE";
-      stateFg = PAL_BLUE;
+      stateFg = PAL_CYAN;
       break;
   }
   int stateLen = 0;
@@ -654,11 +654,7 @@ void Osd::renderDumpView(LcdTap& lcdtap) {
   // --- Row 1: key hint ---
   fillRow(1, ' ');
   fillRowColor(1, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK));
-  writeStr(1, 0,
-           "\x84"
-           "Back [\x86]Trigger \x85"
-           "Abort \x82\x83"
-           "Scroll");
+  writeStr(1, 0, "\x84:Back \x86:Trigger \x85:Abort \x82\x83:Scroll");
 
   // --- Row 2: column header ---
   fillRow(2, ' ');
@@ -694,7 +690,7 @@ void Osd::renderDumpView(LcdTap& lcdtap) {
         writeChar(row, textCol, '.');
         writeChar(row, textCol + 1, '.');
         setColorRange(row, textCol, 2,
-                      static_cast<uint8_t>((PAL_DARK_GRAY << 4) | altBg));
+                      static_cast<uint8_t>((PAL_GRAY << 4) | altBg));
       } else {
         const uint16_t entry = buf[entryIdx];
         if (entry & 0x8000u) {
