@@ -69,6 +69,10 @@ struct LcdTapConfig {
   bool swapRB;             // true: invert cachedBGR (swap R and B channels)
 
   uint8_t outputRotation;  // 0:none, 1:90°CW, 2:180°, 3:270°CW
+
+  // When true, fillScanline() renders pixels regardless of the sleeping /
+  // displayOn state set by the LCD controller commands.
+  bool forcePowerOn;
 };
 
 //=============================================================================

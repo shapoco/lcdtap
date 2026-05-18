@@ -39,8 +39,9 @@ constexpr uint16_t ITEM_ID_INVERSION = 5u;
 constexpr uint16_t ITEM_ID_SWAP_RB = 6u;
 constexpr uint16_t ITEM_ID_OUTPUT_ROT = 7u;
 constexpr uint16_t ITEM_ID_SCALE_MODE = 8u;
-constexpr uint16_t ITEM_ID_APPLY = 9u;
-constexpr uint16_t ITEM_ID_CANCEL = 10u;
+constexpr uint16_t ITEM_ID_FORCE_PWR_ON = 9u;
+constexpr uint16_t ITEM_ID_APPLY = 10u;
+constexpr uint16_t ITEM_ID_CANCEL = 11u;
 }  // namespace
 
 //=============================================================================
@@ -49,6 +50,7 @@ constexpr uint16_t ITEM_ID_CANCEL = 10u;
 
 void getDefaultOsdConfig(OsdConfig* cfg) {
   cfg->onMenuOpen = nullptr;
+  cfg->onActionActivated = nullptr;
   cfg->userData = nullptr;
 }
 
@@ -123,11 +125,17 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
 
     if (sel.type == OsdMenuType::ACTION) {
       if (activeKeys & OSD_KEY_ENTER) {
-        action = static_cast<uint8_t>(sel.value);
-        if (action == OSD_ACTION_APPLY) {
-          applyConfig(lcdtap);
+        bool stayOpen = false;
+        if (cfg_.onActionActivated) {
+          stayOpen = cfg_.onActionActivated(this, &sel, lcdtap, cfg_.userData);
         }
-        visible_ = false;
+        if (!stayOpen) {
+          action = static_cast<uint8_t>(sel.value);
+          if (action == OSD_ACTION_APPLY) {
+            applyConfig(lcdtap);
+          }
+          visible_ = false;
+        }
       }
     } else {
       // Adjust value with left/right
@@ -334,6 +342,19 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.value = static_cast<int16_t>(cfg.scaleMode);
   }
 
+  // Force Power On
+  {
+    OsdMenuItem& it = add(ITEM_ID_FORCE_PWR_ON);
+    it.type = OsdMenuType::BOOL;
+    it.name = "Force Power On";
+    it.unit = "";
+    it.values = kOnOffNames;
+    it.min = 0;
+    it.max = 1;
+    it.step = 1;
+    it.value = cfg.forcePowerOn ? 1 : 0;
+  }
+
   // Apply
   {
     OsdMenuItem& it = add(ITEM_ID_APPLY);
@@ -455,6 +476,7 @@ LcdTapConfig Osd::buildConfig() const {
   // dviWidth / dviHeight: not set here; preserved by applyConfig()
   cfg.outputRotation = static_cast<uint8_t>(get(ITEM_ID_OUTPUT_ROT, 0) & 3u);
   cfg.scaleMode = static_cast<ScaleMode>(get(ITEM_ID_SCALE_MODE, 0));
+  cfg.forcePowerOn = (get(ITEM_ID_FORCE_PWR_ON, 0) != 0);
 
   return cfg;
 }
@@ -569,6 +591,48 @@ void Osd::insertItem(int index, const OsdMenuItem& item) {
   if (index <= selectedItem_) {
     ++selectedItem_;
     updateScroll();
+  }
+}
+
+void Osd::loadConfig(const LcdTapConfig& cfg) {
+  auto set = [this](uint16_t id, int16_t value) {
+    for (int i = 0; i < numItems_; ++i) {
+      if (items_[i].id == id) {
+        items_[i].value = value;
+        return;
+      }
+    }
+  };
+
+  set(ITEM_ID_CONTROLLER, static_cast<int16_t>(cfg.controller));
+
+  int pfIdx = 2;  // default to RGB565
+  for (int i = 0; i < kNumPixelFormats; ++i) {
+    if (kPixelFormatMap[i] == cfg.pixelFormat) {
+      pfIdx = i;
+      break;
+    }
+  }
+  set(ITEM_ID_PIXEL_FMT, static_cast<int16_t>(pfIdx));
+  set(ITEM_ID_LCD_WIDTH, static_cast<int16_t>(cfg.lcdWidth));
+  set(ITEM_ID_LCD_HEIGHT, static_cast<int16_t>(cfg.lcdHeight));
+  set(ITEM_ID_INVERSION, cfg.invertInvPolarity ? 1 : 0);
+  set(ITEM_ID_SWAP_RB, cfg.swapRB ? 1 : 0);
+  set(ITEM_ID_OUTPUT_ROT, static_cast<int16_t>(cfg.outputRotation & 3u));
+  set(ITEM_ID_SCALE_MODE, static_cast<int16_t>(cfg.scaleMode));
+  set(ITEM_ID_FORCE_PWR_ON, cfg.forcePowerOn ? 1 : 0);
+
+  renderAll();
+}
+
+void Osd::setItemValue(uint16_t id, int16_t value) {
+  for (int i = 0; i < numItems_; ++i) {
+    if (items_[i].id == id) {
+      items_[i].value = value;
+      int row = i - scrollOffset_ + 1;
+      if (row >= 1 && row < ROWS) renderItem(i, row);
+      return;
+    }
   }
 }
 

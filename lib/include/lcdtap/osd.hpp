@@ -62,6 +62,14 @@ struct OsdMenuItem {
 struct OsdConfig {
   // Called after initMenuItems(); use osd->insertItem() to inject custom items.
   void (*onMenuOpen)(class Osd* osd, void* userData);
+
+  // Called when Enter is pressed on an ACTION menu item.
+  // Return true to keep the OSD open (host handled the action).
+  // Return false for default behaviour (Apply → applyConfig, then close OSD).
+  // Set to nullptr to use default behaviour for all ACTION items.
+  bool (*onActionActivated)(class Osd* osd, const OsdMenuItem* item,
+                            LcdTap& lcdtap, void* userData);
+
   void* userData;
 };
 
@@ -96,6 +104,13 @@ class Osd {
   void getItemByIndex(int index, const OsdMenuItem** item) const;
   void getItemById(uint16_t id, const OsdMenuItem** item) const;
   void insertItem(int index, const OsdMenuItem& item);
+
+  // Populate all built-in menu item values from cfg.
+  // Call from onActionActivated to load a preset without closing the OSD.
+  void loadConfig(const LcdTapConfig& cfg);
+
+  // Update the value field of the item with the given id and re-render it.
+  void setItemValue(uint16_t id, int16_t value);
 
  private:
   // OSD raster dimensions

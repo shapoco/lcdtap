@@ -25,9 +25,9 @@ add_executable(lcdtap_pico2_ssd1306
     src/main.cpp
 )
 
-# Generate the PIO header from spi_slave.pio (SPI mode)
+# Generate the PIO header from spi_4line_mode0.pio (SPI mode)
 pico_generate_pio_header(lcdtap_pico2_ssd1306
-    ${CMAKE_CURRENT_LIST_DIR}/src/spi_slave.pio
+    ${CMAKE_CURRENT_LIST_DIR}/src/spi_4line_mode0.pio
 )
 
 target_include_directories(lcdtap_pico2_ssd1306 PRIVATE
@@ -43,7 +43,7 @@ target_compile_definitions(lcdtap_pico2_ssd1306 PRIVATE
 
 # Forward framebuffer-size overrides only when explicitly passed via -D.
 # Defaults are defined in config.h via #ifndef/#define.
-foreach(VAR LCDTAP_LCD_SIZE_W LCDTAP_LCD_SIZE_H)
+foreach(VAR LCDTAP_LCD_SIZE1_W LCDTAP_LCD_SIZE1_H LCDTAP_LCD_SIZE2_W LCDTAP_LCD_SIZE2_H)
     if(DEFINED ${VAR})
         target_compile_definitions(lcdtap_pico2_ssd1306 PRIVATE "${VAR}=${${VAR}}")
     endif()

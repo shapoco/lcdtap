@@ -32,8 +32,16 @@ static_assert(PIN_SPI_CS == SPI_CS_PIN,
               "PIN_SPI_CS mismatch with spi_4line_mode0.pio");
 static_assert(PIN_SPI_SCLK == SPI_SCLK_PIN,
               "PIN_SPI_SCLK mismatch with spi_4line_mode0.pio");
-static_assert(PIN_SPI_MOSI + 1u == PIN_SPI_DCX,
-              "DCX must be MOSI+1 for 'in pins, 2'");
+static_assert(PIN_SPI_MOSI + 1u == PIN_SPI_DC,
+              "DC must be MOSI+1 for 'in pins, 2'");
+static_assert(PIN_SPI_CS == PAR_CS_PIN,
+              "PIN_SPI_CS mismatch with parallel_8bit.pio PAR_CS_PIN");
+static_assert(PIN_PAR_CS == PAR_CS_PIN,
+              "PIN_PAR_CS mismatch with parallel_8bit.pio PAR_CS_PIN");
+static_assert(PIN_PAR_WR == PAR_WR_PIN,
+              "PIN_PAR_WR mismatch with parallel_8bit.pio PAR_WR_PIN");
+static_assert(PIN_PAR_DC == PIN_PAR_DATA_BASE + 8u,
+              "PIN_PAR_DC must be PAR_DATA_BASE+8 for 'in pins, 9'");
 
 // =============================================================================
 // Memory pool — used exclusively for the LcdTap framebuffer.
@@ -96,15 +104,35 @@ static lcdtap::Osd gOsd;
 static uint gSpiProgOffset = 0u;
 
 // =============================================================================
-// OSD user item
+// OSD user items
 // =============================================================================
-static constexpr uint16_t OSD_USER_ITEM_ID_INTERFACE =
+static constexpr uint16_t OSD_USER_ITEM_ID_PRESET_ST7789 =
     lcdtap::OSD_USER_ITEM_ID_BASE;
+static constexpr uint16_t OSD_USER_ITEM_ID_PRESET_SSD1306 =
+    lcdtap::OSD_USER_ITEM_ID_BASE + 1u;
+static constexpr uint16_t OSD_USER_ITEM_ID_INTERFACE =
+    lcdtap::OSD_USER_ITEM_ID_BASE + 2u;
 
 static const char *kInterfaceNames[] = {"I2C", "4Line SPI", "3Line SPI",
                                         "Parallel"};
 
 static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
+  // Insert preset actions at the top of the menu
+  lcdtap::OsdMenuItem p = {};
+  p.type = lcdtap::OsdMenuType::ACTION;
+  p.unit = "";
+  p.values = nullptr;
+  p.value = 0;
+
+  p.id = OSD_USER_ITEM_ID_PRESET_ST7789;
+  p.name = "Preset:ST7789";
+  osd->insertItem(0, p);
+
+  p.id = OSD_USER_ITEM_ID_PRESET_SSD1306;
+  p.name = "Preset:SSD1306";
+  osd->insertItem(1, p);
+
+  // Insert Interface selector at index 2
   lcdtap::OsdMenuItem item = {};
   item.id = OSD_USER_ITEM_ID_INTERFACE;
   item.type = lcdtap::OsdMenuType::ENUM;
@@ -115,7 +143,33 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   item.max = 3;
   item.step = 1;
   item.value = static_cast<int16_t>(gCurrentIface);
-  osd->insertItem(1, item);
+  osd->insertItem(3, item);
+
+  osd->setSelectedIndex(0);
+}
+
+static bool onOsdActionActivated(lcdtap::Osd *osd,
+                                 const lcdtap::OsdMenuItem *item,
+                                 lcdtap::LcdTap &lcdtap, void * /*userData*/) {
+  lcdtap::ControllerType ct;
+  InterfaceType iface;
+  if (item->id == OSD_USER_ITEM_ID_PRESET_ST7789) {
+    ct = lcdtap::ControllerType::ST7789;
+    iface = InterfaceType::SPI_4LINE;
+  } else if (item->id == OSD_USER_ITEM_ID_PRESET_SSD1306) {
+    ct = lcdtap::ControllerType::SSD1306;
+    iface = InterfaceType::I2C;
+  } else {
+    return false;  // default handling
+  }
+  lcdtap::LcdTapConfig preset;
+  lcdtap::getDefaultConfig(ct, &preset);
+  // Preserve current DVI dimensions
+  preset.dviWidth = lcdtap.getConfig().dviWidth;
+  preset.dviHeight = lcdtap.getConfig().dviHeight;
+  osd->loadConfig(preset);
+  osd->setItemValue(OSD_USER_ITEM_ID_INTERFACE, static_cast<int16_t>(iface));
+  return true;  // keep OSD open
 }
 
 // =============================================================================
@@ -130,15 +184,15 @@ static void resetPioSm() {
 }
 
 // =============================================================================
-// GPIO interrupt handler  (RESX pin; CS pin for SPI modes)
+// GPIO interrupt handler  (RST pin; CS pin for SPI/Parallel modes)
 // =============================================================================
 static void gpioIrqHandler(uint gpio, uint32_t events) {
-  if (gpio == PIN_RESX && gInst) {
+  if (gpio == PIN_RST && gInst) {
     if (events & GPIO_IRQ_EDGE_FALL) {
       gInst->inputReset(true);
       resetPioSm();
     }
-    gInst->inputReset(!gpio_get(PIN_RESX));
+    gInst->inputReset(!gpio_get(PIN_RST));
   }
   if (gpio == PIN_SPI_CS && (events & GPIO_IRQ_EDGE_RISE)) {
     // CS rising edge: transaction ended or aborted.  Reset the SM so any
@@ -161,7 +215,7 @@ static void core1Main() {
 // 4-Line SPI slave init  (PIO1 SM0)
 // =============================================================================
 static void spiSlaveInit(uint prog_offset) {
-  for (uint pin : {PIN_SPI_SCLK, PIN_SPI_MOSI, PIN_SPI_DCX}) {
+  for (uint pin : {PIN_SPI_SCLK, PIN_SPI_MOSI, PIN_SPI_DC}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
   }
@@ -170,7 +224,7 @@ static void spiSlaveInit(uint prog_offset) {
   gpio_pull_up(PIN_SPI_CS);
 
   pio_sm_config c = spi_4line_mode0_program_get_default_config(prog_offset);
-  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO4; DCX is IN_BASE+1
+  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO3; DC is IN_BASE+1
   sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
                          /*push_threshold=*/32);
   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
@@ -192,7 +246,7 @@ static void spi3lineSlaveInit(uint prog_offset) {
   gpio_pull_up(PIN_SPI_CS);
 
   pio_sm_config c = spi_3line_mode0_program_get_default_config(prog_offset);
-  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO4 (MOSI only)
+  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO3 (MOSI only)
   sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
                          /*push_threshold=*/32);
   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
@@ -205,18 +259,24 @@ static void spi3lineSlaveInit(uint prog_offset) {
 // Parallel slave init  (PIO1 SM0)
 // =============================================================================
 static void parSlaveInit(uint prog_offset) {
-  gpio_init(PIN_PAR_BCLK);
-  gpio_set_dir(PIN_PAR_BCLK, GPIO_IN);
-  gpio_init(PIN_PAR_DCX);
-  gpio_set_dir(PIN_PAR_DCX, GPIO_IN);
+  // CS and WR# inputs
+  gpio_init(PIN_PAR_CS);
+  gpio_set_dir(PIN_PAR_CS, GPIO_IN);
+  gpio_pull_up(PIN_PAR_CS);
+  gpio_init(PIN_PAR_WR);
+  gpio_set_dir(PIN_PAR_WR, GPIO_IN);
+  // D[0..7] = GPIO 3-10
   for (uint pin = PIN_PAR_DATA_BASE; pin < PIN_PAR_DATA_BASE + 8u; ++pin) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
   }
+  // DC = GPIO 11 (IN_BASE+8)
+  gpio_init(PIN_PAR_DC);
+  gpio_set_dir(PIN_PAR_DC, GPIO_IN);
 
   pio_sm_config c = parallel_8bit_program_get_default_config(prog_offset);
+  // IN_BASE=GPIO3: D[0..7]=GPIO3..10, DC=GPIO11 (IN_BASE+8)
   sm_config_set_in_pins(&c, PIN_PAR_DATA_BASE);
-  sm_config_set_jmp_pin(&c, PIN_PAR_DCX);
   sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
                          /*push_threshold=*/32);
   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
@@ -324,7 +384,8 @@ static void switchInterface(InterfaceType newIface) {
       pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
       pio_sm_clear_fifos(SPI_PIO, SPI_SM);
       if (gCurrentIface == InterfaceType::SPI_4LINE ||
-          gCurrentIface == InterfaceType::SPI_3LINE) {
+          gCurrentIface == InterfaceType::SPI_3LINE ||
+          gCurrentIface == InterfaceType::PARALLEL) {
         gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, false);
       }
       if (gCurrentPioProgram) {
@@ -357,6 +418,7 @@ static void switchInterface(InterfaceType newIface) {
       spiDmaInit();
       break;
     case InterfaceType::PARALLEL:
+      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
       gCurrentPioProgram = &parallel_8bit_program;
       gSpiProgOffset = pio_add_program(SPI_PIO, gCurrentPioProgram);
       parSlaveInit(gSpiProgOffset);
@@ -490,12 +552,12 @@ int main() {
     gpio_pull_up(pin);
   }
 
-  gpio_init(PIN_CFG_DVI_RES);
-  gpio_set_dir(PIN_CFG_DVI_RES, GPIO_IN);
-  gpio_pull_down(PIN_CFG_DVI_RES);
+  gpio_init(PIN_CFG_OUT_720P);
+  gpio_set_dir(PIN_CFG_OUT_720P, GPIO_IN);
+  gpio_pull_up(PIN_CFG_OUT_720P);
   sleep_ms(1);
 
-  const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
+  const bool dvi720p = !gpio_get(PIN_CFG_OUT_720P);  // LOW=720p (active-low)
 
   const uint16_t lcdW = LCDTAP_LCD_SIZE_W;
   const uint16_t lcdH = LCDTAP_LCD_SIZE_H;
@@ -518,11 +580,11 @@ int main() {
   gpio_put(PIN_LED, 0);
 
   // -------------------------------------------------------------------------
-  // 4. RESX input (pull-up; active low from SPI/Parallel master)
+  // 4. RST input (pull-up; active low from SPI/Parallel master)
   // -------------------------------------------------------------------------
-  gpio_init(PIN_RESX);
-  gpio_set_dir(PIN_RESX, GPIO_IN);
-  gpio_pull_up(PIN_RESX);
+  gpio_init(PIN_RST);
+  gpio_set_dir(PIN_RST, GPIO_IN);
+  gpio_pull_up(PIN_RST);
 
   // -------------------------------------------------------------------------
   // 5. DVI init (claims DMA channels and PIO0 state machines)
@@ -572,19 +634,6 @@ int main() {
   lcdtap::LcdTap inst(cfg, host);
   if (inst.getStatus() != lcdtap::Status::OK) panic("LcdTap init failed");
 
-  {
-    static const uint16_t kBars[8] = {
-        0x0000u, 0x001Fu, 0x07E0u, 0x07FFu, 0xF800u, 0xF81Fu, 0xFFE0u, 0xFFFFu,
-    };
-    uint16_t *fb = inst.getFramebuf();
-    for (uint16_t y = 0; y < lcdH; ++y) {
-      for (uint16_t x = 0; x < lcdW; ++x) {
-        fb[(uint32_t)y * lcdW + x] = kBars[(uint32_t)x * 8u / lcdW];
-      }
-    }
-    inst.setDisplayOn(true);
-  }
-
   gInst = &inst;
 
   // -------------------------------------------------------------------------
@@ -593,13 +642,14 @@ int main() {
   lcdtap::OsdConfig osdCfg;
   lcdtap::getDefaultOsdConfig(&osdCfg);
   osdCfg.onMenuOpen = onOsdMenuOpen;
+  osdCfg.onActionActivated = onOsdActionActivated;
   osdCfg.userData = nullptr;
   gOsd.init(osdCfg);
 
   // -------------------------------------------------------------------------
-  // 7. RESX interrupt
+  // 7. RST interrupt
   // -------------------------------------------------------------------------
-  gpio_set_irq_enabled_with_callback(PIN_RESX,
+  gpio_set_irq_enabled_with_callback(PIN_RST,
                                      GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
                                      /*enabled=*/true, &gpioIrqHandler);
 

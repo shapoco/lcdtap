@@ -19,15 +19,14 @@
 #include "lcdtap/lcdtap.hpp"
 
 #include "config.h"
-#include "par_slave.pio.h"
-#include "spi_slave.pio.h"
+#include "spi_4line_mode0.pio.h"
 
 static_assert(PIN_SPI_CS == SPI_CS_PIN,
-              "PIN_SPI_CS mismatch with spi_slave.pio");
+              "PIN_SPI_CS mismatch with spi_4line_mode0.pio");
 static_assert(PIN_SPI_SCLK == SPI_SCLK_PIN,
-              "PIN_SPI_SCLK mismatch with spi_slave.pio");
-static_assert(PIN_SPI_MOSI + 1u == PIN_SPI_DCX,
-              "DCX must be MOSI+1 for 'in pins, 2'");
+              "PIN_SPI_SCLK mismatch with spi_4line_mode0.pio");
+static_assert(PIN_SPI_MOSI + 1u == PIN_SPI_DC,
+              "DC must be MOSI+1 for 'in pins, 2'");
 
 // =============================================================================
 // Memory pool — used exclusively for the LcdTap framebuffer.
@@ -45,7 +44,7 @@ static void *poolAlloc(size_t size) {
 static void poolFree(void *ptr) { (void)ptr; }
 
 // =============================================================================
-// Ring buffer  (word = [bit8: DCX, bits7:0: data byte])
+// Ring buffer  (word = [bit8: DC, bits7:0: data byte])
 // =============================================================================
 static uint32_t
     __attribute__((aligned(SPI_RING_BUF_BYTES))) spiRingBuf[SPI_RING_BUF_WORDS];
@@ -63,12 +62,12 @@ static struct dvi_inst dvi0;
 static uint16_t scanlineBufs[N_SCANLINE_BUFS][DVI_MAX_W];
 
 // =============================================================================
-// LcdTap instance (set after init so the RESX callback can reach it)
+// LcdTap instance (set after init so the RST callback can reach it)
 // =============================================================================
 static lcdtap::LcdTap *gInst = nullptr;
 
 // PIO program offset — stored so gpioIrqHandler can reset the SM PC on CS
-// de-assertion in Normal Mode (pio_sm_restart does not reset the PC).
+// de-assertion (pio_sm_restart does not reset the PC).
 static uint gSpiProgOffset = 0u;
 
 // =============================================================================
@@ -83,20 +82,19 @@ static void resetPioSm() {
 }
 
 // =============================================================================
-// GPIO interrupt handler  (RESX pin; CS pin in Normal Mode)
+// GPIO interrupt handler  (RST pin; CS pin)
 // =============================================================================
 static void gpioIrqHandler(uint gpio, uint32_t events) {
-  if (gpio == PIN_RESX && gInst) {
+  if (gpio == PIN_RST && gInst) {
     if (events & GPIO_IRQ_EDGE_FALL) {
       gInst->inputReset(true);
       resetPioSm();
     }
-    gInst->inputReset(!gpio_get(PIN_RESX));
+    gInst->inputReset(!gpio_get(PIN_RST));
   }
   if (gpio == PIN_SPI_CS && (events & GPIO_IRQ_EDGE_RISE)) {
-    // CS rising edge (Normal Mode): transaction ended or aborted.  Reset the
-    // SM so any partial byte is discarded and it is ready for the next
-    // transaction.
+    // CS rising edge: transaction ended or aborted.  Reset the SM so any
+    // partial byte is discarded and it is ready for the next transaction.
     resetPioSm();
   }
 }
@@ -116,10 +114,10 @@ static void core1Main() {
 }
 
 // =============================================================================
-// Normal Mode: SPI slave init  (PIO1 SM0)
+// SPI slave init  (PIO1 SM0)
 // =============================================================================
 static void spiSlaveInit(uint prog_offset) {
-  for (uint pin : {PIN_SPI_SCLK, PIN_SPI_MOSI, PIN_SPI_DCX}) {
+  for (uint pin : {PIN_SPI_SCLK, PIN_SPI_MOSI, PIN_SPI_DC}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
   }
@@ -127,42 +125,10 @@ static void spiSlaveInit(uint prog_offset) {
   gpio_set_dir(PIN_SPI_CS, GPIO_IN);
   gpio_pull_up(PIN_SPI_CS);
 
-  pio_sm_config c = spi_slave_with_dcx_program_get_default_config(prog_offset);
-  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO4; DCX is IN_BASE+1
+  pio_sm_config c = spi_4line_mode0_program_get_default_config(prog_offset);
+  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO3; DC is IN_BASE+1
   sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
                          /*push_threshold=*/32);
-  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
-
-  pio_sm_init(SPI_PIO, SPI_SM, prog_offset, &c);
-  pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
-}
-
-// =============================================================================
-// Fast Mode: Parallel slave init  (PIO1 SM0)
-// =============================================================================
-static void parSlaveInit(uint prog_offset) {
-  // BCLK and DCX are inputs.
-  gpio_init(PIN_PAR_BCLK);
-  gpio_set_dir(PIN_PAR_BCLK, GPIO_IN);
-  gpio_init(PIN_PAR_DCX);
-  gpio_set_dir(PIN_PAR_DCX, GPIO_IN);
-  // D[0..7] = GPIO 4-11 are all inputs.
-  for (uint pin = PIN_PAR_DATA_BASE; pin < PIN_PAR_DATA_BASE + 8u; ++pin) {
-    gpio_init(pin);
-    gpio_set_dir(pin, GPIO_IN);
-  }
-
-  pio_sm_config c = par_slave_with_dcx_program_get_default_config(prog_offset);
-  // D[0] is the IN base pin; 'in pins, 8' samples GPIO 4-11.
-  sm_config_set_in_pins(&c, PIN_PAR_DATA_BASE);
-  // DCX is the JMP_PIN; 'jmp pin' branches on its state.
-  sm_config_set_jmp_pin(&c, PIN_PAR_DCX);
-  // Shift left so D7..D0 accumulate in bits[7:0] after 8 shifts.
-  // AUTOPUSH disabled; we push manually after each 9-bit word.
-  sm_config_set_in_shift(&c, /*shift_direction=*/false,
-                         /*autopush=*/false,
-                         /*push_threshold=*/32);
-  // Join both FIFOs into one 8-deep RX FIFO.
   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
 
   pio_sm_init(SPI_PIO, SPI_SM, prog_offset, &c);
@@ -201,8 +167,6 @@ static void processSpiRingBuf() {
   writeIdx &= (SPI_RING_BUF_WORDS - 1u);
 
   if (!gInst) {
-    // No LcdTap instance to feed; just advance the read index to "consume"
-    // the data.
     spiReadIdx = writeIdx;
     return;
   }
@@ -244,28 +208,30 @@ static void processSpiRingBuf() {
 int main() {
   // -------------------------------------------------------------------------
   // 1. Read boot-time configuration GPIOs
-  //    Do this first, before the system clock changes, while the default
-  //    125 MHz clock is running and the GPIO input synchronisers are stable.
+  //    All config pins are active-low with internal pull-ups.
+  //    Default (not connected, HIGH) = primary mode; LOW = alternate mode.
   // -------------------------------------------------------------------------
-  for (uint pin :
-       {PIN_CFG_LCD_SIZE, PIN_CFG_DVI_RES, PIN_CFG_CLK_MODE, PIN_CFG_ROT0,
-        PIN_CFG_ROT1, PIN_CFG_INV_POL, PIN_CFG_SWAP_RB}) {
+  for (uint pin : {PIN_CFG_OUT_720P, PIN_CFG_LCD_SIZE_SEL, PIN_CFG_INVERTED,
+                   PIN_CFG_SWAP_RB, PIN_CFG_ROT0, PIN_CFG_ROT1}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
-    gpio_pull_down(pin);
+    gpio_pull_up(pin);
   }
-  sleep_ms(1);  // allow pull-downs to settle
+  sleep_ms(1);  // allow pull-ups to settle
 
-  const bool lcd320 = gpio_get(PIN_CFG_LCD_SIZE);
-  const bool dvi720p = gpio_get(PIN_CFG_DVI_RES);
-  const bool fastMode = gpio_get(PIN_CFG_CLK_MODE);
-  const bool invPolarity = gpio_get(PIN_CFG_INV_POL);
-  const bool swapRB = gpio_get(PIN_CFG_SWAP_RB);
-  const int rot =
-      static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) | gpio_get(PIN_CFG_ROT0));
+  const bool dvi720p =
+      !gpio_get(PIN_CFG_OUT_720P);  // LOW=720p, HIGH=480p (default)
+  const bool useSz2 =
+      !gpio_get(PIN_CFG_LCD_SIZE_SEL);  // LOW=Size2, HIGH=Size1 (default)
+  const bool inverted =
+      !gpio_get(PIN_CFG_INVERTED);  // LOW=inverted, HIGH=normal (default)
+  const bool swapRB =
+      !gpio_get(PIN_CFG_SWAP_RB);  // LOW=swap, HIGH=no swap (default)
+  const int rot = static_cast<int>((!gpio_get(PIN_CFG_ROT1) ? 2u : 0u) |
+                                   (!gpio_get(PIN_CFG_ROT0) ? 1u : 0u));
 
-  const uint16_t lcdW = lcd320 ? LCDTAP_LCD_SIZE_ALT_W : LCDTAP_LCD_SIZE_W;
-  const uint16_t lcdH = lcd320 ? LCDTAP_LCD_SIZE_ALT_H : LCDTAP_LCD_SIZE_H;
+  const uint16_t lcdW = useSz2 ? LCDTAP_LCD_SIZE2_W : LCDTAP_LCD_SIZE1_W;
+  const uint16_t lcdH = useSz2 ? LCDTAP_LCD_SIZE2_H : LCDTAP_LCD_SIZE1_H;
 
   const struct dvi_timing *timing =
       dvi720p ? &dvi_timing_1280x720p_reduced_30hz  // 319.2 MHz bit clock
@@ -286,25 +252,12 @@ int main() {
   gpio_put(PIN_LED, 0);
 
   // -------------------------------------------------------------------------
-  // 4. RESX input (pull-up; active low from SPI master)
-  // -------------------------------------------------------------------------
-  gpio_init(PIN_RESX);
-  gpio_set_dir(PIN_RESX, GPIO_IN);
-  gpio_pull_up(PIN_RESX);
-
-  // -------------------------------------------------------------------------
-  // 5. DVI init (claims DMA channels and PIO0 state machines)
+  // 4. DVI init (claims DMA channels and PIO0 state machines)
   // -------------------------------------------------------------------------
   dvi0.timing = timing;
   dvi0.ser_cfg = pico_sock_cfg;  // GPIO12-19, pio0, invert_diffpairs=false
   dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
 
-  // Effective colour buffer dimensions for dvi_scanbuf_main_16bpp:
-  //   Horizontal: tmds_encode_data_channel_16bpp doubles each pixel, so the
-  //               colour buffer is h_active_pixels/2 pixels wide.
-  //   Vertical:   DVI_VERTICAL_REPEAT reuses each TMDS buffer for REPEAT
-  //               consecutive physical lines, so only v_active_lines/REPEAT
-  //               unique colour buffers are consumed per DVI frame.
   const uint32_t dviW = timing->h_active_pixels / 2;
   const uint32_t dviH = timing->v_active_lines / DVI_VERTICAL_REPEAT;
 
@@ -314,17 +267,15 @@ int main() {
   }
 
   // -------------------------------------------------------------------------
-  // 6. LcdTap init
+  // 5. LcdTap init
   // -------------------------------------------------------------------------
   lcdtap::LcdTapConfig cfg;
   lcdtap::getDefaultConfig(lcdtap::ControllerType::ST7789, &cfg);
   cfg.lcdWidth = lcdW;
   cfg.lcdHeight = lcdH;
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
-  cfg.invertInvPolarity = invPolarity;
+  cfg.invertInvPolarity = inverted;
   cfg.swapRB = swapRB;
-
-  // Use effective (colour-buffer) dimensions, not physical DVI dimensions.
   cfg.dviWidth = static_cast<uint16_t>(dviW);
   cfg.dviHeight = static_cast<uint16_t>(dviH);
 
@@ -337,63 +288,39 @@ int main() {
   lcdtap::LcdTap inst(cfg, host);
   if (inst.getStatus() != lcdtap::Status::OK) panic("LcdTap init failed");
 
-  // Fill framebuffer with 8-bar test pattern so the DVI output pipeline can
-  // be verified before the SPI master sends SLPOUT + DISPON.
-  // The pattern is replaced by real SPI content once the master initialises.
-  // Bar order (left→right): black blue green cyan red magenta yellow white
-  {
-    static const uint16_t kBars[8] = {
-        0x0000u, 0x001Fu, 0x07E0u, 0x07FFu, 0xF800u, 0xF81Fu, 0xFFE0u, 0xFFFFu,
-    };
-    uint16_t *fb = inst.getFramebuf();
-    for (uint16_t y = 0; y < lcdH; ++y) {
-      for (uint16_t x = 0; x < lcdW; ++x) {
-        fb[(uint32_t)y * lcdW + x] = kBars[(uint32_t)x * 8u / lcdW];
-      }
-    }
-    inst.setDisplayOn(true);
-  }
-
   gInst = &inst;  // expose to IRQ handler
 
   inst.setOutputRotation(rot);  // apply boot-time rotation setting
 
   // -------------------------------------------------------------------------
-  // 7. RESX interrupt
+  // 6. RST and CS interrupts
   // -------------------------------------------------------------------------
-  gpio_set_irq_enabled_with_callback(PIN_RESX,
+  // RST: interrupt on both edges (reset assert / release)
+  gpio_init(PIN_RST);
+  gpio_set_dir(PIN_RST, GPIO_IN);
+  gpio_pull_up(PIN_RST);
+  gpio_set_irq_enabled_with_callback(PIN_RST,
                                      GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
                                      /*enabled=*/true, &gpioIrqHandler);
+  // CS: rising edge only — resets the PIO SM on transaction end/abort.
+  // Shares the callback already registered for RST above.
+  gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
 
   // -------------------------------------------------------------------------
-  // 8. Input slave PIO + DMA
+  // 7. SPI slave PIO + DMA
   //    Must come after dvi_init() so DVI claims its DMA channels first.
   // -------------------------------------------------------------------------
-  if (fastMode) {
-    // Fast Mode: parallel slave via external shift-register circuit
-    gSpiProgOffset = pio_add_program(SPI_PIO, &par_slave_with_dcx_program);
-    parSlaveInit(gSpiProgOffset);
-  } else {
-    // Normal Mode: direct SPI slave — CS rising edge resets SM on transaction
-    // end
-    gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
-    gSpiProgOffset = pio_add_program(SPI_PIO, &spi_slave_with_dcx_program);
-    spiSlaveInit(gSpiProgOffset);
-  }
+  gSpiProgOffset = pio_add_program(SPI_PIO, &spi_4line_mode0_program);
+  spiSlaveInit(gSpiProgOffset);
   spiDmaInit();
 
   // -------------------------------------------------------------------------
-  // 9. Launch Core 1 for DVI TMDS output
+  // 8. Launch Core 1 for DVI TMDS output
   // -------------------------------------------------------------------------
   multicore_launch_core1(core1Main);
 
   // -------------------------------------------------------------------------
-  // 10. Main loop (Core 0)
-  //     processSpiRingBuf() is called at three points per iteration:
-  //       (a) inside the q_colour_free spin — drains while waiting
-  //       (b) just before getScanline — drains during scanline preparation
-  //       (c) after queue_add_blocking_u32 — drains after handing off
-  //     This prevents the ring buffer from overrunning.
+  // 9. Main loop (Core 0)
   // -------------------------------------------------------------------------
   uint32_t scanY = 0;
   uint32_t frame = 0;
@@ -403,21 +330,18 @@ int main() {
   while (true) {
     uint16_t *buf;
     while (!queue_try_remove_u32(&dvi0.q_colour_free, &buf)) {
-      processSpiRingBuf();  // (a) drain while waiting for free buffer
+      processSpiRingBuf();
     }
 
-    // Fill the DVI buffer directly — no intermediate copy needed.
     gInst->fillScanline(static_cast<uint16_t>(scanY), buf);
 
-    // Hand the filled scanline to DVI Core 1.
     queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);
 
-    // Advance scanline counter; detect frame boundary.
     if (++scanY >= dviH) {
       scanY = 0;
       // Check rotation GPIO and update if changed
-      int newRot = static_cast<int>((gpio_get(PIN_CFG_ROT1) << 1u) |
-                                    gpio_get(PIN_CFG_ROT0));
+      int newRot = static_cast<int>((!gpio_get(PIN_CFG_ROT1) ? 2u : 0u) |
+                                    (!gpio_get(PIN_CFG_ROT0) ? 1u : 0u));
       if (newRot != currentRot) {
         currentRot = newRot;
         gInst->setOutputRotation(currentRot);

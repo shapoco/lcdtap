@@ -1,30 +1,30 @@
-; SPI slave receiver with simultaneous DCX capture.
+; SPI slave receiver with simultaneous DC capture.
 ;
 ; Receives SPI bytes directly from the master — no external shift registers,
 ; counters, or inverters are required.
 ;
 ; Pin mapping (configure SM before enabling):
-;   IN_BASE = PIN_SPI_MOSI  (GPIO 4)
-;     IN_BASE + 0  (GPIO 4) = MOSI  — serial data from master (MSB first)
-;     IN_BASE + 1  (GPIO 5) = DCX   — D/C# signal from master
+;   IN_BASE = PIN_SPI_MOSI  (GPIO 3)
+;     IN_BASE + 0  (GPIO 3) = MOSI  — serial data from master (MSB first)
+;     IN_BASE + 1  (GPIO 4) = DC    — D/C# signal from master
 ;   SCLK and CS are referenced by absolute GPIO numbers via 'wait gpio'.
 ;
 ; SPI mode: CPOL=0 CPHA=0 (clock idles LOW, data sampled on rising edge).
 ; Bit order: MSB first (D7 first, D0 last).
 ;
 ; ISR shift direction: LEFT
-;   'in pins, 2' on the first clock edge captures both DCX and D7:
-;     GPIO 4 (MOSI/D7) → bit[0] of the 2-bit value
-;     GPIO 5 (DCX)     → bit[1] of the 2-bit value
-;   With LEFT shift: ISR = (ISR << 2) | {DCX, D7}  → ISR[1]=DCX, ISR[0]=D7
+;   'in pins, 2' on the first clock edge captures both DC and D7:
+;     GPIO 3 (MOSI/D7) → bit[0] of the 2-bit value
+;     GPIO 4 (DC)      → bit[1] of the 2-bit value
+;   With LEFT shift: ISR = (ISR << 2) | {DC, D7}  → ISR[1]=DC, ISR[0]=D7
 ;   'in pins, 1' × 7 captures D6 down to D0, each shifting in MOSI at ISR[0].
-;   After all 9 left-shifts: bit[8]=DCX, bits[7:0]={D7, D6, ..., D0}.
+;   After all 9 left-shifts: bit[8]=DC, bits[7:0]={D7, D6, ..., D0}.
 ;
 ; AUTOPUSH: disabled  (manual push after each 9-bit word)
 ; FIFO join: RX only  (8-deep receive FIFO)
 ;
 ; Output word layout (32-bit, upper 23 bits zero):
-;   bit [8]    = DCX  (0 = command, 1 = data)
+;   bit [8]    = DC   (0 = command, 1 = data)
 ;   bits[7:0]  = received byte  (D7=bit7, D0=bit0)
 ;
 ; Timing (at 252 MHz PIO/system clock):
@@ -38,22 +38,17 @@
 ;   next falling edge.  SSD1306 max SPI clock is ~10 MHz, so there is ample
 ;   margin in practice.
 ;
-; Startup sync:
-;   CS is HIGH when idle.  The SM waits for CS HIGH before entering the main
-;   loop, so a CS that is already LOW on power-up does not cause a spurious
-;   transaction to be sampled.
-;
 ; CS de-assertion (rising edge) handling:
 ;   A GPIO IRQ on PIN_SPI_CS calls a CPU handler that: disables the SM, clears
 ;   FIFOs, calls pio_sm_restart() to reset ISR/shift counters, executes a JMP
 ;   back to program start to reset the PC (pio_sm_restart does NOT reset PC),
-;   then re-enables the SM.  When the SM resumes, 'wait 1 gpio SPI_CS_PIN'
-;   completes immediately (CS is HIGH) and falls through to .wrap_target.
+;   then re-enables the SM.  When the SM resumes, 'wait 0 gpio SPI_CS_PIN'
+;   waits for the next CS LOW before starting a new transaction.
 
-.define public SPI_CS_PIN    6
+.define public SPI_CS_PIN    1
 .define public SPI_SCLK_PIN  2
 
-.program spi_slave_with_dcx
+.program spi_4line_mode0
 
 ; ---- per-transaction loop ---------------------------------------------------
 .wrap_target
@@ -63,10 +58,10 @@
     ; Prevents a false sample if CS goes LOW while SCLK is already HIGH.
     wait 0 gpio SPI_SCLK_PIN
 
-    ; ---- bit D7 + DCX (first clock edge) ------------------------------------
+    ; ---- bit D7 + DC (first clock edge) -------------------------------------
     wait 1 gpio SPI_SCLK_PIN    ; wait for SCLK rising edge
-    ; Sample DCX (IN_BASE+1 = GPIO 5) and MOSI/D7 (IN_BASE+0 = GPIO 4).
-    ; LEFT shift: ISR = (ISR << 2) | {DCX, D7}  → ISR[1]=DCX, ISR[0]=D7.
+    ; Sample DC (IN_BASE+1 = GPIO 4) and MOSI/D7 (IN_BASE+0 = GPIO 3).
+    ; LEFT shift: ISR = (ISR << 2) | {DC, D7}  → ISR[1]=DC, ISR[0]=D7.
     in   pins, 2
 
     ; ---- bits D6..D0 (seven more clock edges, loop unrolled) ----------------

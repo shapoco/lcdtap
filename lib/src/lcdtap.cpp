@@ -26,6 +26,7 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->invertInvPolarity = false;
       cfg->swapRB = false;
       cfg->outputRotation = 0;
+      cfg->forcePowerOn = false;
       break;
     case ControllerType::SSD1306:
       cfg->controller = ControllerType::SSD1306;
@@ -38,6 +39,7 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->invertInvPolarity = false;
       cfg->swapRB = false;
       cfg->outputRotation = 0;
+      cfg->forcePowerOn = false;
       break;
   }
 }
@@ -337,7 +339,9 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   const uint16_t dviW = ctrl->config.dviWidth;
 
   // Display off, sleeping, or in the vertical black border region
-  if (ctrl->sleeping || !ctrl->displayOn || dviLine < ctrl->displayY ||
+  bool powerOff =
+      !ctrl->config.forcePowerOn && (ctrl->sleeping || !ctrl->displayOn);
+  if (powerOff || dviLine < ctrl->displayY ||
       dviLine >= ctrl->displayY + ctrl->displayH) {
     memset(dst, 0, dviW * sizeof(uint16_t));
     return;

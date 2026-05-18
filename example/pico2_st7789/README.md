@@ -1,5 +1,11 @@
 # Example Design for ST7789, ILI9341, etc.
 
+## Schematics
+
+![](./image/schematics.png)
+
+The rotary switch can be substituted with a DIP switch.
+
 ## Build instructions
 
 ```bash
@@ -13,16 +19,16 @@ To override the framebuffer size, pass optional `-D` flags to `cmake`:
 
 ```bash
 cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk \
-         -DLCDTAP_LCD_SIZE_W=240 -DLCDTAP_LCD_SIZE_H=320 \
-         -DLCDTAP_LCD_SIZE_ALT_W=320 -DLCDTAP_LCD_SIZE_ALT_H=240
+         -DLCDTAP_LCD_SIZE1_W=240 -DLCDTAP_LCD_SIZE1_H=320 \
+         -DLCDTAP_LCD_SIZE2_W=320 -DLCDTAP_LCD_SIZE2_H=240
 ```
 
-| cmake option | Default | Description |
+| CMake option | Default | Description |
 |---|---|---|
-| `LCDTAP_LCD_SIZE_W` | `240` | Framebuffer width when GPIO 20 (LCD\_SIZE) = LOW |
-| `LCDTAP_LCD_SIZE_H` | `320` | Framebuffer height when GPIO 20 (LCD\_SIZE) = LOW |
-| `LCDTAP_LCD_SIZE_ALT_W` | `320` | Framebuffer width when GPIO 20 (LCD\_SIZE) = HIGH |
-| `LCDTAP_LCD_SIZE_ALT_H` | `240` | Framebuffer height when GPIO 20 (LCD\_SIZE) = HIGH |
+| `LCDTAP_LCD_SIZE1_W` | `128` | Width of LCD size 1 |
+| `LCDTAP_LCD_SIZE1_H` | `64` | Height of LCD size 1 |
+| `LCDTAP_LCD_SIZE2_W` | `128` | Width of LCD size 2 |
+| `LCDTAP_LCD_SIZE2_H` | `32` | Height of LCD size 2 |
 
 ## Video output
 
@@ -30,88 +36,40 @@ DVI signal generation uses Luke Wren's excellent library [PicoDVI](https://githu
 
 ## Operating modes
 
-This program supports two input modes selected at startup by **GPIO 0
-(CLK\_MODE)**. Pull GPIO 0 LOW (or leave it unconnected — internal pull-down)
-for Normal Mode; pull it HIGH for Fast Mode.
+Connect the SPI master signals directly to the Pico 2 GPIOs as shown in the pin table below.
 
-### Normal Mode (GPIO 0 = LOW, default)
+The SPI interface operates in Mode 0 (CPOL=0, CPHA=0) with MSB first. The maximum clock frequency depends on waveform quality but operates up to approximately 50 MHz.
 
-Direct SPI slave connection — **no external ICs required**. Supports SPI clock up to approximately 40 MHz.
+| GPIO  | Direction | Name | Active-low | Internal Pull-up | Description |
+|:--:|:--:|:--|:--:|:--:|:--|
+| 0     | IN        | RST | v | v | LCD Hardware reset |
+| 1     | IN        | CS | v | v | LCD Chip select |
+| 2     | IN        | SCLK | | | SPI clock from master |
+| 3     | IN        | MOSI | | | SPI data from master |
+| 4     | IN        | DC | | | D/C# signal from master |
+| 12–19 | OUT       | (DVI signals) | | | Driven by PicoDVI |
+| 20    | IN        | CFG_OUT_720P | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
+| 21    | IN        | CFG_LCD_SIZE_SEL | v | v | High=Size1, Low=Size2 |
+| 22    | IN        | CFG_SWAP_RB | v | v | High=Normal, Low=Swapped |
+| 26    | IN        | CFG_INVERTED | v | v | High=Normal, Low=Inverted |
+| 27    | IN        | CFG_ROT\[0\] | v | v | Output rotation bit 0 |
+| 28    | IN        | CFG_ROT\[1\] | v | v | Output rotation bit 1 |
 
-![](./image/schematic_normal.png)
+CFG_ROT\[1:0\] are read every frame and reflected immediately. Other configuration pins are read at startup.
 
-The rotary switch can be substituted with a DIP switch.
+### CFG_SWAP_RB
 
-| GPIO  | Direction | Function |
-|-------|-----------|----------|
-| 0     | IN        | CFG: CLK\_MODE — LOW = Normal Mode (this mode) |
-| 1     | IN        | RESX — hardware reset, active-low (pull-up on board) |
-| 2     | IN        | SCLK — SPI clock (CPOL=0: idles LOW) |
-| 4     | IN        | MOSI — SPI data, MSB first |
-| 5     | IN        | DCX — D/C# signal |
-| 6     | IN        | CS — chip select, active-low (pull-up on board) |
-| 12–19 | OUT       | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
-| 20    | IN        | CFG: LCD size select |
-| 21    | IN        | CFG: DVI output resolution select |
-| 22    | IN        | CFG: SWAP\_RB — R/B channel swap |
-| 25    | OUT       | Onboard LED |
-| 26    | IN        | CFG: output rotation bit 0 |
-| 27    | IN        | CFG: output rotation bit 1 |
-| 28    | IN        | CFG: inversion polarity |
+Setting CFG_SWAP_RB (GPIO22) high or low selects whether the red and blue colour channels are swapped in the output. This is useful for displays with different native colour orders (e.g. RGB565 vs BGR565).
 
-### Fast Mode (GPIO 0 = HIGH)
+### CFG_INVERTED
 
-Parallel byte interface via external ICs — tested up to 62.5 MHz SPI clock.
+Setting CFG_INVERTED (GPIO26) high or low selects whether the output image is colour-inverted. This is useful for displays with different polarity requirements for the RGB signals.
 
-![](./image/schematic_fast.png)
+### Rotation select
 
-The rotary switch can be substituted with a DIP switch.
-
-| GPIO  | Direction | Function |
-|-------|-----------|----------|
-| 0     | IN        | CFG: CLK\_MODE — HIGH = Fast Mode (this mode) |
-| 1     | IN        | RESX — hardware reset, active-low (pull-up on board) |
-| 2     | IN        | BCLK — byte clock = SCLK÷8 (74AHC1G04 output, HIGH when byte complete) |
-| 3     | IN        | DCX — D/C# signal (direct from SPI master) |
-| 4–11  | IN        | D[0..7] — parallel data (74HC595 Q1–Q8 outputs) |
-| 12–19 | OUT       | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
-| 20    | IN        | CFG: LCD size select |
-| 21    | IN        | CFG: DVI output resolution select |
-| 22    | IN        | CFG: SWAP\_RB — R/B channel swap |
-| 25    | OUT       | Onboard LED |
-| 26    | IN        | CFG: output rotation bit 0 |
-| 27    | IN        | CFG: output rotation bit 1 |
-| 28    | IN        | CFG: inversion polarity |
-
-## Configuration GPIOs
-
-All configuration pins are read once at startup with internal pull-downs
-(default = LOW). Pull HIGH to select the alternate option.
-
-| GPIO  | Name          | LOW (default)           | HIGH (alternate)               |
-|-------|---------------|-------------------------|--------------------------------|
-| 0     | CLK\_MODE     | Normal Mode (SPI slave) | Fast Mode (parallel slave)     |
-| 20    | LCD\_SIZE     | 240×320 (default, overridable at build time) | 320×240 (default, overridable at build time) |
-| 21    | DVI\_RES      | 640×480 @ 60 Hz         | 1280×720 @ 30 Hz (reduced)     |
-| 22    | SWAP\_RB      | no R/B swap (default)   | swap R and B channels          |
-| 26+27 | ROT           | 00 = no rotation        | 01/10/11 = see table below     |
-| 28    | INV\_POL      | INVON → inverted        | INVON → normal (polarity flip) |
-
-`ROT` is a 2-bit field: GPIO 27 is bit 1 (MSB) and GPIO 26 is bit 0 (LSB).
-The output rotation is re-checked every DVI frame; changes take effect on the
-next frame without restarting.
-
-| ROT value | Effect |
-|-----------|--------|
-| `00`      | No rotation (default) |
-| `01`      | 90° clockwise — aspect ratio swapped for FIT / PIXEL\_PERFECT |
-| `10`      | 180° / flip |
-| `11`      | 270° clockwise — aspect ratio swapped for FIT / PIXEL\_PERFECT |
-
-The scale mode is fixed to **FIT** (aspect-ratio-preserving letterbox / pillarbox).
-
-`INV_POL` controls how the ST7789 INVON/INVOFF commands are interpreted.
-The default (LOW) matches the ST7789 datasheet polarity.
-
-`SWAP_RB` overrides the R/B channel swap regardless of the MADCTL BGR bit.
-Pull HIGH to swap R and B channels; useful when the display panel wiring inverts the colour order.
+|CFG_ROT\[1\]|CFG_ROT\[0\]|Direction|
+|:--:|:--:|:--|
+|High|High|No rotation (default)|
+|High|Low|90° clockwise|
+|Low|High|180°|
+|Low|Low|270° clockwise|

@@ -36,22 +36,21 @@ The M5Stack CoreS3 does not have the CS signal exposed on the connector, so one 
 - [Route CS signal to M-Bus](https://x.com/lovyan03/status/2055491122949165549): Requires modifying M5GFX and recompiling, but no hardware modification is needed.
 - Fix CS signal to Low: No software or hardware changes required, but only applicable if the SPI bus is not used for anything other than LCD control.
 
-The remaining signals can be obtained from the rear connector. On CoreS3, MISO is used as DCX.
+The remaining signals can be obtained from the rear connector. On CoreS3, MISO is used as DC.
 
 |LcdTap (Pico2)|Connection|
 |:--|:--|
 |GND|CoreS3's GND|
-|GPIO0 (CFG_CLK_MODE)|Open or GND (Normal Mode)|
-|GPIO1 (RESX)|Pico2's 3V3|
+|GPIO0 (RST)|Pico2's 3V3|
+|GPIO1 (CS)|(See above instructions)|
 |GPIO2 (SCLK)|CoreS3's SPI_SCLK|
-|GPIO4 (MOSI)|CoreS3's SPI_MOSI|
-|GPIO5 (DCX)|CoreS3's SPI_MISO|
-|GPIO6 (CS)|(See above instructions)|
-|GPIO20 (CFG_LCD_SIZE)|Pico2's 3V3 (320x240)|
-|GPIO21 (CFG_DVI_RES)|Select according to your display|
+|GPIO3 (MOSI)|CoreS3's SPI_MOSI|
+|GPIO4 (DC)|CoreS3's SPI_MISO|
+|GPIO20 (CFG_OUT_720P)|Select according to your display|
+|GPIO21 (CFG_LCD_SIZE_SEL)|Pico2's 3V3 (320x240)|
 |GPIO22 (CFG_SWAP_RB)|Pico2's 3V3 (swap R/B)|
-|GPIO26/27 (CFG_ROT0/1)|Open or GND|
-|GPIO28 (CFG_INV_POL)|Pico2's 3V3 (inverted)|
+|GPIO26 (CFG_INVERTED)|Pico2's 3V3 (inverted)|
+|GPIO27/28 (CFG_ROT\[1:0\])|Open or GND|
 
 ### Firmware
 
@@ -66,39 +65,16 @@ Use pre-built firmware `lcdtap_pico2_st7789.uf2`
 |GND|TinyJoyPad's GND|
 |GPIO8 (SDA)|TinyJoyPad's SDA|
 |GPIO9 (SCL)|TinyJoyPad's SCL|
-|GPIO20 (CFG_INPUT_MODE)|Open or GND| 
-|GPIO21 (CFG_DVI_RES)|Select according to your display|
-|GPIO26/27 (CFG_ROT0/1)|binary rotary switch or DIP-switch|
+|GPIO20 (CFG_OUT_720P)|Select according to your display|
+|GPIO21 (CFG_LCD_SIZE_SEL)|Open or GND| 
+|GPIO22 (CFG_IFACE_SEL)|Open or GND| 
+|GPIO27/28 (CFG_ROT\[1:0\])|binary rotary switch or DIP-switch|
 
 See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
 
 ### Firmware
 
 Use pre-built firmware `lcdtap_pico2_ssd1306.uf2`
-
-## OSD (On-Screen Display)
-
-The library includes an optional OSD overlay (`lcdtap/osd.hpp`) that lets users
-change settings at runtime using physical buttons — no host re-flash required.
-
-Press the **Enter** button to open the menu:
-
-```
-==== LcdTap Configuration ==============
-Controller Type   : ◀ ST7789     ▶
-Pixel Format      : ◀ RGB565     ▶
-LCD Width         :   320            px
-LCD Height        :   240            px
-Inversion         :   OFF
-Swap R/B          :   OFF
-Output Resolution : ◀ 480p@60Hz  ▶
-Output Rotation   : ◀ 0          ▶  deg
-Scale Mode        : ◀ FIT        ▶
-Apply             :
-Cancel            :
-```
-
-See [lib/README.md](lib/README.md) for the full API reference.
 
 ## License
 

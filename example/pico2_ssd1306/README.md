@@ -1,8 +1,8 @@
 # Example Design for SSD1306, SSD1309, etc.
 
-## Schematic
+## Schematics
 
-![](./image/schematic.png)
+![](./image/schematics.png)
 
 The rotary switch can be substituted with a DIP switch.
 
@@ -19,36 +19,31 @@ To override the framebuffer size, pass optional `-D` flags to `cmake`:
 
 ```bash
 cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk \
-         -DLCDTAP_LCD_SIZE_W=128 -DLCDTAP_LCD_SIZE_H=64
+         -DLCDTAP_LCD_SIZE1_W=128 -DLCDTAP_LCD_SIZE1_H=64 \
+         -DLCDTAP_LCD_SIZE2_W=128 -DLCDTAP_LCD_SIZE2_H=32
 ```
 
-| cmake option | Default | Description |
+| CMake option | Default | Description |
 |---|---|---|
-| `LCDTAP_LCD_SIZE_W` | `128` | Framebuffer width |
-| `LCDTAP_LCD_SIZE_H` | `64` | Framebuffer height |
+| `LCDTAP_LCD_SIZE1_W` | `128` | Width of LCD size 1 |
+| `LCDTAP_LCD_SIZE1_H` | `64` | Height of LCD size 1 |
+| `LCDTAP_LCD_SIZE2_W` | `128` | Width of LCD size 2 |
+| `LCDTAP_LCD_SIZE2_H` | `32` | Height of LCD size 2 |
 
 ## Input modes
 
-This example supports two input modes, selectable via GPIO 20 at startup.
+This example supports two input modes, selectable via CFG_IFACE_SEL at startup.
 
 ### I2C mode (default)
 
-Connect the SSD1306 SDA and SCL lines directly to GPIO 8 and GPIO 9 with
-4.7 kΩ pull-ups to 3.3 V. The Pico 2 acts as an I2C slave at address
-`0x3C` (SA0 tied low). The SSD1306 I2C control byte (first byte after the
-address phase) is decoded to determine whether subsequent bytes are commands
-or GDDRAM data.
+Connect SDA and SCL lines directly to the Pico 2 GPIOs as shown in the pin table below.
+These GPIOs have internal pull-ups. The Pico 2 acts as an I2C slave at address `0x3C`.
 
 ### SPI mode
 
-SPI bytes are received directly by a PIO state machine (`spi_slave_with_dcx`
-in `src/spi_slave.pio`) — no external ICs are required. Connect the SPI
-master signals directly to the Pico 2 GPIOs as shown in the pin table below.
+Connect the SPI master signals directly to the Pico 2 GPIOs as shown in the pin table below.
 
-The program samples MOSI and DCX simultaneously on each SCLK rising edge
-(CPOL=0, CPHA=0, MSB first). At 252 MHz system clock the maximum supported
-SPI clock is **84 MHz**. A GPIO interrupt on CS (rising edge) resets the PIO
-state machine between transactions, discarding any partially received byte.
+The SPI interface operates in Mode 0 (CPOL=0, CPHA=0) with MSB first. The maximum clock frequency depends on waveform quality but operates up to approximately 50 MHz.
 
 ## Video output
 
@@ -56,45 +51,31 @@ DVI signal generation uses Luke Wren's excellent library [PicoDVI](https://githu
 
 ## Pin assignment
 
-| GPIO  | Direction | Function |
-|-------|-----------|----------|
-| 1     | IN        | RESX — hardware reset, active-low (SPI mode, pull-up on board) |
-| 2     | IN        | SCLK — SPI clock from master (SPI mode, CPOL=0: idle LOW) |
-| 4     | IN        | MOSI — SPI data from master, MSB first (SPI mode) |
-| 5     | IN        | DCX — D/C# signal from master (SPI mode) |
-| 6     | IN        | CS — chip select, active-low (SPI mode, pull-up on board) |
-| 8     | IN        | I2C SDA (I2C mode only) |
-| 9     | IN        | I2C SCL (I2C mode only) |
-| 12–19 | OUT       | DVI TMDS output (pico\_sock\_cfg, driven by PicoDVI) |
-| 20    | IN        | CFG: input mode select |
-| 21    | IN        | CFG: DVI output resolution select |
-| 25    | OUT       | Onboard LED |
-| 26    | IN        | CFG: output rotation bit 0 |
-| 27    | IN        | CFG: output rotation bit 1 |
+| GPIO  | Direction | Name | Active-low | Internal Pull-up | Description |
+|:--:|:--:|:--|:--:|:--:|:--|
+| 0     | IN        | RST | v | v | LCD Hardware reset (SPI mode) |
+| 1     | IN        | CS | v | v | LCD Chip select (SPI mode) |
+| 2     | IN        | SCLK | | | SPI clock from master (SPI mode) |
+| 3     | IN        | MOSI | | | SPI data from master (SPI mode) |
+| 4     | IN        | DC | | | D/C# signal from master (SPI mode) |
+| 8     | IN        | SDA | | v | I2C data (I2C mode) |
+| 9     | IN        | SCL | | v | I2C clock (I2C mode) |
+| 12–19 | OUT       | (DVI signals) | | | Driven by PicoDVI |
+| 20    | IN        | CFG_OUT_720P | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
+| 21    | IN        | CFG_LCD_SIZE_SEL | v | v | High=Size1, Low=Size2 |
+| 22    | IN        | CFG_IFACE_SEL | v | v | High=I2C, Low=SPI |
+| 27    | IN        | CFG_ROT\[0\] | v | v | Output rotation bit 0 |
+| 28    | IN        | CFG_ROT\[1\] | v | v | Output rotation bit 1 |
 
-## Configuration GPIOs
+CFG_ROT\[1:0\] are read every frame and reflected immediately. Other configuration pins are read at startup.
 
-All configuration pins are read once at startup with internal pull-downs
-(default = LOW). Pull HIGH to select the alternate option.
+### CFG_ROT\[1:0\]
 
-The output rotation is re-checked every DVI frame; changes take effect on the
-next frame without restarting.
+Selects the output rotation as follows:
 
-| GPIO  | Name          | LOW (default)           | HIGH (alternate)           |
-|-------|---------------|-------------------------|----------------------------|
-| 20    | INPUT\_MODE   | I2C mode (default)      | SPI mode                   |
-| 21    | DVI\_RES      | 640×480 @ 60 Hz         | 1280×720 @ 30 Hz (reduced) |
-| 26+27 | ROT           | 00 = no rotation        | 01/10/11 = see table below |
-
-`ROT` is a 2-bit field: GPIO 27 is bit 1 (MSB) and GPIO 26 is bit 0 (LSB).
-
-| ROT value | Effect |
-|-----------|--------|
-| `00`      | No rotation (default) |
-| `01`      | 90° clockwise — aspect ratio swapped for FIT |
-| `10`      | 180° / flip |
-| `11`      | 270° clockwise — aspect ratio swapped for FIT |
-
-The scale mode is fixed to **FIT** (aspect-ratio-preserving letterbox /
-pillarbox). The framebuffer size defaults to 128×64 pixels (overridable at
-build time; see Build instructions).
+|CFG_ROT\[1\]|CFG_ROT\[0\]|Direction|
+|:--:|:--:|:--|
+|High|High|No rotation (default)|
+|High|Low|90° clockwise|
+|Low|High|180°|
+|Low|Low|270° clockwise|
