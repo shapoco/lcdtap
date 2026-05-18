@@ -28,6 +28,27 @@ Press the Enter key to open the configuration menu.
 | Left / Right | Adjust selected value |
 | Enter on Apply | Apply changes and save to flash |
 | Enter on Cancel | Discard changes and close |
+| Enter on View Dump | Open the command dump viewer |
+
+### Command Dump Viewer
+
+Selecting **View Dump** opens a hex viewer that shows the raw LCD command/data stream captured since power-on (or since the last trigger).
+
+| Key | Action |
+|-----|--------|
+| Enter | Clear buffer and start a new capture |
+| Right | Stop capture (mark complete) |
+| Left | Return to the configuration menu |
+| Up / Down | Scroll |
+
+Each row displays 16 entries. Colors indicate the type of each entry:
+
+| Color | Meaning |
+|-------|---------|
+| Black on cyan | Command byte |
+| White on black / dark-gray (alternating) | Data byte |
+| Black on yellow (`HR`) | Hardware reset event |
+| `..` in dark gray | Empty (not yet captured) |
 
 ## GPIO Assignments
 

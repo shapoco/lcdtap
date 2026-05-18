@@ -57,6 +57,15 @@ struct OsdMenuItem {
 };
 
 //=============================================================================
+// OSD state
+//=============================================================================
+enum class OsdState : uint8_t {
+  HIDDEN,     // OSD not visible
+  MAIN_MENU,  // configuration menu
+  DUMP_VIEW,  // command dump viewer
+};
+
+//=============================================================================
 // OSD configuration (provided by host before calling Osd::init())
 //=============================================================================
 struct OsdConfig {
@@ -127,15 +136,27 @@ class Osd {
   // Blink timing (ms; half-period → toggles at 1 Hz)
   static constexpr uint64_t BLINK_PERIOD_MS = 500;
 
-  // OSD color palette (RGB565)
-  static constexpr uint16_t COLOR_BG = 0x0000u;        // black
-  static constexpr uint16_t COLOR_FG = 0xFFFFu;        // white
-  static constexpr uint16_t COLOR_TITLE_BG = 0x000Fu;  // dark navy
-  static constexpr uint16_t COLOR_TITLE_FG = 0xFFFFu;  // white
-  static constexpr uint16_t COLOR_SEL_BG = 0x0318u;    // dark teal
-  static constexpr uint16_t COLOR_SEL_FG = 0xFFFFu;    // white
+  // Color palette (RGB565); index = palette entry
+  // clang-format off
+  static constexpr uint16_t OSD_PALETTE[16] = {
+      0x0000u, 0x4208u, 0x8410u, 0xC618u,  // 0:BLACK 1:DARK_GRAY 2:GRAY 3:SILVER
+      0xFFFFu, 0xF800u, 0xFFE0u, 0x07E0u,  // 4:WHITE 5:RED 6:YELLOW 7:GREEN
+      0x07FFu, 0x021Fu, 0xF81Fu, 0x0000u,  // 8:CYAN 9:BLUE 10:MAGENTA 11:(rsv)
+      0x0000u, 0x0000u, 0x000Fu, 0x0318u,  // 12:(rsv) 13:(rsv) 14:TITLE_BG 15:SEL_BG
+  };
+  // clang-format on
+  static constexpr uint8_t PAL_BLACK = 0;
+  static constexpr uint8_t PAL_DARK_GRAY = 1;
+  static constexpr uint8_t PAL_SILVER = 3;
+  static constexpr uint8_t PAL_WHITE = 4;
+  static constexpr uint8_t PAL_RED = 5;
+  static constexpr uint8_t PAL_YELLOW = 6;
+  static constexpr uint8_t PAL_CYAN = 8;
+  static constexpr uint8_t PAL_BLUE = 9;
+  static constexpr uint8_t PAL_TITLE_BG = 14;
+  static constexpr uint8_t PAL_SEL_BG = 15;
 
-  // Text line layout column positions
+  // Text line layout column positions (main menu)
   static constexpr int COL_NAME_START = 0;
   static constexpr int COL_NAME_END = 17;  // inclusive, 18 chars
   static constexpr int COL_SEP = 18;       // ':'
@@ -147,11 +168,13 @@ class Osd {
   static constexpr int COL_UNIT_END = 39;  // inclusive, 3 chars
 
   char textBuf_[COLS * ROWS];  // flat character raster, row-major
+  uint8_t
+      textCol_[COLS * ROWS];  // per-char color: upper 4 bit=fg, lower 4 bit=bg
   OsdMenuItem items_[MAX_ITEMS];
   int numItems_;
   int selectedItem_;
   int scrollOffset_;  // index of the first visible item
-  bool visible_;
+  OsdState state_;
   bool blinkOn_;
 
   uint8_t lastInput_;
@@ -161,6 +184,12 @@ class Osd {
 
   OsdConfig cfg_;
 
+  // Dump view state
+  int dumpScrollOffset_ = 0;
+  DumpState lastDumpState_ = DumpState::WAIT;
+  uint16_t lastDumpSize_ = 0;
+  bool dumpViewDirty_ = true;
+
   // Populate items_[] from the current LcdTap config.
   void initMenuItems(const LcdTap& lcdtap);
 
@@ -168,6 +197,9 @@ class Osd {
   void renderAll();
   void renderTitle();
   void renderItem(int idx, int row);
+
+  // Render the dump viewer into textBuf_/textCol_.
+  void renderDumpView(LcdTap& lcdtap);
 
   // Adjust scrollOffset_ so that selectedItem_ is visible.
   void updateScroll();
@@ -182,6 +214,12 @@ class Osd {
 
   // Fill an entire row with the given character.
   void fillRow(int row, char c);
+
+  // Fill an entire row's color buffer with the given byte.
+  void fillRowColor(int row, uint8_t colByte);
+
+  // Fill a range of columns in the color buffer.
+  void setColorRange(int row, int col, int len, uint8_t colByte);
 
   // Write a null-terminated string into the text buffer.
   // maxLen < 0 means "no limit" (caller must ensure it fits within COLS).

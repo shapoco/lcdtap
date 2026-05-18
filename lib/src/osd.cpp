@@ -40,8 +40,9 @@ constexpr uint16_t ITEM_ID_SWAP_RB = 6u;
 constexpr uint16_t ITEM_ID_OUTPUT_ROT = 7u;
 constexpr uint16_t ITEM_ID_SCALE_MODE = 8u;
 constexpr uint16_t ITEM_ID_FORCE_PWR_ON = 9u;
-constexpr uint16_t ITEM_ID_APPLY = 10u;
-constexpr uint16_t ITEM_ID_CANCEL = 11u;
+constexpr uint16_t ITEM_ID_VIEW_DUMP = 12u;
+constexpr uint16_t ITEM_ID_APPLY = 13u;
+constexpr uint16_t ITEM_ID_CANCEL = 14u;
 }  // namespace
 
 //=============================================================================
@@ -63,13 +64,18 @@ void Osd::init(const OsdConfig& cfg) {
   numItems_ = 0;
   selectedItem_ = 0;
   scrollOffset_ = 0;
-  visible_ = false;
+  state_ = OsdState::HIDDEN;
   blinkOn_ = true;
   lastInput_ = 0;
   keyPressMs_ = 0;
   lastRepeatMs_ = 0;
   lastBlinkMs_ = 0;
+  dumpScrollOffset_ = 0;
+  lastDumpState_ = DumpState::WAIT;
+  lastDumpSize_ = 0;
+  dumpViewDirty_ = true;
   memset(textBuf_, ' ', sizeof(textBuf_));
+  memset(textCol_, 0, sizeof(textCol_));
 }
 
 //=============================================================================
@@ -99,16 +105,16 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
 
   uint8_t action = OSD_ACTION_NONE;
 
-  if (!visible_) {
+  if (state_ == OsdState::HIDDEN) {
     // Show OSD on Enter
     if (activeKeys & OSD_KEY_ENTER) {
       initMenuItems(lcdtap);
       if (cfg_.onMenuOpen) cfg_.onMenuOpen(this, cfg_.userData);
-      visible_ = true;
+      state_ = OsdState::MAIN_MENU;
       blinkOn_ = true;
       lastBlinkMs_ = nowMs;
     }
-  } else {
+  } else if (state_ == OsdState::MAIN_MENU) {
     // Navigate up/down
     if (activeKeys & OSD_KEY_UP) {
       selectedItem_ =
@@ -125,16 +131,25 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
 
     if (sel.type == OsdMenuType::ACTION) {
       if (activeKeys & OSD_KEY_ENTER) {
-        bool stayOpen = false;
-        if (cfg_.onActionActivated) {
-          stayOpen = cfg_.onActionActivated(this, &sel, lcdtap, cfg_.userData);
-        }
-        if (!stayOpen) {
-          action = static_cast<uint8_t>(sel.value);
-          if (action == OSD_ACTION_APPLY) {
-            applyConfig(lcdtap);
+        if (sel.id == ITEM_ID_VIEW_DUMP) {
+          state_ = OsdState::DUMP_VIEW;
+          dumpScrollOffset_ = 0;
+          lastDumpState_ = lcdtap.dumpGetState();
+          lastDumpSize_ = lcdtap.dumpGetSize();
+          renderDumpView(lcdtap);
+        } else {
+          bool stayOpen = false;
+          if (cfg_.onActionActivated) {
+            stayOpen =
+                cfg_.onActionActivated(this, &sel, lcdtap, cfg_.userData);
           }
-          visible_ = false;
+          if (!stayOpen) {
+            action = static_cast<uint8_t>(sel.value);
+            if (action == OSD_ACTION_APPLY) {
+              applyConfig(lcdtap);
+            }
+            state_ = OsdState::HIDDEN;
+          }
         }
       }
     } else {
@@ -173,7 +188,49 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
       }
     }
 
-    renderAll();
+    if (state_ == OsdState::MAIN_MENU) renderAll();
+  } else if (state_ == OsdState::DUMP_VIEW) {
+    bool needsRender = dumpViewDirty_;
+
+    if (activeKeys & OSD_KEY_LEFT) {
+      state_ = OsdState::MAIN_MENU;
+      renderAll();
+      return OSD_ACTION_NONE;
+    }
+    if (activeKeys & OSD_KEY_ENTER) {
+      lcdtap.dumpStart(getDefaultDumpConfig());
+      lcdtap.dumpForceTrigger();
+      needsRender = true;
+    }
+    if (activeKeys & OSD_KEY_RIGHT) {
+      lcdtap.dumpAbort();
+      needsRender = true;
+    }
+    if (activeKeys & OSD_KEY_UP) {
+      if (dumpScrollOffset_ > 0) {
+        --dumpScrollOffset_;
+        needsRender = true;
+      }
+    }
+    if (activeKeys & OSD_KEY_DOWN) {
+      constexpr int MAX_SCROLL = LcdTap::DUMP_BUFFER_SIZE / 16 - (ROWS - 3);
+      if (dumpScrollOffset_ < MAX_SCROLL) {
+        ++dumpScrollOffset_;
+        needsRender = true;
+      }
+    }
+
+    DumpState curState = lcdtap.dumpGetState();
+    uint16_t curSize = lcdtap.dumpGetSize();
+    if (curState != lastDumpState_ || curSize != lastDumpSize_) {
+      needsRender = true;
+      lastDumpState_ = curState;
+      lastDumpSize_ = curSize;
+    }
+    if (needsRender) {
+      renderDumpView(lcdtap);
+      dumpViewDirty_ = false;
+    }
   }
 
   return action;
@@ -184,27 +241,23 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
 //=============================================================================
 
 void Osd::fillScanline(uint16_t line, uint16_t* dst) const {
-  if (!visible_ || line >= static_cast<uint16_t>(OSD_HEIGHT)) return;
+  if (state_ == OsdState::HIDDEN || line >= static_cast<uint16_t>(OSD_HEIGHT))
+    return;
 
   const int textRow = line >> 4;   // line / GLYPH_HEIGHT (16)
   const int pixRow = line & 0xFu;  // line % GLYPH_HEIGHT
 
-  const bool isTitle = (textRow == 0);
-  const bool isSel =
-      !isTitle && (textRow == (selectedItem_ - scrollOffset_) + 1);
-
-  const uint16_t bg =
-      isTitle ? COLOR_TITLE_BG : (isSel ? COLOR_SEL_BG : COLOR_BG);
-  const uint16_t fg =
-      isTitle ? COLOR_TITLE_FG : (isSel ? COLOR_SEL_FG : COLOR_FG);
-
   const char* rowPtr = &textBuf_[textRow * COLS];
+  const uint8_t* colPtr = &textCol_[textRow * COLS];
   const uint8_t codeFirst = static_cast<uint8_t>(font8x16::CODE_FIRST);
   const uint8_t codeLast = static_cast<uint8_t>(font8x16::CODE_LAST);
 
   for (int col = 0; col < COLS; ++col) {
     uint8_t ch = static_cast<uint8_t>(rowPtr[col]);
     if (ch < codeFirst || ch > codeLast) ch = static_cast<uint8_t>(' ');
+    const uint8_t colByte = colPtr[col];
+    const uint16_t fg = OSD_PALETTE[colByte >> 4];
+    const uint16_t bg = OSD_PALETTE[colByte & 0xFu];
     const uint8_t bits =
         font8x16::bitmap[static_cast<uint32_t>(ch - codeFirst) *
                              font8x16::GLYPH_HEIGHT +
@@ -355,6 +408,19 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.value = cfg.forcePowerOn ? 1 : 0;
   }
 
+  // View Dump
+  {
+    OsdMenuItem& it = add(ITEM_ID_VIEW_DUMP);
+    it.type = OsdMenuType::ACTION;
+    it.name = "View Dump";
+    it.unit = "";
+    it.values = nullptr;
+    it.min = 0;
+    it.max = 0;
+    it.step = 0;
+    it.value = OSD_ACTION_NONE;
+  }
+
   // Apply
   {
     OsdMenuItem& it = add(ITEM_ID_APPLY);
@@ -395,15 +461,19 @@ void Osd::renderAll() {
   constexpr int VISIBLE = ROWS - 1;
   for (int slot = 0; slot < VISIBLE; ++slot) {
     int idx = scrollOffset_ + slot;
-    if (idx < numItems_)
+    if (idx < numItems_) {
       renderItem(idx, slot + 1);
-    else
+    } else {
       fillRow(slot + 1, ' ');
+      fillRowColor(slot + 1,
+                   static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK));
+    }
   }
 }
 
 void Osd::renderTitle() {
   fillRow(0, ' ');
+  fillRowColor(0, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_TITLE_BG));
   writeStr(0, 0, "==== LcdTap Configuration ==============");
 }
 
@@ -412,6 +482,9 @@ void Osd::renderItem(int idx, int row) {
 
   const OsdMenuItem& item = items_[idx];
   const bool isSel = (idx == selectedItem_);
+
+  fillRowColor(row, isSel ? static_cast<uint8_t>((PAL_WHITE << 4) | PAL_SEL_BG)
+                          : static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK));
 
   // Name field
   writeStr(row, COL_NAME_START, item.name, COL_NAME_END - COL_NAME_START + 1);
@@ -497,6 +570,14 @@ void Osd::fillRow(int row, char c) {
   memset(&textBuf_[row * COLS], c, static_cast<size_t>(COLS));
 }
 
+void Osd::fillRowColor(int row, uint8_t colByte) {
+  memset(&textCol_[row * COLS], colByte, static_cast<size_t>(COLS));
+}
+
+void Osd::setColorRange(int row, int col, int len, uint8_t colByte) {
+  memset(&textCol_[row * COLS + col], colByte, static_cast<size_t>(len));
+}
+
 void Osd::writeStr(int row, int col, const char* str, int maxLen) {
   char* dst = &textBuf_[row * COLS + col];
   int i = 0;
@@ -526,6 +607,126 @@ void Osd::formatValue(char* buf, int bufLen, const OsdMenuItem& item) const {
                static_cast<int>(item.value));
       break;
     default: buf[0] = '\0'; break;
+  }
+}
+
+//=============================================================================
+// Osd::renderDumpView
+//=============================================================================
+
+void Osd::renderDumpView(LcdTap& lcdtap) {
+  static const char HEX[] = "0123456789ABCDEF";
+
+  // Clear background to avoid main-menu color bleed-through
+  memset(textCol_, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK),
+         sizeof(textCol_));
+
+  const DumpState dumpState = lcdtap.dumpGetState();
+  const uint16_t dumpSize = lcdtap.dumpGetSize();
+  const uint16_t* buf = lcdtap.dumpGetBuffer();
+
+  // --- Row 0: title with colored state name ---
+  fillRow(0, '=');
+  fillRowColor(0, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_TITLE_BG));
+  writeStr(0, 0, "==== Command Dump : ");
+  const char* stateStr;
+  uint8_t stateFg;
+  switch (dumpState) {
+    case DumpState::WAIT:
+      stateStr = "WAIT";
+      stateFg = PAL_YELLOW;
+      break;
+    case DumpState::ACTIVE:
+      stateStr = "ACTIVE";
+      stateFg = PAL_RED;
+      break;
+    default:  // COMPLETE
+      stateStr = "COMPLETE";
+      stateFg = PAL_BLUE;
+      break;
+  }
+  int stateLen = 0;
+  while (stateStr[stateLen]) ++stateLen;
+  writeStr(0, 20, stateStr, stateLen);
+  setColorRange(0, 20, stateLen,
+                static_cast<uint8_t>((stateFg << 4) | PAL_TITLE_BG));
+
+  // --- Row 1: key hint ---
+  fillRow(1, ' ');
+  fillRowColor(1, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK));
+  writeStr(1, 0,
+           "\x84"
+           "Back [\x86]Trigger \x85"
+           "Abort \x82\x83"
+           "Scroll");
+
+  // --- Row 2: column header ---
+  fillRow(2, ' ');
+  fillRowColor(2, static_cast<uint8_t>((PAL_SILVER << 4) | PAL_BLACK));
+  writeStr(2, 0, "   +0+1+2+3+4+5+6+7+8+9+A+B+C+D+E+F");
+
+  // --- Rows 3-14: data rows ---
+  constexpr int HEADER_ROWS = 3;
+  constexpr int VISIBLE_ROWS = ROWS - HEADER_ROWS;  // 12
+  constexpr int ENTRIES_PER_ROW = 16;
+
+  for (int slot = 0; slot < VISIBLE_ROWS; ++slot) {
+    const int row = slot + HEADER_ROWS;
+    const int rowIdx = dumpScrollOffset_ + slot;
+    const int baseEntry = rowIdx * ENTRIES_PER_ROW;
+
+    fillRow(row, ' ');
+
+    // Address (e.g. "A0")
+    writeChar(row, 0, HEX[rowIdx]);
+    writeChar(row, 1, '0');
+    setColorRange(row, 0, 3,
+                  static_cast<uint8_t>((PAL_SILVER << 4) | PAL_BLACK));
+
+    // 16 data columns
+    for (int col = 0; col < ENTRIES_PER_ROW; ++col) {
+      const int textCol = 3 + col * 2;
+      const uint8_t altBg = (col & 1) ? PAL_DARK_GRAY : PAL_BLACK;
+
+      const int entryIdx = baseEntry + col;
+      if (entryIdx >= dumpSize) {
+        // Empty slot
+        writeChar(row, textCol, '.');
+        writeChar(row, textCol + 1, '.');
+        setColorRange(row, textCol, 2,
+                      static_cast<uint8_t>((PAL_DARK_GRAY << 4) | altBg));
+      } else {
+        const uint16_t entry = buf[entryIdx];
+        if (entry & 0x8000u) {
+          // Special event
+          if (entry == LcdTap::DUMP_EVENT_HW_RESET) {
+            writeChar(row, textCol, 'H');
+            writeChar(row, textCol + 1, 'R');
+            setColorRange(row, textCol, 2,
+                          static_cast<uint8_t>((PAL_BLACK << 4) | PAL_YELLOW));
+          } else {
+            writeChar(row, textCol, '?');
+            writeChar(row, textCol + 1, '?');
+            setColorRange(row, textCol, 2,
+                          static_cast<uint8_t>((PAL_BLACK << 4) | PAL_RED));
+          }
+        } else if (entry & 0x100u) {
+          // Data byte
+          const uint8_t val = static_cast<uint8_t>(entry & 0xFFu);
+          writeChar(row, textCol, HEX[val >> 4]);
+          writeChar(row, textCol + 1, HEX[val & 0xFu]);
+          setColorRange(row, textCol, 2,
+                        static_cast<uint8_t>((PAL_WHITE << 4) | altBg));
+        } else {
+          // Command byte
+          const uint8_t val = static_cast<uint8_t>(entry & 0xFFu);
+          writeChar(row, textCol, HEX[val >> 4]);
+          writeChar(row, textCol + 1, HEX[val & 0xFu]);
+          setColorRange(row, textCol, 2,
+                        static_cast<uint8_t>((PAL_BLACK << 4) | PAL_CYAN));
+        }
+      }
+    }
   }
 }
 

@@ -102,6 +102,21 @@ struct HostInterface {
 void getDefaultConfig(ControllerType type, LcdTapConfig* cfg);
 
 //=============================================================================
+// Command dump
+//=============================================================================
+struct DumpConfig {
+  // reserved for future use
+};
+
+DumpConfig getDefaultDumpConfig();
+
+enum class DumpState : uint8_t {
+  WAIT,      // waiting for trigger
+  ACTIVE,    // capturing
+  COMPLETE,  // buffer full or aborted
+};
+
+//=============================================================================
 // Main class
 //=============================================================================
 class LcdTap {
@@ -152,6 +167,26 @@ class LcdTap {
   // fails (the previous state is left intact in that case).
   Status updateConfig(const LcdTapConfig& cfg);
 
+  //--- Command dump ---
+
+  static constexpr int DUMP_BUFFER_SIZE = 256;
+  static constexpr uint16_t DUMP_EVENT_HW_RESET = 0x8001u;
+
+  // Clear buffer, load config, and transition to WAIT state.
+  // If currently COMPLETE, this is the only way back to WAIT.
+  void dumpStart(const DumpConfig& dumpCfg);
+
+  DumpState dumpGetState() const;
+  uint16_t dumpGetSize() const;
+
+  // Transition WAIT→ACTIVE.
+  void dumpForceTrigger();
+
+  // Transition to COMPLETE unconditionally.
+  void dumpAbort();
+
+  const uint16_t* dumpGetBuffer() const;
+
   //--- Test / debug ---
 
   // Returns a direct write pointer to the framebuffer.
@@ -171,6 +206,16 @@ class LcdTap {
   LcdTap& operator=(const LcdTap&) = delete;
 
   void* impl_;  // Hides internal implementation (PIMPL)
+
+  DumpConfig dumpConfig_;
+  DumpState dumpState_ = DumpState::ACTIVE;
+  uint16_t dumpBuffer_[DUMP_BUFFER_SIZE];
+  uint16_t dumpBuffSize_ = 0;
+
+  inline void dumpPush(uint16_t value) {
+    if (dumpBuffSize_ < DUMP_BUFFER_SIZE) dumpBuffer_[dumpBuffSize_++] = value;
+    if (dumpBuffSize_ >= DUMP_BUFFER_SIZE) dumpState_ = DumpState::COMPLETE;
+  }
 };
 
 }  // namespace lcdtap

@@ -12,6 +12,8 @@ namespace lcdtap {
 //=============================================================================
 // getDefaultConfig
 //=============================================================================
+DumpConfig getDefaultDumpConfig() { return {}; }
+
 void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
   *cfg = {};
   switch (type) {
@@ -311,6 +313,7 @@ void LcdTap::inputReset(bool assert) {
   if (ctrl->status != Status::OK) return;
   ctrl->hwReset = assert;
   if (!assert) {
+    if (dumpState_ == DumpState::ACTIVE) dumpPush(DUMP_EVENT_HW_RESET);
     ctrl->softReset();
     ctrl->log("HW RESET released");
   }
@@ -321,6 +324,7 @@ void LcdTap::inputCommand(uint8_t byte) {
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || ctrl->hwReset) return;
   ctrl->dispatchCommand(byte);
+  if (dumpState_ == DumpState::ACTIVE) dumpPush(byte);
 }
 
 void LcdTap::inputData(const uint8_t* data, uint32_t numBytes,
@@ -329,7 +333,34 @@ void LcdTap::inputData(const uint8_t* data, uint32_t numBytes,
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || ctrl->hwReset) return;
   ctrl->feedData(data, numBytes, stride);
+  if (dumpState_ == DumpState::ACTIVE) {
+    const uint32_t s = (stride == 0) ? 1u : stride;
+    for (uint32_t i = 0; i < numBytes && dumpState_ == DumpState::ACTIVE; ++i)
+      dumpPush(0x100u | data[i * s]);
+  }
 }
+
+//=============================================================================
+// LcdTap dump API
+//=============================================================================
+
+void LcdTap::dumpStart(const DumpConfig& dumpCfg) {
+  dumpConfig_ = dumpCfg;
+  dumpBuffSize_ = 0;
+  dumpState_ = DumpState::WAIT;
+}
+
+DumpState LcdTap::dumpGetState() const { return dumpState_; }
+
+uint16_t LcdTap::dumpGetSize() const { return dumpBuffSize_; }
+
+void LcdTap::dumpForceTrigger() {
+  if (dumpState_ == DumpState::WAIT) dumpState_ = DumpState::ACTIVE;
+}
+
+void LcdTap::dumpAbort() { dumpState_ = DumpState::COMPLETE; }
+
+const uint16_t* LcdTap::dumpGetBuffer() const { return dumpBuffer_; }
 
 void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   if (!impl_) return;
