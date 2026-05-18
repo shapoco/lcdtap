@@ -34,14 +34,14 @@ class ControllerBase {
   uint8_t cmdDataLen;  // number of data bytes received for the current command
 
   // RAMWR addressing
-  uint16_t casetXS;  // CASET start column (logical coordinate)
-  uint16_t casetXE;  // CASET end column   (logical coordinate, inclusive)
-  uint16_t rasetYS;  // RASET start row    (logical coordinate)
-  uint16_t rasetYE;  // RASET end row      (logical coordinate, inclusive)
-  uint16_t ramwrX;   // current write position X (logical coordinate)
-  uint16_t ramwrY;   // current write position Y (logical coordinate)
-  uint8_t
-      ramwrBuf[3];  // partial-byte accumulation / command data temp (up to 3 bytes)
+  uint16_t casetXS;     // CASET start column (logical coordinate)
+  uint16_t casetXE;     // CASET end column   (logical coordinate, inclusive)
+  uint16_t rasetYS;     // RASET start row    (logical coordinate)
+  uint16_t rasetYE;     // RASET end row      (logical coordinate, inclusive)
+  uint16_t ramwrX;      // current write position X (logical coordinate)
+  uint16_t ramwrY;      // current write position Y (logical coordinate)
+  uint8_t ramwrBuf[3];  // partial-byte accumulation / command data temp (up to
+                        // 3 bytes)
   uint8_t ramwrBufLen;
 
   // Scaling parameters (computed in the constructor)
@@ -49,12 +49,16 @@ class ControllerBase {
   uint16_t displayY;  // LCD display area start Y on DVI
   uint16_t displayW;  // LCD display area width on DVI
   uint16_t displayH;  // LCD display area height on DVI
-  uint32_t hStep;  // horizontal fixed-point step (16.16 format: lcdW<<16 / displayW)
-  uint32_t vStep;  // vertical   fixed-point step (16.16 format: lcdH<<16 / displayH)
-  uint8_t outputRotation;  // output rotation 0..3 (0:none, 1:90°CW, 2:180°, 3:270°CW)
+  uint32_t
+      hStep;  // horizontal fixed-point step (16.16 format: lcdW<<16 / displayW)
+  uint32_t
+      vStep;  // vertical   fixed-point step (16.16 format: lcdH<<16 / displayH)
+  uint8_t outputRotation;  // output rotation 0..3 (0:none, 1:90°CW, 2:180°,
+                           // 3:270°CW)
 
   // RAMWR write cache (updated by updateWriteCache())
   bool cachedBGR;
+  bool cachedLittleEndian;  // true = pixel bytes LSB first (RAMCTRL ENDIAN bit)
   int32_t cachedHOffset, cachedHStep;
   int32_t cachedVOffset, cachedVStep;
   uint16_t* writePtr;
@@ -74,7 +78,8 @@ class ControllerBase {
   // Update cache on MADCTL change or RAMWR start
   virtual void updateWriteCache() = 0;
 
-  // Soft reset (initialise controller-specific registers, then call resetCommon())
+  // Soft reset (initialise controller-specific registers, then call
+  // resetCommon())
   virtual void softReset() = 0;
 
   // Process a command byte
@@ -117,9 +122,11 @@ class ControllerBase {
   }
   // Process all RAMWR data at once (moves switch(pixelFormat) outside the loop)
   // Override in derived classes to handle custom formats.
-  virtual void processRamwrData(const uint8_t* data, uint32_t numBytes, uint32_t stride);
+  virtual void processRamwrData(const uint8_t* data, uint32_t numBytes,
+                                uint32_t stride);
 
-  // Process a data byte stream: RAMWR data is handled in bulk, others byte by byte
+  // Process a data byte stream: RAMWR data is handled in bulk, others byte by
+  // byte
   void feedData(const uint8_t* data, uint32_t numBytes, uint32_t stride = 1);
 };
 

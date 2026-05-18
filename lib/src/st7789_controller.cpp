@@ -86,6 +86,13 @@ void St7789Controller::feedDataByte(uint8_t byte) {
       }
       ++cmdDataLen;
       break;
+    case CMD_RAMCTRL:
+      if (cmdDataLen ==
+          1) {  // P2: bit 3 = ENDIAN (0 = big-endian, 1 = little-endian)
+        cachedLittleEndian = (byte >> 3) & 1u;
+      }
+      ++cmdDataLen;
+      break;
     case CMD_COLMOD:
       if (cmdDataLen == 0) {
         uint8_t fmt = byte & 0x07u;

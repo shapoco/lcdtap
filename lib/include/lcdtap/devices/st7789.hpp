@@ -13,6 +13,7 @@ static constexpr uint8_t CMD_DISPON = 0x29;
 static constexpr uint8_t CMD_CASET = 0x2A;
 static constexpr uint8_t CMD_RASET = 0x2B;
 static constexpr uint8_t CMD_RAMWR = 0x2C;
+static constexpr uint8_t CMD_RAMCTRL = 0xB0;
 static constexpr uint8_t CMD_MADCTL = 0x36;
 static constexpr uint8_t CMD_COLMOD = 0x3A;
 

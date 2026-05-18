@@ -103,6 +103,7 @@ void ControllerBase::resetCommon() {
   sleeping = true;
   displayOn = false;
   inverted = false;
+  cachedLittleEndian = false;
   pixelFormat = config.pixelFormat;
   currentCmd = 0x00;
   cmdDataLen = 0;
@@ -176,20 +177,22 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
     case PixelFormat::RGB565:
       // Drain leftover 1 byte
       if (ramwrBufLen == 1 && i < length) {
-        uint_fast16_t pixel = 0;
-        pixel |= ramwrBuf[0] << 8;
-        pixel |= data[i];
+        uint_fast16_t b0 = ramwrBuf[0];
+        uint_fast16_t b1 = data[i];
+        uint_fast16_t pixel =
+            cachedLittleEndian ? (b0 | (b1 << 8)) : ((b0 << 8) | b1);
         writePixelRgb565(pixel);
         i += stride;
         ramwrBufLen = 0;
       }
-      // Tight loop: 2 bytes → 1 pixel (big-endian)
+      // Tight loop: 2 bytes → 1 pixel
       while (i + stride * 2 <= length) {
-        uint_fast16_t pixel = 0;
-        pixel |= data[i] << 8;
+        uint_fast16_t b0 = data[i];
         i += stride;
-        pixel |= data[i];
+        uint_fast16_t b1 = data[i];
         i += stride;
+        uint_fast16_t pixel =
+            cachedLittleEndian ? (b0 | (b1 << 8)) : ((b0 << 8) | b1);
         writePixelRgb565(pixel);
       }
       // Save remainder
