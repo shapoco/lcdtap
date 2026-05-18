@@ -54,16 +54,49 @@ The remaining signals can be obtained from the rear connector. On CoreS3, MISO i
 |GPIO3 (MOSI)|CoreS3's SPI_MOSI|
 |GPIO4 (DC)|CoreS3's SPI_MISO|
 |GPIO20 (CFG_OUT_720P)|Select according to your display|
-|GPIO21 (CFG_LCD_SIZE_SEL)|Pico2's 3V3 (320x240)|
-|GPIO22 (CFG_SWAP_RB)|Pico2's 3V3 (swap R/B)|
-|GPIO26 (CFG_INVERTED)|Pico2's 3V3 (inverted)|
+|GPIO21 (CFG_LCD_SIZE_SEL)|Pico2's GND (320x240)|
+|GPIO22 (CFG_SWAP_RB)|Pico2's GND (swap R/B)|
+|GPIO26 (CFG_INVERTED)|Pico2's GND (inverted)|
 |GPIO27/28 (CFG_ROT\[1:0\])|Open or GND|
 
 ### Firmware
 
 Use pre-built firmware `lcdtap_pico2_st7789.uf2`
 
+## Configuration for Arduboy
+
+See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
+
+> [!CAUTION]
+> The back side of the Arduboy board has exposed Li-Po battery terminals. Be careful not to short them.
+
+### Connection
+
+|LcdTap (Pico2)|Connection|
+|:--|:--|
+|GND|Arduboy's GND|
+|GPIO0 (RST)|Arduboy's RST (Pin 27)|
+|GPIO1 (CS)|Arduboy's CS (Pin 26)|
+|GPIO2 (SCLK)|Arduboy's SCLK (Pin 15)|
+|GPIO3 (MOSI)|Arduboy's MOSI (Pin 16)|
+|GPIO4 (DC)|Arduboy's DC (Pin 25)|
+|GPIO20 (CFG_OUT_720P)|Select according to your display|
+|GPIO21 (CFG_LCD_SIZE_SEL)|Open or 3V3 (128x64)| 
+|GPIO22 (CFG_IFACE_SEL)|GND (SPI)|
+|GPIO27 (CFG_ROT\[0\])|Open or 3V3|
+|GPIO28 (CFG_ROT\[1\])|GND (Rotate 180°)|
+
+![](image/arduboy_conn_front.jpg)
+
+![](image/arduboy_conn_back.jpg)
+
+### Firmware
+
+Use pre-built firmware `lcdtap_pico2_ssd1306.uf2`
+
 ## Configuration for TinyJoyPad
+
+See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
 
 ### Connection
 
@@ -73,11 +106,9 @@ Use pre-built firmware `lcdtap_pico2_st7789.uf2`
 |GPIO8 (SDA)|TinyJoyPad's SDA|
 |GPIO9 (SCL)|TinyJoyPad's SCL|
 |GPIO20 (CFG_OUT_720P)|Select according to your display|
-|GPIO21 (CFG_LCD_SIZE_SEL)|Open or GND| 
-|GPIO22 (CFG_IFACE_SEL)|Open or GND| 
+|GPIO21 (CFG_LCD_SIZE_SEL)|Open or 3V3 (128x64)| 
+|GPIO22 (CFG_IFACE_SEL)|Open or 3V3 (I2C)|
 |GPIO27/28 (CFG_ROT\[1:0\])|binary rotary switch or DIP-switch|
-
-See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
 
 ### Firmware
 
