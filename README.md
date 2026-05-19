@@ -5,6 +5,8 @@ and outputs the framebuffer as a DVI-D signal.
 
 ![](image/cover.png)
 
+![](image/use_cases.png)
+
 ## Example Design
 
 ### Universal
