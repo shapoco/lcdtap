@@ -13,15 +13,6 @@ namespace lcdtap {
 static const char* kControllerNames[] = {"ST7789", "SSD1306"};
 static constexpr int kNumControllers = 2;
 
-static const PixelFormat kPixelFormatMap[] = {
-    PixelFormat::MONO_VPACK,
-    PixelFormat::RGB444,
-    PixelFormat::RGB565,
-    PixelFormat::RGB666,
-};
-static const char* kPixelFormatNames[] = {"MONO", "RGB444", "RGB565", "RGB666"};
-static constexpr int kNumPixelFormats = 4;
-
 static const char* kOnOffNames[] = {"OFF", "ON"};
 
 static const char* kRotationNames[] = {"0", "90", "180", "270"};
@@ -323,26 +314,6 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.value = static_cast<int16_t>(cfg.lcdHeight);
   }
 
-  // Pixel Format (non-contiguous enum → map to index)
-  {
-    int pfIdx = 0;
-    for (int i = 0; i < kNumPixelFormats; ++i) {
-      if (kPixelFormatMap[i] == cfg.pixelFormat) {
-        pfIdx = i;
-        break;
-      }
-    }
-    OsdMenuItem& it = add(ITEM_ID_PIXEL_FMT);
-    it.type = OsdMenuType::ENUM;
-    it.name = "Pixel Format";
-    it.unit = "";
-    it.values = kPixelFormatNames;
-    it.min = 0;
-    it.max = static_cast<int16_t>(kNumPixelFormats - 1);
-    it.step = 1;
-    it.value = static_cast<int16_t>(pfIdx);
-  }
-
   // Inversion
   {
     OsdMenuItem& it = add(ITEM_ID_INVERSION);
@@ -353,7 +324,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.min = 0;
     it.max = 1;
     it.step = 1;
-    it.value = cfg.invertInvPolarity ? 1 : 0;
+    it.value = cfg.inverted ? 1 : 0;
   }
 
   // Swap Red/Blue
@@ -524,24 +495,21 @@ void Osd::renderItem(int idx, int row) {
 //=============================================================================
 
 LcdTapConfig Osd::buildConfig() const {
-  LcdTapConfig cfg = {};
-
   auto get = [this](uint16_t id, int16_t def) -> int16_t {
     const OsdMenuItem* it = nullptr;
     getItemById(id, &it);
     return it ? it->value : def;
   };
 
-  cfg.controller = static_cast<ControllerType>(get(ITEM_ID_CONTROLLER, 0));
+  ControllerType controller =
+      static_cast<ControllerType>(get(ITEM_ID_CONTROLLER, 0));
 
-  const int pfIdx = get(ITEM_ID_PIXEL_FMT, 2);
-  cfg.pixelFormat = (pfIdx >= 0 && pfIdx < kNumPixelFormats)
-                        ? kPixelFormatMap[pfIdx]
-                        : PixelFormat::RGB565;
+  LcdTapConfig cfg;
+  getDefaultConfig(controller, &cfg);
 
   cfg.lcdWidth = static_cast<uint16_t>(get(ITEM_ID_LCD_WIDTH, 240));
   cfg.lcdHeight = static_cast<uint16_t>(get(ITEM_ID_LCD_HEIGHT, 320));
-  cfg.invertInvPolarity = (get(ITEM_ID_INVERSION, 0) != 0);
+  cfg.inverted = (get(ITEM_ID_INVERSION, 0) != 0);
   cfg.swapRB = (get(ITEM_ID_SWAP_RB, 0) != 0);
   // dviWidth / dviHeight: not set here; preserved by applyConfig()
   cfg.outputRotation = static_cast<uint8_t>(get(ITEM_ID_OUTPUT_ROT, 0) & 3u);
@@ -822,18 +790,9 @@ void Osd::loadConfig(const LcdTapConfig& cfg) {
   };
 
   set(ITEM_ID_CONTROLLER, static_cast<int16_t>(cfg.controller));
-
-  int pfIdx = 2;  // default to RGB565
-  for (int i = 0; i < kNumPixelFormats; ++i) {
-    if (kPixelFormatMap[i] == cfg.pixelFormat) {
-      pfIdx = i;
-      break;
-    }
-  }
-  set(ITEM_ID_PIXEL_FMT, static_cast<int16_t>(pfIdx));
   set(ITEM_ID_LCD_WIDTH, static_cast<int16_t>(cfg.lcdWidth));
   set(ITEM_ID_LCD_HEIGHT, static_cast<int16_t>(cfg.lcdHeight));
-  set(ITEM_ID_INVERSION, cfg.invertInvPolarity ? 1 : 0);
+  set(ITEM_ID_INVERSION, cfg.inverted ? 1 : 0);
   set(ITEM_ID_SWAP_RB, cfg.swapRB ? 1 : 0);
   set(ITEM_ID_OUTPUT_ROT, static_cast<int16_t>(cfg.outputRotation & 3u));
   set(ITEM_ID_SCALE_MODE, static_cast<int16_t>(cfg.scaleMode));

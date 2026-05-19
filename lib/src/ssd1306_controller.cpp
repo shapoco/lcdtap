@@ -24,7 +24,7 @@ void Ssd1306Controller::softReset() {
   pageColHigh = 0;
   resetCommon();
   sleeping = false;  // SSD1306 has no sleep mode
-  pixelFormat = PixelFormat::MONO_VPACK;
+  interfaceFormat = InterfaceFormat::GRAY1_VPACK8_H2L;
   casetXS = 0;
   casetXE = static_cast<uint16_t>(config.lcdWidth - 1);
   rasetYS = 0;
@@ -118,11 +118,11 @@ void Ssd1306Controller::dispatchCommand(uint8_t cmd) {
       log("SSD1306: DISPLAY_ON");
       break;
     case CMD_NORMAL_DISPLAY:
-      inverted = config.invertInvPolarity;
+      inverted = config.inverted;
       log("SSD1306: NORMAL_DISPLAY");
       break;
     case CMD_INVERT_DISPLAY:
-      inverted = !config.invertInvPolarity;
+      inverted = !config.inverted;
       log("SSD1306: INVERT_DISPLAY");
       break;
     case CMD_SEG_REMAP_0:
@@ -164,7 +164,7 @@ void Ssd1306Controller::feedDataByte(uint8_t /*byte*/) {}
 // DCX=1 is always GDDRAM (pixel) data
 bool Ssd1306Controller::isRamWriteCommand() const { return true; }
 
-// MONO_VPACK: 1 byte = 8 vertical pixels (bit0=top, bit7=bottom)
+// GRAY1_VPACK8_H2L: 1 byte = 8 vertical pixels (bit0=top, bit7=bottom)
 void Ssd1306Controller::processRamwrData(const uint8_t* data, uint32_t numElems,
                                          uint32_t stride) {
   const uint16_t lcdW = config.lcdWidth;

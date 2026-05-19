@@ -8,7 +8,8 @@ namespace lcdtap {
 //
 // Key differences from ST7789:
 // - DCX=0 bytes carry both commands and their parameters
-// - DCX=1 bytes are always GDDRAM data (MONO_VPACK: 1 byte = vertical 8 pixels)
+// - DCX=1 bytes are always GDDRAM data (GRAY1_VPACK_MSB1ST: 1 byte = vertical 8
+// pixels)
 // - There is no explicit RAMWR command; isRamWriteCommand() always returns true
 // - Addressing is page-based (horizontal / vertical / page modes)
 class Ssd1306Controller : public ControllerBase {
@@ -27,7 +28,8 @@ class Ssd1306Controller : public ControllerBase {
   void dispatchCommand(uint8_t cmd) override;
   void feedDataByte(uint8_t byte) override;
   bool isRamWriteCommand() const override;
-  void processRamwrData(const uint8_t* data, uint32_t numBytes, uint32_t stride) override;
+  void processRamwrData(const uint8_t* data, uint32_t numBytes,
+                        uint32_t stride) override;
 
  private:
   void applyPageModeCol();

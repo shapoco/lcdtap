@@ -53,11 +53,11 @@ void St7789Controller::dispatchCommand(uint8_t cmd) {
       log("SLPOUT");
       break;
     case CMD_INVOFF:
-      inverted = config.invertInvPolarity;
+      inverted = config.inverted;
       log("INVOFF");
       break;
     case CMD_INVON:
-      inverted = !config.invertInvPolarity;
+      inverted = !config.inverted;
       log("INVON");
       break;
     case CMD_DISPON:
@@ -97,11 +97,11 @@ void St7789Controller::feedDataByte(uint8_t byte) {
       if (cmdDataLen == 0) {
         uint8_t fmt = byte & 0x07u;
         if (fmt == 0x03u)
-          pixelFormat = PixelFormat::RGB444;
+          interfaceFormat = InterfaceFormat::RGB444_HPACK2_H2L_BE;
         else if (fmt == 0x05u)
-          pixelFormat = PixelFormat::RGB565;
+          interfaceFormat = InterfaceFormat::RGB565_BE;
         else if (fmt == 0x06u)
-          pixelFormat = PixelFormat::RGB666;
+          interfaceFormat = InterfaceFormat::RGB666_UNPACK_LA8_BE;
         ramwrBufLen = 0;  // reset buffer on format change
         log("COLMOD");
       }

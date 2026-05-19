@@ -27,7 +27,7 @@ class ControllerBase {
   bool sleeping;
   bool displayOn;
   bool inverted;
-  PixelFormat pixelFormat;
+  InterfaceFormat interfaceFormat;
 
   // Command state machine
   uint8_t currentCmd;
@@ -120,8 +120,8 @@ class ControllerBase {
       writePtr = framebuf + physIndex(ramwrX, ramwrY);
     }
   }
-  // Process all RAMWR data at once (moves switch(pixelFormat) outside the loop)
-  // Override in derived classes to handle custom formats.
+  // Process all RAMWR data at once (moves switch(interfaceFormat) outside the
+  // loop) Override in derived classes to handle custom formats.
   virtual void processRamwrData(const uint8_t* data, uint32_t numBytes,
                                 uint32_t stride);
 

@@ -21,11 +21,11 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->controller = ControllerType::ST7789;
       cfg->lcdWidth = 240;
       cfg->lcdHeight = 320;
-      cfg->pixelFormat = PixelFormat::RGB565;
+      cfg->interfaceFormat = InterfaceFormat::RGB565_BE;
       cfg->dviWidth = 640;
       cfg->dviHeight = 480;
       cfg->scaleMode = ScaleMode::FIT;
-      cfg->invertInvPolarity = true;
+      cfg->inverted = true;
       cfg->swapRB = false;
       cfg->outputRotation = 3;
       cfg->forcePowerOn = false;
@@ -34,11 +34,11 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->controller = ControllerType::SSD1306;
       cfg->lcdWidth = 128;
       cfg->lcdHeight = 64;
-      cfg->pixelFormat = PixelFormat::MONO_VPACK;
+      cfg->interfaceFormat = InterfaceFormat::GRAY1_VPACK8_H2L;
       cfg->dviWidth = 640;
       cfg->dviHeight = 480;
       cfg->scaleMode = ScaleMode::FIT;
-      cfg->invertInvPolarity = false;
+      cfg->inverted = false;
       cfg->swapRB = false;
       cfg->outputRotation = 0;
       cfg->forcePowerOn = false;
@@ -104,7 +104,7 @@ void ControllerBase::resetCommon() {
   displayOn = false;
   inverted = false;
   cachedLittleEndian = false;
-  pixelFormat = config.pixelFormat;
+  interfaceFormat = config.interfaceFormat;
   currentCmd = 0x00;
   cmdDataLen = 0;
   casetXS = 0;
@@ -119,14 +119,15 @@ void ControllerBase::resetCommon() {
   updateWriteCache();
 }
 
-// Process all RAMWR data at once (moves switch(pixelFormat) outside the loop)
+// Process all RAMWR data at once (moves switch(interfaceFormat) outside the
+// loop)
 void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
                                       uint32_t stride) {
   int32_t i = 0;
   int32_t length = numBytes * stride;
 
-  switch (pixelFormat) {
-    case PixelFormat::RGB444:
+  switch (interfaceFormat) {
+    case InterfaceFormat::RGB444_HPACK2_H2L_BE:
       // byte0: R1[3:0] G1[3:0]  byte1: B1[3:0] R2[3:0]  byte2: G2[3:0] B2[3:0]
       // 4bit→5bit: x<<1 (MSB-align; LSB zeroed)  4bit→6bit: x<<2 (MSB-align;
       // lower 2 bits zeroed) Drain leftover bytes (0–2 bytes)
@@ -174,7 +175,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
       }
       break;
 
-    case PixelFormat::RGB565:
+    case InterfaceFormat::RGB565_BE:
       // Drain leftover 1 byte
       if (ramwrBufLen == 1 && i < length) {
         uint_fast16_t b0 = ramwrBuf[0];
@@ -202,7 +203,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
       }
       break;
 
-    case PixelFormat::RGB666:
+    case InterfaceFormat::RGB666_UNPACK_LA8_BE:
       // Upper 6 bits of each byte are significant (lower 2 bits = 0)
       // R5 = byte0>>3, G6 = byte1>>2, B5 = byte2>>3 maps directly to RGB565
       // Drain leftover bytes (0–2 bytes)
@@ -499,7 +500,7 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
 
     ctrl->config = cfg;
     ctrl->outputRotation = cfg.outputRotation & 3u;
-    ctrl->pixelFormat = cfg.pixelFormat;
+    ctrl->interfaceFormat = cfg.interfaceFormat;
     ctrl->calcScaleParams();
     ctrl->softReset();
     return Status::OK;
@@ -521,7 +522,7 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   bool displayOn = ctrl->displayOn;
   ctrl->config = cfg;
   ctrl->outputRotation = cfg.outputRotation & 3u;
-  ctrl->pixelFormat = cfg.pixelFormat;
+  ctrl->interfaceFormat = cfg.interfaceFormat;
   ctrl->calcScaleParams();
   ctrl->softReset();
   ctrl->sleeping = sleeping;

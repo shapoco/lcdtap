@@ -269,7 +269,7 @@ int main() {
   cfg.lcdWidth = lcdW;
   cfg.lcdHeight = lcdH;
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
-  cfg.invertInvPolarity = inverted;
+  cfg.inverted = inverted;
   cfg.swapRB = swapRB;
   cfg.dviWidth = static_cast<uint16_t>(dviW);
   cfg.dviHeight = static_cast<uint16_t>(dviH);

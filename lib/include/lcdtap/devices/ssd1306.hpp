@@ -4,7 +4,7 @@
 
 // SSD1306 command constants
 // Note: all commands with parameters are sent as DCX=0 bytes.
-//       DCX=1 bytes are always GDDRAM data (MONO_VPACK).
+//       DCX=1 bytes are always GDDRAM data (GRAY1_VPACK_MSB1ST).
 
 namespace lcdtap {
 namespace ssd1306 {

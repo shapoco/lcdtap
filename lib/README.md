@@ -26,25 +26,25 @@ struct LcdTapConfig {
   ControllerType controller;
 
   // SPI input (LCD) side
-  uint16_t lcdWidth;          // LCD horizontal resolution
-  uint16_t lcdHeight;         // LCD vertical resolution
-  PixelFormat pixelFormat;    // RGB444 / RGB565 / RGB666 (initial; changed by COLMOD)
+  uint16_t lcdWidth;           // LCD horizontal resolution
+  uint16_t lcdHeight;          // LCD vertical resolution
+  InterfaceFormat interfaceFormat; // Interface pixel format
 
   // DVI output side
-  uint16_t dviWidth;          // DVI active-area width in pixels
-  uint16_t dviHeight;         // DVI active-area height in lines
-  ScaleMode scaleMode;        // STRETCH / FIT / PIXEL_PERFECT
+  uint16_t dviWidth;           // DVI active-area width in pixels
+  uint16_t dviHeight;          // DVI active-area height in lines
+  ScaleMode scaleMode;         // STRETCH / FIT / PIXEL_PERFECT
 
-  bool invertInvPolarity;     // true: INVON → normal, INVOFF → inverted
-                              // false (default): INVON → inverted (ST7789 spec)
-  bool swapRB;                // true: swap R and B channels (invert cachedBGR)
-                              // false (default): no swap
+  bool inverted;               // true: INVON → normal, INVOFF → inverted
+                               // false (default): INVON → inverted (ST7789 spec)
+  bool swapRB;                 // true: swap R and B channels (invert cachedBGR)
+                               // false (default): no swap
 
-  uint8_t outputRotation;     // 0: none (default), 1: 90° CW, 2: 180°, 3: 270° CW
+  uint8_t outputRotation;      // 0: none (default), 1: 90° CW, 2: 180°, 3: 270° CW
 };
 ```
 
-`PixelFormat` values:
+`InterfaceFormat` values:
 
 | Value      | Meaning                     |
 |------------|-----------------------------|
@@ -75,11 +75,11 @@ Default values for `ControllerType::ST7789`:
 |--------------------|----------------------|
 | `lcdWidth`         | 240                  |
 | `lcdHeight`        | 320                  |
-| `pixelFormat`      | `RGB565`             |
+| `interfaceFormat`      | `RGB565_BE`          |
 | `dviWidth`         | 640                  |
 | `dviHeight`        | 480                  |
 | `scaleMode`        | `FIT`                |
-| `invertInvPolarity`| `false`              |
+| `inverted`| `false`              |
 | `swapRB`           | `false`              |
 | `outputRotation`   | `0`                  |
 

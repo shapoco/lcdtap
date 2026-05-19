@@ -30,13 +30,30 @@ enum class ControllerType : uint8_t {
 };
 
 //=============================================================================
-// Pixel format (SPI input side — COLMOD equivalent)
+// Interface Pixel format (SPI input side — COLMOD equivalent)
 //=============================================================================
-enum class PixelFormat : uint8_t {
-  MONO_VPACK = 0x00,  // 1bpp monochrome vertical 8-pixel pack (SSD1306)
-  RGB444 = 0x03,      // 12bpp
-  RGB565 = 0x05,      // 16bpp
-  RGB666 = 0x06,      // 18bpp
+enum class InterfaceFormat : uint8_t {
+  // 1bpp monochrome, vertical 8-pixel pack, high-to-low
+  // e.g. SSD1306
+  GRAY1_VPACK8_H2L = 0x00,
+
+  // 3bpp RGB, horizontal 2-pixel pack, high-to-low, 8bit right-aligned
+  // e.g. ILI9488
+  RGB111_HPACK2_H2L_RA8 = 0x01,
+
+  // 8bpp RGB, 3-3-2 bits
+  // e.g. SSD1331
+  RGB332 = 0x02,
+
+  // 12bpp, horizontal 2-pixel pack, high-to-low, big-endian
+  // e.g. ST7789
+  RGB444_HPACK2_H2L_BE = 0x03,
+
+  // 16bpp, big-endian
+  RGB565_BE = 0x05,
+
+  // 18bpp, unpacked, 8bit left-aligned, big-endian
+  RGB666_UNPACK_LA8_BE = 0x06,
 };
 
 //=============================================================================
@@ -58,15 +75,16 @@ struct LcdTapConfig {
   // --- SPI input (LCD) side ---
   uint16_t lcdWidth;
   uint16_t lcdHeight;
-  PixelFormat pixelFormat;  // Initial pixel format (can be changed via COLMOD)
+  InterfaceFormat
+      interfaceFormat;  // Initial pixel format (can be changed via COLMOD)
 
   // --- DVI output side ---
   uint16_t dviWidth;   // DVI active area width (pixels)
   uint16_t dviHeight;  // DVI active area height (lines)
   ScaleMode scaleMode;
 
-  bool invertInvPolarity;  // true: INVON→non-inverted / INVOFF→inverted
-  bool swapRB;             // true: invert cachedBGR (swap R and B channels)
+  bool inverted;  // true: INVON→non-inverted / INVOFF→inverted
+  bool swapRB;    // true: invert cachedBGR (swap R and B channels)
 
   uint8_t outputRotation;  // 0:none, 1:90°CW, 2:180°, 3:270°CW
 
