@@ -1,4 +1,4 @@
-# Example Design for ST7789, ILI9341, etc.
+# Example Design for ST7789, ILI9341, ILI9488, etc.
 
 ## Schematics
 

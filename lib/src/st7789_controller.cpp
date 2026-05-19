@@ -96,7 +96,9 @@ void St7789Controller::feedDataByte(uint8_t byte) {
     case CMD_COLMOD:
       if (cmdDataLen == 0) {
         uint8_t fmt = byte & 0x07u;
-        if (fmt == 0x03u)
+        if (fmt == 0x01u)
+          interfaceFormat = InterfaceFormat::RGB111_HPACK2_H2L_RA8;
+        else if (fmt == 0x03u)
           interfaceFormat = InterfaceFormat::RGB444_HPACK2_H2L_BE;
         else if (fmt == 0x05u)
           interfaceFormat = InterfaceFormat::RGB565_BE;

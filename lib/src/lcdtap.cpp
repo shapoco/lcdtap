@@ -127,6 +127,21 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
   int32_t length = numBytes * stride;
 
   switch (interfaceFormat) {
+    case InterfaceFormat::RGB111_HPACK2_H2L_RA8: {
+      // 1 byte = 2 pixels: bits[5:3] = younger pixel, bits[2:0] = older pixel
+      // 3-bit RGB -> RGB565 lookup (R:1->5bit, G:1->6bit, B:1->5bit)
+      static const uint16_t kLut[8] = {
+          0x0000, 0x001F, 0x07E0, 0x07FF, 0xF800, 0xF81F, 0xFFE0, 0xFFFF,
+      };
+      while (i < length) {
+        uint8_t b = data[i];
+        i += stride;
+        writePixelRgb565(kLut[(b >> 3) & 0x07u]);
+        writePixelRgb565(kLut[b & 0x07u]);
+      }
+      break;
+    }
+
     case InterfaceFormat::RGB444_HPACK2_H2L_BE:
       // byte0: R1[3:0] G1[3:0]  byte1: B1[3:0] R2[3:0]  byte2: G2[3:0] B2[3:0]
       // 4bit→5bit: x<<1 (MSB-align; LSB zeroed)  4bit→6bit: x<<2 (MSB-align;

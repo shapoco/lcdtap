@@ -14,7 +14,7 @@ Supports multiple LCD controllers and interfaces, selectable at runtime via an O
 See [pico2_universal](example/pico2_universal/README.md) for build
 instructions, pin assignment, and configuration details.
 
-### for ST7789, ILI9341, etc.
+### for ST7789, ILI9341, ILI9488, etc.
 
 See [pico2_st7789](example/pico2_st7789/README.md) for build
 instructions, pin assignment, and configuration details.

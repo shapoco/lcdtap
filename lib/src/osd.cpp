@@ -23,7 +23,6 @@ static constexpr int kNumScaleModes = 3;
 // Internal item IDs (< OSD_USER_ITEM_ID_BASE)
 namespace {
 constexpr uint16_t ITEM_ID_CONTROLLER = 1u;
-constexpr uint16_t ITEM_ID_PIXEL_FMT = 2u;
 constexpr uint16_t ITEM_ID_LCD_WIDTH = 3u;
 constexpr uint16_t ITEM_ID_LCD_HEIGHT = 4u;
 constexpr uint16_t ITEM_ID_INVERSION = 5u;
