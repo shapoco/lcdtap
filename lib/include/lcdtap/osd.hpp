@@ -37,7 +37,7 @@ static const uint16_t OSD_USER_ITEM_ID_BASE = 0x8000u;
 enum class OsdMenuType : uint8_t {
   ACTION,   // Triggers an action on Enter
   INTEGER,  // Numeric value (clamped at min/max)
-  BOOL,     // Boolean: left=OFF, right=ON
+  BOOL,     // Boolean: toggle
   ENUM,     // String selection (wraps around)
 };
 
@@ -140,8 +140,8 @@ class Osd {
   // clang-format off
   static constexpr uint16_t OSD_PALETTE[16] = {
       0x0000u, 0x4208u, 0x8410u, 0xC618u,  // 0:BLACK 1:DARK_GRAY 2:GRAY 3:SILVER
-      0xFFFFu, 0xF800u, 0xFFE0u, 0x07E0u,  // 4:WHITE 5:RED 6:YELLOW 7:GREEN
-      0x07FFu, 0x021Fu, 0xF81Fu, 0x0000u,  // 8:CYAN 9:BLUE 10:MAGENTA 11:(rsv)
+      0xFFFFu, 0xF808u, 0xFF00u, 0x07E0u,  // 4:WHITE 5:RED 6:YELLOW 7:GREEN
+      0x061Fu, 0x021Fu, 0xF81Fu, 0x0000u,  // 8:CYAN 9:BLUE 10:MAGENTA 11:(rsv)
       0x0000u, 0x0000u, 0x000Fu, 0x0318u,  // 12:(rsv) 13:(rsv) 14:TITLE_BG 15:SEL_BG
   };
   // clang-format on
@@ -154,8 +154,8 @@ class Osd {
   static constexpr uint8_t PAL_YELLOW = 6;
   static constexpr uint8_t PAL_CYAN = 8;
   static constexpr uint8_t PAL_BLUE = 9;
-  static constexpr uint8_t PAL_TITLE_BG = 14;
-  static constexpr uint8_t PAL_SEL_BG = 15;
+  static constexpr uint8_t PAL_DARK_BLUE = 14;
+  static constexpr uint8_t PAL_SKY_BLUE = 15;
 
   // Text line layout column positions (main menu)
   static constexpr int COL_NAME_START = 0;
@@ -213,6 +213,9 @@ class Osd {
 
   // --- Text helpers ---
 
+  // Draw a horizontal bar across the entire row using the given character.
+  void drawTitleBar(const char* title);
+
   // Fill an entire row with the given character.
   void fillRow(int row, char c);
 
@@ -220,7 +223,7 @@ class Osd {
   void fillRowColor(int row, uint8_t colByte);
 
   // Fill a range of columns in the color buffer.
-  void setColorRange(int row, int col, int len, uint8_t colByte);
+  void setColorRange(int row, int col, int len, uint8_t colByte, uint8_t mask = 0xFF);
 
   // Write a null-terminated string into the text buffer.
   // maxLen < 0 means "no limit" (caller must ensure it fits within COLS).

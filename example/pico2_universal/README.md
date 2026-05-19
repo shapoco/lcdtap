@@ -28,11 +28,13 @@ Press the Enter key to open the configuration menu.
 | Left / Right | Adjust selected value |
 | Enter on Apply | Apply changes and save to flash |
 | Enter on Cancel | Discard changes and close |
-| Enter on View Dump | Open the command dump viewer |
+| Enter on Command Dump | Open the command dump viewer |
 
 ### Command Dump Viewer
 
-Selecting **View Dump** opens a hex viewer that shows the raw LCD command/data stream captured since power-on (or since the last trigger).
+Selecting **Command Dump** opens a hex viewer that shows the raw LCD command/data stream captured since power-on (or since the last trigger).
+
+![](./image/cmd_dump_ss.png)
 
 | Key | Action |
 |-----|--------|

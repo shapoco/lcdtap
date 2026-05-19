@@ -162,7 +162,7 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
             else
               sel.value = sel.min;
             break;
-          case OsdMenuType::BOOL: sel.value = 0; break;
+          case OsdMenuType::BOOL: sel.value = (~sel.value) & 1; break;
           case OsdMenuType::ENUM:
             sel.value = static_cast<int16_t>(sel.value - sel.step);
             if (sel.value < sel.min) sel.value = sel.max;
@@ -178,7 +178,7 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
             else
               sel.value = sel.max;
             break;
-          case OsdMenuType::BOOL: sel.value = 1; break;
+          case OsdMenuType::BOOL: sel.value = (~sel.value) & 1; break;
           case OsdMenuType::ENUM:
             sel.value = static_cast<int16_t>(sel.value + sel.step);
             if (sel.value > sel.max) sel.value = sel.min;
@@ -297,26 +297,6 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.value = static_cast<int16_t>(cfg.controller);
   }
 
-  // Pixel Format (non-contiguous enum → map to index)
-  {
-    int pfIdx = 0;
-    for (int i = 0; i < kNumPixelFormats; ++i) {
-      if (kPixelFormatMap[i] == cfg.pixelFormat) {
-        pfIdx = i;
-        break;
-      }
-    }
-    OsdMenuItem& it = add(ITEM_ID_PIXEL_FMT);
-    it.type = OsdMenuType::ENUM;
-    it.name = "Pixel Format";
-    it.unit = "";
-    it.values = kPixelFormatNames;
-    it.min = 0;
-    it.max = static_cast<int16_t>(kNumPixelFormats - 1);
-    it.step = 1;
-    it.value = static_cast<int16_t>(pfIdx);
-  }
-
   // LCD Width
   {
     OsdMenuItem& it = add(ITEM_ID_LCD_WIDTH);
@@ -343,6 +323,26 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.value = static_cast<int16_t>(cfg.lcdHeight);
   }
 
+  // Pixel Format (non-contiguous enum → map to index)
+  {
+    int pfIdx = 0;
+    for (int i = 0; i < kNumPixelFormats; ++i) {
+      if (kPixelFormatMap[i] == cfg.pixelFormat) {
+        pfIdx = i;
+        break;
+      }
+    }
+    OsdMenuItem& it = add(ITEM_ID_PIXEL_FMT);
+    it.type = OsdMenuType::ENUM;
+    it.name = "Pixel Format";
+    it.unit = "";
+    it.values = kPixelFormatNames;
+    it.min = 0;
+    it.max = static_cast<int16_t>(kNumPixelFormats - 1);
+    it.step = 1;
+    it.value = static_cast<int16_t>(pfIdx);
+  }
+
   // Inversion
   {
     OsdMenuItem& it = add(ITEM_ID_INVERSION);
@@ -356,43 +356,17 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.value = cfg.invertInvPolarity ? 1 : 0;
   }
 
-  // Swap R/B
+  // Swap Red/Blue
   {
     OsdMenuItem& it = add(ITEM_ID_SWAP_RB);
     it.type = OsdMenuType::BOOL;
-    it.name = "Swap R/B";
+    it.name = "Swap Red/Blue";
     it.unit = "";
     it.values = kOnOffNames;
     it.min = 0;
     it.max = 1;
     it.step = 1;
     it.value = cfg.swapRB ? 1 : 0;
-  }
-
-  // Output Rotation
-  {
-    OsdMenuItem& it = add(ITEM_ID_OUTPUT_ROT);
-    it.type = OsdMenuType::ENUM;
-    it.name = "Output Rotation";
-    it.unit = "deg";
-    it.values = kRotationNames;
-    it.min = 0;
-    it.max = 3;
-    it.step = 1;
-    it.value = static_cast<int16_t>(cfg.outputRotation & 3u);
-  }
-
-  // Scale Mode
-  {
-    OsdMenuItem& it = add(ITEM_ID_SCALE_MODE);
-    it.type = OsdMenuType::ENUM;
-    it.name = "Scale Mode";
-    it.unit = "";
-    it.values = kScaleModeNames;
-    it.min = 0;
-    it.max = static_cast<int16_t>(kNumScaleModes - 1);
-    it.step = 1;
-    it.value = static_cast<int16_t>(cfg.scaleMode);
   }
 
   // Force Power On
@@ -408,11 +382,37 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.value = cfg.forcePowerOn ? 1 : 0;
   }
 
-  // View Dump
+  // Output Rotation
+  {
+    OsdMenuItem& it = add(ITEM_ID_OUTPUT_ROT);
+    it.type = OsdMenuType::ENUM;
+    it.name = "Output Rotation";
+    it.unit = "deg";
+    it.values = kRotationNames;
+    it.min = 0;
+    it.max = 3;
+    it.step = 1;
+    it.value = static_cast<int16_t>(cfg.outputRotation & 3u);
+  }
+
+  // Output Scaling
+  {
+    OsdMenuItem& it = add(ITEM_ID_SCALE_MODE);
+    it.type = OsdMenuType::ENUM;
+    it.name = "Output Scaling";
+    it.unit = "";
+    it.values = kScaleModeNames;
+    it.min = 0;
+    it.max = static_cast<int16_t>(kNumScaleModes - 1);
+    it.step = 1;
+    it.value = static_cast<int16_t>(cfg.scaleMode);
+  }
+
+  // Command Dump
   {
     OsdMenuItem& it = add(ITEM_ID_VIEW_DUMP);
     it.type = OsdMenuType::ACTION;
-    it.name = "View Dump";
+    it.name = "Command Dump";
     it.unit = "";
     it.values = nullptr;
     it.min = 0;
@@ -471,11 +471,7 @@ void Osd::renderAll() {
   }
 }
 
-void Osd::renderTitle() {
-  fillRow(0, ' ');
-  fillRowColor(0, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_TITLE_BG));
-  writeStr(0, 0, "==== LcdTap Configuration ==============");
-}
+void Osd::renderTitle() { drawTitleBar("Configuration"); }
 
 void Osd::renderItem(int idx, int row) {
   fillRow(row, ' ');
@@ -483,8 +479,9 @@ void Osd::renderItem(int idx, int row) {
   const OsdMenuItem& item = items_[idx];
   const bool isSel = (idx == selectedItem_);
 
-  fillRowColor(row, isSel ? static_cast<uint8_t>((PAL_WHITE << 4) | PAL_SEL_BG)
-                          : static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK));
+  fillRowColor(row, isSel
+                        ? static_cast<uint8_t>((PAL_WHITE << 4) | PAL_SKY_BLUE)
+                        : static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK));
 
   // Name field
   writeStr(row, COL_NAME_START, item.name, COL_NAME_END - COL_NAME_START + 1);
@@ -493,11 +490,11 @@ void Osd::renderItem(int idx, int row) {
   writeChar(row, COL_SEP, ':');
 
   if (item.type == OsdMenuType::ACTION) {
-    // "HIT ENTER" centered in columns COL_IND_LEFT..COL_IND_RIGHT when
+    // "Hit Enter" centered in columns COL_IND_LEFT..COL_IND_RIGHT when
     // selected and blinking
     if (isSel && blinkOn_) {
-      const char* label = "HIT ENTER";
-      const int labelLen = 9;
+      const char* label = "Hit Enter\x86";
+      const int labelLen = 10;
       const int span = COL_IND_RIGHT - COL_IND_LEFT + 1;  // 15
       const int startCol = COL_IND_LEFT + (span - labelLen) / 2;
       writeStr(row, startCol, label, labelLen);
@@ -566,6 +563,28 @@ void Osd::applyConfig(LcdTap& lcdtap) const {
 // Text helpers
 //=============================================================================
 
+void Osd::drawTitleBar(const char* title) {
+  const int APP_NAME_LEN = 6;
+  fillRow(0, ' ');
+  setColorRange(0, COLS - APP_NAME_LEN, APP_NAME_LEN,
+                static_cast<uint8_t>((PAL_BLACK << 4) | PAL_WHITE));
+  setColorRange(0, COLS - APP_NAME_LEN - 4 * 1, 4,
+                static_cast<uint8_t>((PAL_WHITE << 4) | PAL_CYAN));
+  setColorRange(0, COLS - APP_NAME_LEN - 4 * 2, 4,
+                static_cast<uint8_t>((PAL_CYAN << 4) | PAL_SKY_BLUE));
+  setColorRange(0, COLS - APP_NAME_LEN - 4 * 3, 4,
+                static_cast<uint8_t>((PAL_SKY_BLUE << 4) | PAL_BLUE));
+  setColorRange(0, COLS - APP_NAME_LEN - 4 * 4, 4,
+                static_cast<uint8_t>((PAL_BLUE << 4) | PAL_DARK_BLUE));
+  setColorRange(0, 0, COLS - APP_NAME_LEN - 4 * 4,
+                static_cast<uint8_t>((PAL_WHITE << 4) | PAL_DARK_BLUE));
+  writeStr(0, COLS - APP_NAME_LEN - 4 * 4,
+           " \x89\x8A\x8B \x89\x8A\x8B \x89\x8A\x8B \x89\x8A\x8B", 16);
+  writeStr(0, 0, "\x87\x88", 2);
+  writeStr(0, 3, title, COLS);
+  writeStr(0, COLS - APP_NAME_LEN, "LcdTap", APP_NAME_LEN);
+}
+
 void Osd::fillRow(int row, char c) {
   memset(&textBuf_[row * COLS], c, static_cast<size_t>(COLS));
 }
@@ -574,8 +593,12 @@ void Osd::fillRowColor(int row, uint8_t colByte) {
   memset(&textCol_[row * COLS], colByte, static_cast<size_t>(COLS));
 }
 
-void Osd::setColorRange(int row, int col, int len, uint8_t colByte) {
-  memset(&textCol_[row * COLS + col], colByte, static_cast<size_t>(len));
+void Osd::setColorRange(int row, int col, int len, uint8_t colByte,
+                        uint8_t mask) {
+  uint8_t* dst = &textCol_[row * COLS + col];
+  for (int i = 0; i < len; ++i) {
+    dst[i] = (dst[i] & ~mask) | (colByte & mask);
+  }
 }
 
 void Osd::writeStr(int row, int col, const char* str, int maxLen) {
@@ -626,30 +649,27 @@ void Osd::renderDumpView(LcdTap& lcdtap) {
   const uint16_t* buf = lcdtap.dumpGetBuffer();
 
   // --- Row 0: title with colored state name ---
-  fillRow(0, '=');
-  fillRowColor(0, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_TITLE_BG));
-  writeStr(0, 0, "==== Command Dump : ");
+  drawTitleBar("Command Dump");
   const char* stateStr;
   uint8_t stateFg;
   switch (dumpState) {
     case DumpState::WAIT:
-      stateStr = "WAIT";
+      stateStr = "Wait";
       stateFg = PAL_YELLOW;
       break;
     case DumpState::ACTIVE:
-      stateStr = "ACTIVE";
+      stateStr = "Active";
       stateFg = PAL_RED;
       break;
     default:  // COMPLETE
-      stateStr = "COMPLETE";
+      stateStr = "Complete";
       stateFg = PAL_CYAN;
       break;
   }
   int stateLen = 0;
   while (stateStr[stateLen]) ++stateLen;
-  writeStr(0, 20, stateStr, stateLen);
-  setColorRange(0, 20, stateLen,
-                static_cast<uint8_t>((stateFg << 4) | PAL_TITLE_BG));
+  writeStr(0, 16, stateStr, stateLen);
+  setColorRange(0, 16, stateLen, static_cast<uint8_t>(stateFg << 4), 0xF0);
 
   // --- Row 1: key hint ---
   fillRow(1, ' ');

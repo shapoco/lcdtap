@@ -25,9 +25,9 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->dviWidth = 640;
       cfg->dviHeight = 480;
       cfg->scaleMode = ScaleMode::FIT;
-      cfg->invertInvPolarity = false;
+      cfg->invertInvPolarity = true;
       cfg->swapRB = false;
-      cfg->outputRotation = 0;
+      cfg->outputRotation = 3;
       cfg->forcePowerOn = false;
       break;
     case ControllerType::SSD1306:

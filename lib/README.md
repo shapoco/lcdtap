@@ -242,13 +242,13 @@ osd.fillScanline(y, scanlineBuf);   // no-op while OSD is hidden
 - **Up / Down** moves the highlighted row (wraps around).
 - **Left / Right** changes the value of the selected item.
   - `INTEGER`: clamped at min / max.
-  - `BOOL`: Left → OFF, Right → ON.
+  - `BOOL`: Left/Right → toggle between 0 and 1.
   - `ENUM`: wraps around.
 - Selecting **Apply** applies the new config to `LcdTap` via `updateConfig()` and
   closes the OSD. Returns `OSD_ACTION_APPLY`.
 - Selecting **Cancel** discards changes and closes the OSD. Returns
   `OSD_ACTION_CANCEL`.
-- The left/right arrow indicators (`◀ ▶`) and the **HIT ENTER** label on action
+- The left/right arrow indicators (`◀ ▶`) and the **Hit Enter** label on action
   rows blink at 1 Hz while the row is selected.
 - Key repeat fires after a 500 ms initial delay, then at 5 Hz.
 
