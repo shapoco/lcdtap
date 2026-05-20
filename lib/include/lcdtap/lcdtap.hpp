@@ -9,6 +9,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#define LCDTAP_INLINE inline __attribute__((always_inline))
+
 namespace lcdtap {
 
 //=============================================================================

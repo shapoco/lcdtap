@@ -28,11 +28,10 @@
 ;   bits[7:0]  = received byte  (D7=bit7, D0=bit0)
 ;
 ; Timing (at 252 MHz PIO/system clock):
-;   Each of the 7 remaining bits (D6..D0) takes 3 PIO instructions:
-;     wait 0 gpio SCLK  (≥1 cycle)
-;     wait 1 gpio SCLK  (≥1 cycle)
-;     in   pins, 1      (1 cycle)
-;   Minimum SCLK period = 3 cycles → f_SPI_max = 252 / 3 = 84 MHz.
+;   Bits D4..D0 (no CS guard): 3 instructions per bit (wait 0, wait 1, in).
+;     Minimum SCLK period = 3 cycles → f_SPI_max = 252 / 3 = 84 MHz.
+;   Bits D7+DC, D6, D5 (with CS guard): in + jmp pin add 1 extra cycle.
+;     Minimum SCLK period = 4 cycles → f_SPI_max = 252 / 4 = 63 MHz.
 ;   The SCLK HIGH phase must be ≥ 2 cycles (7.94 ns at 252 MHz) so that
 ;   'wait 1' detects the rising edge and 'in' samples valid MOSI before the
 ;   next falling edge.  SSD1306 max SPI clock is ~10 MHz, so there is ample
@@ -57,11 +56,13 @@
 
 ; ---- per-transaction loop ---------------------------------------------------
 .wrap_target
+restart:
     wait 0 gpio SPI_CS_PIN      ; wait for CS LOW  (transaction begins)
 
     ; Wait for SCLK to be LOW (idle state) before arming the first bit.
     ; Prevents a false sample if CS goes LOW while SCLK is already HIGH.
     wait 0 gpio SPI_SCLK_PIN
+    jmp pin restart             ; CS HIGH → cancel (glitch guard)
 
     ; ---- bit D7 + DC (first clock edge) -------------------------------------
     wait 1 gpio SPI_SCLK_PIN    ; wait for SCLK rising edge
@@ -73,9 +74,11 @@
     ; Unrolling removes the 'jmp' instruction, reducing each bit to 3 cycles
     ; and raising the maximum SPI clock to 252/3 = 84 MHz.
     wait 0 gpio SPI_SCLK_PIN
+    jmp pin restart             ; CS HIGH → cancel (glitch guard)
     wait 1 gpio SPI_SCLK_PIN
     in   pins, 1                ; D6
     wait 0 gpio SPI_SCLK_PIN
+    jmp pin restart             ; CS HIGH → cancel (glitch guard)
     wait 1 gpio SPI_SCLK_PIN
     in   pins, 1                ; D5
     wait 0 gpio SPI_SCLK_PIN

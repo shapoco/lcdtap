@@ -196,7 +196,7 @@ static bool onOsdActionActivated(lcdtap::Osd *osd,
 // =============================================================================
 // Reset PIO State Machine
 // =============================================================================
-static void resetPioSm() {
+static LCDTAP_INLINE void resetPioSm() {
   pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
   pio_sm_clear_fifos(SPI_PIO, SPI_SM);
   pio_sm_restart(SPI_PIO, SPI_SM);
@@ -207,8 +207,12 @@ static void resetPioSm() {
 // =============================================================================
 // GPIO interrupt handler  (RST pin; CS pin for SPI/Parallel modes)
 // =============================================================================
-static void gpioIrqHandler(uint gpio, uint32_t events) {
-  if (gpio == PIN_RST && gInst) {
+static void __not_in_flash_func(gpioIrqHandler)(uint gpio, uint32_t events) {
+  if (gpio == PIN_SPI_CS && gCurrentPioProgram) {
+    if (events & GPIO_IRQ_EDGE_RISE) {
+      resetPioSm();
+    }
+  } else if (gpio == PIN_RST && gInst) {
     if (events & GPIO_IRQ_EDGE_FALL) {
       gInst->inputReset(true);
       resetPioSm();
@@ -271,6 +275,7 @@ static void spiSlaveInit(uint prog_offset) {
   sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
                          /*push_threshold=*/32);
   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+  sm_config_set_jmp_pin(&c, PIN_SPI_CS);
 
   pio_sm_init(SPI_PIO, SPI_SM, prog_offset, &c);
   pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
@@ -293,6 +298,7 @@ static void spi3lineSlaveInit(uint prog_offset) {
   sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
                          /*push_threshold=*/32);
   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+  sm_config_set_jmp_pin(&c, PIN_SPI_CS);
 
   pio_sm_init(SPI_PIO, SPI_SM, prog_offset, &c);
   pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
@@ -425,6 +431,7 @@ static void switchInterface(InterfaceType newIface) {
       i2cWriteIdx = 0;
       i2cRxState = I2cRxState::WAIT_CTRL;
     } else {
+      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, false);
       if (spiDmaCh >= 0) {
         dma_channel_abort((uint)spiDmaCh);
         dma_channel_unclaim((uint)spiDmaCh);
@@ -452,18 +459,21 @@ static void switchInterface(InterfaceType newIface) {
       gSpiProgOffset = pio_add_program(SPI_PIO, gCurrentPioProgram);
       spiSlaveInit(gSpiProgOffset);
       spiDmaInit();
+      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
       break;
     case InterfaceType::SPI_3LINE:
       gCurrentPioProgram = &spi_3line_mode0_program;
       gSpiProgOffset = pio_add_program(SPI_PIO, gCurrentPioProgram);
       spi3lineSlaveInit(gSpiProgOffset);
       spiDmaInit();
+      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
       break;
     case InterfaceType::PARALLEL:
       gCurrentPioProgram = &parallel_8bit_program;
       gSpiProgOffset = pio_add_program(SPI_PIO, gCurrentPioProgram);
       parSlaveInit(gSpiProgOffset);
       spiDmaInit();
+      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
       break;
   }
   gCurrentIface = newIface;
@@ -693,6 +703,7 @@ int main() {
   gpio_set_irq_enabled_with_callback(PIN_RST,
                                      GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
                                      /*enabled=*/true, &gpioIrqHandler);
+  irq_set_priority(IO_IRQ_BANK0, 0x00);
 
   // -------------------------------------------------------------------------
   // 8. Input slave PIO + DMA (after dvi_init so DVI claims its channels first)

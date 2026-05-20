@@ -128,8 +128,6 @@ void ControllerBase::resetCommon() {
   ramwrX = 0;
   ramwrY = 0;
   ramwrBufLen = 0;
-  memset(framebuf, 0,
-         (size_t)config.lcdWidth * config.lcdHeight * sizeof(uint16_t));
   updateWriteCache();
 }
 
