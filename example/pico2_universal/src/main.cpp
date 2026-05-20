@@ -404,6 +404,12 @@ static void i2cSlaveInit() {
       I2C_IC_INTR_MASK_M_RD_REQ_BITS | I2C_IC_INTR_MASK_M_TX_ABRT_BITS;
 
   irq_set_exclusive_handler(I2C0_IRQ, i2cSlaveIrqHandler);
+  // Elevate I2C IRQ above the repeating timer IRQ (both default to
+  // PICO_DEFAULT_IRQ_PRIORITY=0x80). Equal-priority IRQs cannot preempt each
+  // other on Cortex-M33; without this, the timer callback blocks I2C draining,
+  // fills the 16-entry FIFO, and causes clock stretching → master timeout →
+  // transaction abort → display desync.
+  irq_set_priority(I2C0_IRQ, PICO_DEFAULT_IRQ_PRIORITY >> 1);
   irq_set_enabled(I2C0_IRQ, true);
 }
 
