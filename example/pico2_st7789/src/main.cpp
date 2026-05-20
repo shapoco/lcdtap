@@ -8,6 +8,7 @@
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
+#include "hardware/timer.h"
 #include "hardware/vreg.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -71,6 +72,16 @@ static lcdtap::LcdTap *gInst = nullptr;
 static uint gSpiProgOffset = 0u;
 
 // =============================================================================
+// DVI timer state — filled from a repeating timer IRQ on Core0
+// =============================================================================
+static uint32_t gScanY = 0;
+static uint32_t gDviH = 0;
+static uint32_t gFrame = 0;
+static bool gLed = false;
+static volatile bool gNewFrame = false;
+static repeating_timer_t gDviTimer;
+
+// =============================================================================
 // Reset PIO State Machine
 // =============================================================================
 static void resetPioSm() {
@@ -92,6 +103,32 @@ static void gpioIrqHandler(uint gpio, uint32_t events) {
     }
     gInst->inputReset(!gpio_get(PIN_RST));
   }
+}
+
+// =============================================================================
+// DVI timer callback — called from IRQ every 200 µs to fill scanlines.
+// Uses non-blocking queue ops only (queue_add_blocking_u32 uses __wfe, unsafe
+// in IRQ context). Both this callback and the main loop run on Core0, so there
+// is no true concurrency and no mutex is needed.
+// =============================================================================
+static bool dviTimerCallback(repeating_timer_t * /*rt*/) {
+  uint16_t *buf;
+  while (queue_try_remove_u32(&dvi0.q_colour_free, &buf)) {
+    if (gInst) gInst->fillScanline(static_cast<uint16_t>(gScanY), buf);
+    if (!queue_try_add_u32(&dvi0.q_colour_valid, &buf)) {
+      queue_try_add_u32(&dvi0.q_colour_free, &buf);
+      break;
+    }
+    if (++gScanY >= gDviH) {
+      gScanY = 0;
+      gNewFrame = true;
+      if (++gFrame % LED_TOGGLE_FRAMES == 0u) {
+        gLed = !gLed;
+        gpio_put(PIN_LED, gLed ? 1 : 0);
+      }
+    }
+  }
+  return true;
 }
 
 // =============================================================================
@@ -311,36 +348,25 @@ int main() {
   // -------------------------------------------------------------------------
   multicore_launch_core1(core1Main);
 
+  gDviH = dviH;
+  add_repeating_timer_us(-200, dviTimerCallback, nullptr, &gDviTimer);
+
   // -------------------------------------------------------------------------
   // 9. Main loop (Core 0)
+  //    DVI scanline filling is handled by dviTimerCallback (IRQ, 200 µs).
+  //    This loop processes SPI input and handles per-frame rotation checks.
   // -------------------------------------------------------------------------
-  uint32_t scanY = 0;
-  uint32_t frame = 0;
-  bool led = false;
   int currentRot = rot;
 
   while (true) {
-    uint16_t *buf;
-    while (!queue_try_remove_u32(&dvi0.q_colour_free, &buf)) {
-      processSpiRingBuf();
-    }
-
-    gInst->fillScanline(static_cast<uint16_t>(scanY), buf);
-
-    queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);
-
-    if (++scanY >= dviH) {
-      scanY = 0;
-      // Check rotation GPIO and update if changed
+    processSpiRingBuf();
+    if (gNewFrame) {
+      gNewFrame = false;
       int newRot = static_cast<int>((!gpio_get(PIN_CFG_ROT1) ? 2u : 0u) |
                                     (!gpio_get(PIN_CFG_ROT0) ? 1u : 0u));
       if (newRot != currentRot) {
         currentRot = newRot;
         gInst->setOutputRotation(currentRot);
-      }
-      if (++frame % LED_TOGGLE_FRAMES == 0u) {
-        led = !led;
-        gpio_put(PIN_LED, led ? 1 : 0);
       }
     }
   }
