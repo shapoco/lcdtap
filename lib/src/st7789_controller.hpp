@@ -9,6 +9,10 @@ namespace lcdtap {
 class St7789Controller final : public ControllerBase {
  public:
   uint8_t madctl;
+  uint16_t hwColStart;  // CASET start (hardware column coordinate)
+  uint16_t hwColEnd;    // CASET end   (hardware column coordinate, inclusive)
+  uint16_t hwRowStart;  // RASET start (hardware row coordinate)
+  uint16_t hwRowEnd;    // RASET end   (hardware row coordinate, inclusive)
 
   uint16_t logicalWidth() const override;
   uint16_t logicalHeight() const override;

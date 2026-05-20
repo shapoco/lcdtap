@@ -15,8 +15,12 @@ namespace lcdtap {
 // - Color depth is controlled by SETREMAP bits[7:6] (RGB332 or RGB565_BE)
 class Ssd1331Controller : public ControllerBase {
  public:
-  uint8_t remap;           // SETREMAP register value
-  bool fillEnabled;        // fill enable flag (FILLENABLE command)
+  uint8_t remap;       // SETREMAP register value
+  uint8_t hwColStart;  // SETCOLUMN start (hardware column coordinate)
+  uint8_t hwColEnd;  // SETCOLUMN end   (hardware column coordinate, inclusive)
+  uint8_t hwRowStart;  // SETROW start    (hardware row coordinate)
+  uint8_t hwRowEnd;    // SETROW end      (hardware row coordinate, inclusive)
+  bool fillEnabled;    // fill enable flag (FILLENABLE command)
   uint8_t expectedParams;  // remaining parameter bytes for the current command
   uint8_t cmdBuf[10];  // parameter accumulation buffer (max 10 for DRAWRECT)
   uint8_t cmdBufLen;   // number of bytes stored in cmdBuf

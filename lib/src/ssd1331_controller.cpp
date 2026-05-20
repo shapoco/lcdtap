@@ -20,6 +20,22 @@ void Ssd1331Controller::updateWriteCache() {
   bool mv = (remap & ssd1331::REMAP_ADDR_INC) != 0;   // vertical increment
   bool mx = (remap & ssd1331::REMAP_COL_REMAP) != 0;  // mirror X
   bool my = (remap & ssd1331::REMAP_COM_REMAP) != 0;  // mirror Y
+  // Map hardware window coordinates to logical coordinates used by physIndex().
+  // When mv=true the fast axis is the hardware row and the slow axis is the
+  // hardware column, so they must be swapped relative to the mv=false case.
+  if (!mv) {
+    casetXS = hwColStart;
+    casetXE = hwColEnd;
+    rasetYS = hwRowStart;
+    rasetYE = hwRowEnd;
+  } else {
+    casetXS = hwRowStart;  // fast axis = hardware row
+    casetXE = hwRowEnd;
+    rasetYS = hwColStart;  // slow axis = hardware col
+    rasetYE = hwColEnd;
+  }
+  ramwrX = casetXS;
+  ramwrY = rasetYS;
   cachedBGR = ((remap & ssd1331::REMAP_BGR) != 0) ^ config.swapRB;
   int32_t W = static_cast<int32_t>(config.lcdWidth);
   int32_t H = static_cast<int32_t>(config.lcdHeight);
@@ -39,6 +55,10 @@ void Ssd1331Controller::updateWriteCache() {
 
 void Ssd1331Controller::softReset() {
   remap = 0;
+  hwColStart = 0;
+  hwColEnd = static_cast<uint8_t>(config.lcdWidth - 1);
+  hwRowStart = 0;
+  hwRowEnd = static_cast<uint8_t>(config.lcdHeight - 1);
   fillEnabled = false;
   expectedParams = 0;
   cmdBufLen = 0;
@@ -120,16 +140,16 @@ void Ssd1331Controller::execCommand() {
 
   switch (currentCmd) {
     case CMD_SETCOLUMN:
-      casetXS = cmdBuf[0];
-      casetXE = cmdBuf[1];
-      ramwrX = casetXS;
+      hwColStart = cmdBuf[0];
+      hwColEnd = cmdBuf[1];
+      // casetXS/XE and ramwrX are set in updateWriteCache() when CMD_SETROW
+      // arrives
       log("SSD1331: SETCOLUMN");
       break;
 
     case CMD_SETROW:
-      rasetYS = cmdBuf[0];
-      rasetYE = cmdBuf[1];
-      ramwrY = rasetYS;
+      hwRowStart = cmdBuf[0];
+      hwRowEnd = cmdBuf[1];
       ramwrBufLen = 0;
       updateWriteCache();
       log("SSD1331: SETROW");

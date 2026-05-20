@@ -14,6 +14,20 @@ void St7789Controller::updateWriteCache() {
   bool mv = (madctl >> 5) & 1;
   bool mx = (madctl >> 6) & 1;
   bool my = (madctl >> 7) & 1;
+  // Map hardware window coordinates to logical coordinates used by physIndex().
+  // When mv=true the fast axis is the hardware row and the slow axis is the
+  // hardware column, so they must be swapped relative to the mv=false case.
+  if (!mv) {
+    casetXS = hwColStart;
+    casetXE = hwColEnd;
+    rasetYS = hwRowStart;
+    rasetYE = hwRowEnd;
+  } else {
+    casetXS = hwRowStart;  // fast axis = hardware row
+    casetXE = hwRowEnd;
+    rasetYS = hwColStart;  // slow axis = hardware col
+    rasetYE = hwColEnd;
+  }
   cachedBGR = ((madctl >> 3) & 1) ^ config.swapRB;
   int32_t W = static_cast<int32_t>(config.lcdWidth);
   int32_t H = static_cast<int32_t>(config.lcdHeight);
@@ -33,6 +47,10 @@ void St7789Controller::updateWriteCache() {
 
 void St7789Controller::softReset() {
   madctl = 0;
+  hwColStart = 0;
+  hwColEnd = config.lcdWidth - 1;
+  hwRowStart = 0;
+  hwRowEnd = config.lcdHeight - 1;
   resetCommon();
 }
 
@@ -65,10 +83,11 @@ void St7789Controller::dispatchCommand(uint8_t cmd) {
       log("DISPON");
       break;
     case CMD_RAMWR:
-      ramwrX = casetXS;
-      ramwrY = rasetYS;
       ramwrBufLen = 0;
-      updateWriteCache();
+      updateWriteCache();  // remaps hw→logical casetXS/rasetYS first
+      ramwrX = casetXS;    // then reset write position to logical start
+      ramwrY = rasetYS;
+      if (framebuf) writePtr = framebuf + physIndex(ramwrX, ramwrY);
       break;
     // CMD_MADCTL / CMD_COLMOD / CMD_CASET / CMD_RASET wait for data bytes
     default: break;
@@ -113,11 +132,11 @@ void St7789Controller::feedDataByte(uint8_t byte) {
       switch (cmdDataLen) {
         case 0: ramwrBuf[0] = byte; break;
         case 1:
-          casetXS = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          hwColStart = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
           break;
         case 2: ramwrBuf[0] = byte; break;
         case 3:
-          casetXE = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          hwColEnd = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
           log("CASET");
           break;
         default: break;
@@ -128,11 +147,11 @@ void St7789Controller::feedDataByte(uint8_t byte) {
       switch (cmdDataLen) {
         case 0: ramwrBuf[0] = byte; break;
         case 1:
-          rasetYS = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          hwRowStart = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
           break;
         case 2: ramwrBuf[0] = byte; break;
         case 3:
-          rasetYE = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          hwRowEnd = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
           log("RASET");
           break;
         default: break;
