@@ -110,8 +110,10 @@ static constexpr uint16_t OSD_USER_ITEM_ID_PRESET_ST7789 =
     lcdtap::OSD_USER_ITEM_ID_BASE;
 static constexpr uint16_t OSD_USER_ITEM_ID_PRESET_SSD1306 =
     lcdtap::OSD_USER_ITEM_ID_BASE + 1u;
-static constexpr uint16_t OSD_USER_ITEM_ID_INTERFACE =
+static constexpr uint16_t OSD_USER_ITEM_ID_PRESET_SSD1331 =
     lcdtap::OSD_USER_ITEM_ID_BASE + 2u;
+static constexpr uint16_t OSD_USER_ITEM_ID_INTERFACE =
+    lcdtap::OSD_USER_ITEM_ID_BASE + 3u;
 
 static const char *kInterfaceNames[] = {"I2C", "4Line SPI", "3Line SPI",
                                         "Parallel"};
@@ -132,7 +134,11 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   p.name = "Preset:SSD1306";
   osd->insertItem(1, p);
 
-  // Insert Interface selector at index 2
+  p.id = OSD_USER_ITEM_ID_PRESET_SSD1331;
+  p.name = "Preset:SSD1331";
+  osd->insertItem(2, p);
+
+  // Insert Interface selector at index 3
   lcdtap::OsdMenuItem item = {};
   item.id = OSD_USER_ITEM_ID_INTERFACE;
   item.type = lcdtap::OsdMenuType::ENUM;
@@ -159,6 +165,9 @@ static bool onOsdActionActivated(lcdtap::Osd *osd,
   } else if (item->id == OSD_USER_ITEM_ID_PRESET_SSD1306) {
     ct = lcdtap::ControllerType::SSD1306;
     iface = InterfaceType::I2C;
+  } else if (item->id == OSD_USER_ITEM_ID_PRESET_SSD1331) {
+    ct = lcdtap::ControllerType::SSD1331;
+    iface = InterfaceType::SPI_4LINE;
   } else {
     return false;  // default handling
   }

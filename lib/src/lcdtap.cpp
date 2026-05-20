@@ -5,6 +5,7 @@
 
 #include "controller_base.hpp"
 #include "ssd1306_controller.hpp"
+#include "ssd1331_controller.hpp"
 #include "st7789_controller.hpp"
 
 namespace lcdtap {
@@ -35,6 +36,19 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->lcdWidth = 128;
       cfg->lcdHeight = 64;
       cfg->interfaceFormat = InterfaceFormat::GRAY1_VPACK8_H2L;
+      cfg->dviWidth = 640;
+      cfg->dviHeight = 480;
+      cfg->scaleMode = ScaleMode::FIT;
+      cfg->inverted = false;
+      cfg->swapRB = false;
+      cfg->outputRotation = 0;
+      cfg->forcePowerOn = false;
+      break;
+    case ControllerType::SSD1331:
+      cfg->controller = ControllerType::SSD1331;
+      cfg->lcdWidth = 96;
+      cfg->lcdHeight = 64;
+      cfg->interfaceFormat = InterfaceFormat::RGB332;
       cfg->dviWidth = 640;
       cfg->dviHeight = 480;
       cfg->scaleMode = ScaleMode::FIT;
@@ -127,6 +141,24 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
   int32_t length = numBytes * stride;
 
   switch (interfaceFormat) {
+    case InterfaceFormat::RGB332: {
+      // 1 byte = 1 pixel: {R[2:0], G[2:0], B[1:0]}
+      // Expand 3→5 bits: (r<<2)|(r>>1)  3→6 bits: (g<<3)|g  2→5 bits:
+      // (b<<3)|(b<<1)|(b>>1)
+      while (i < length) {
+        uint8_t b = data[i];
+        i += stride;
+        uint_fast16_t r5 = (b >> 5) & 0x07u;
+        uint_fast16_t g3 = (b >> 2) & 0x07u;
+        uint_fast16_t b2 = b & 0x03u;
+        r5 = (r5 << 2) | (r5 >> 1);
+        uint_fast16_t g6 = (g3 << 3) | g3;
+        uint_fast16_t b5 = (b2 << 3) | (b2 << 1) | (b2 >> 1);
+        writePixelRgb565(static_cast<uint16_t>((r5 << 11) | (g6 << 5) | b5));
+      }
+      break;
+    }
+
     case InterfaceFormat::RGB111_HPACK2_H2L_RA8: {
       // 1 byte = 2 pixels: bits[5:3] = younger pixel, bits[2:0] = older pixel
       // 3-bit RGB -> RGB565 lookup (R:1->5bit, G:1->6bit, B:1->5bit)
@@ -251,6 +283,44 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         i += stride;
       }
       break;
+
+    case InterfaceFormat::RGB666_UNPACK_RA8_BE:
+      // 3 bytes = 1 pixel: color data in bits[5:0] of each byte (right-aligned)
+      // R5 = byte0[5:1], G6 = byte1[5:0], B5 = byte2[5:1]
+      // (bit[0] of R and B channels is hardware-unused on SSD1331)
+      // Drain leftover bytes (0-2 bytes)
+      while (ramwrBufLen > 0 && i < length) {
+        ramwrBuf[ramwrBufLen++] = data[i];
+        i += stride;
+        if (ramwrBufLen == 3) {
+          uint_fast16_t pixel = 0;
+          pixel |= static_cast<uint_fast16_t>((ramwrBuf[0] >> 1) & 0x1Fu)
+                   << 11;                                                 // R5
+          pixel |= static_cast<uint_fast16_t>(ramwrBuf[1] & 0x3Fu) << 5;  // G6
+          pixel |=
+              static_cast<uint_fast16_t>((ramwrBuf[2] >> 1) & 0x1Fu);  // B5
+          writePixelRgb565(static_cast<uint16_t>(pixel));
+          ramwrBufLen = 0;
+        }
+      }
+      // Tight loop: 3 bytes → 1 pixel
+      while (i + stride * 3 <= length) {
+        uint_fast16_t pixel = 0;
+        pixel |= static_cast<uint_fast16_t>((data[i] >> 1) & 0x1Fu)
+                 << 11;  // R5
+        i += stride;
+        pixel |= static_cast<uint_fast16_t>(data[i] & 0x3Fu) << 5;  // G6
+        i += stride;
+        pixel |= static_cast<uint_fast16_t>((data[i] >> 1) & 0x1Fu);  // B5
+        i += stride;
+        writePixelRgb565(static_cast<uint16_t>(pixel));
+      }
+      // Save remainder
+      while (i < length) {
+        ramwrBuf[ramwrBufLen++] = data[i];
+        i += stride;
+      }
+      break;
   }
 }
 
@@ -283,6 +353,9 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
       break;
     case ControllerType::SSD1306:
       ctrl = new (std::nothrow) Ssd1306Controller();
+      break;
+    case ControllerType::SSD1331:
+      ctrl = new (std::nothrow) Ssd1331Controller();
       break;
   }
   if (!ctrl) return;
@@ -498,6 +571,9 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
         break;
       case ControllerType::SSD1306:
         ctrl = new (std::nothrow) Ssd1306Controller();
+        break;
+      case ControllerType::SSD1331:
+        ctrl = new (std::nothrow) Ssd1331Controller();
         break;
       default: return Status::OUT_OF_MEMORY;
     }

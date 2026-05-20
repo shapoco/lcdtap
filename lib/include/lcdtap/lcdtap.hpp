@@ -27,6 +27,7 @@ enum class Status : int {
 enum class ControllerType : uint8_t {
   ST7789,
   SSD1306,
+  SSD1331,
 };
 
 //=============================================================================
@@ -54,6 +55,9 @@ enum class InterfaceFormat : uint8_t {
 
   // 18bpp, unpacked, 8bit left-aligned, big-endian
   RGB666_UNPACK_LA8_BE = 0x06,
+
+  // 18bpp, unpacked, 8bit right-aligned, big-endian
+  RGB666_UNPACK_RA8_BE = 0x07,
 };
 
 //=============================================================================

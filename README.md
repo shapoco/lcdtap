@@ -26,6 +26,26 @@ instructions, pin assignment, and configuration details.
 See [pico2_ssd1306](example/pico2_ssd1306/README.md) for build
 instructions, pin assignment, and configuration details.
 
+## Supported Controllers
+
+| Controller | Display Type | Default Interface Format | Drawing Commands |
+|:-----------|:------------|:------------------------|:----------------|
+| ST7789     | Color TFT   | RGB565_BE (COLMOD 0x3A selectable) | — |
+| SSD1306    | Mono OLED   | GRAY1_VPACK8_H2L        | — |
+| SSD1331    | Color OLED  | RGB332 (SETREMAP selectable) | DRAWLINE, DRAWRECT, COPY, DIMWINDOW, CLEARWINDOW |
+
+### Supported Interface Pixel Formats
+
+| Enum Value | Bits/pixel | Description |
+|:-----------|:----------:|:------------|
+| `GRAY1_VPACK8_H2L` | 1 | Monochrome, 8 vertical pixels/byte |
+| `RGB111_HPACK2_H2L_RA8` | 3 | RGB111, 2 pixels/byte, right-aligned |
+| `RGB332` | 8 | RGB332 (3-3-2 bits) |
+| `RGB444_HPACK2_H2L_BE` | 12 | RGB444, 2 pixels per 3 bytes |
+| `RGB565_BE` | 16 | RGB565, big-endian |
+| `RGB666_UNPACK_LA8_BE` | 18 | RGB666, left-aligned in 8-bit bytes |
+| `RGB666_UNPACK_RA8_BE` | 18 | RGB666, right-aligned in 8-bit bytes |
+
 ## Download Pre-built Binary
 
 See [releases](https://github.com/shapoco/lcdtap/releases) for pre-built UF2 binaries.

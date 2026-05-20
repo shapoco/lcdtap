@@ -9,6 +9,7 @@ add_library(lcdtap STATIC
     src/osd.cpp
     src/st7789_controller.cpp
     src/ssd1306_controller.cpp
+    src/ssd1331_controller.cpp
 )
 
 target_include_directories(lcdtap

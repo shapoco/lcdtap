@@ -10,8 +10,8 @@ namespace lcdtap {
 // File-scope lookup tables
 //=============================================================================
 
-static const char* kControllerNames[] = {"ST7789", "SSD1306"};
-static constexpr int kNumControllers = 2;
+static const char* kControllerNames[] = {"ST7789", "SSD1306", "SSD1331"};
+static constexpr int kNumControllers = 3;
 
 static const char* kOnOffNames[] = {"OFF", "ON"};
 
