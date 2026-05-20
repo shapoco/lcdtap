@@ -11,6 +11,7 @@
 #include "hardware/pio.h"
 #include "hardware/regs/i2c.h"
 #include "hardware/structs/i2c.h"
+#include "hardware/timer.h"
 #include "hardware/vreg.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -98,6 +99,17 @@ static lcdtap::LcdTap *gInst = nullptr;
 
 // OSD instance for runtime configuration
 static lcdtap::Osd gOsd;
+
+// =============================================================================
+// DVI timer — fills scanlines from a repeating timer IRQ so that long-running
+// drawing commands (CLEARWINDOW, FILLRECT, etc.) do not stall DVI output.
+// =============================================================================
+static uint32_t gScanY = 0;
+static uint32_t gDviH = 0;
+static uint32_t gFrame = 0;
+static bool gLed = false;
+static volatile bool gNewFrame = false;
+static repeating_timer_t gDviTimer;
 
 // PIO program offset — stored so resetPioSm can jump back to the start
 // (pio_sm_restart does not reset the PC).
@@ -203,6 +215,33 @@ static void gpioIrqHandler(uint gpio, uint32_t events) {
     }
     gInst->inputReset(!gpio_get(PIN_RST));
   }
+}
+
+// =============================================================================
+// DVI timer callback — called from IRQ every 200 µs to fill scanlines.
+// Uses non-blocking queue ops only (queue_add_blocking_u32 uses __wfe, unsafe
+// in IRQ context). Both this callback and the main loop run on Core0, so there
+// is no true concurrency and no mutex is needed.
+// =============================================================================
+static bool dviTimerCallback(repeating_timer_t * /*rt*/) {
+  uint16_t *buf;
+  while (queue_try_remove_u32(&dvi0.q_colour_free, &buf)) {
+    if (gInst) gInst->fillScanline(static_cast<uint16_t>(gScanY), buf);
+    gOsd.fillScanline(static_cast<uint16_t>(gScanY), buf);
+    if (!queue_try_add_u32(&dvi0.q_colour_valid, &buf)) {
+      queue_try_add_u32(&dvi0.q_colour_free, &buf);
+      break;
+    }
+    if (++gScanY >= gDviH) {
+      gScanY = 0;
+      gNewFrame = true;
+      if (++gFrame % LED_TOGGLE_FRAMES == 0u) {
+        gLed = !gLed;
+        gpio_put(PIN_LED, gLed ? 1 : 0);
+      }
+    }
+  }
+  return true;
 }
 
 // =============================================================================
@@ -659,30 +698,21 @@ int main() {
   // -------------------------------------------------------------------------
   multicore_launch_core1(core1Main);
 
+  // Start the DVI timer after Core1 is running. The negative period means the
+  // interval is measured from callback exit, not entry (avoids re-entrancy if
+  // a callback runs long).
+  gDviH = dviH;
+  add_repeating_timer_us(-200, dviTimerCallback, nullptr, &gDviTimer);
+
   // -------------------------------------------------------------------------
   // 10. Main loop (Core 0)
-  //     processInputBuf() is called at three points per iteration:
-  //       (a) inside the q_colour_free spin — drains while waiting
-  //       (b) just before getScanline — drains during scanline preparation
-  //       (c) after queue_add_blocking_u32 — drains after handing off
+  //     DVI scanline filling is handled by dviTimerCallback (IRQ, 200 µs).
+  //     This loop processes LCD input and handles per-frame OSD/config work.
   // -------------------------------------------------------------------------
-  uint32_t scanY = 0;
-  uint32_t frame = 0;
-  bool led = false;
-
   while (true) {
-    uint16_t *buf;
-    while (!queue_try_remove_u32(&dvi0.q_colour_free, &buf)) {
-      processInputBuf();  // (a) drain while waiting for free buffer
-    }
-
-    gInst->fillScanline(static_cast<uint16_t>(scanY), buf);
-    gOsd.fillScanline(static_cast<uint16_t>(scanY), buf);
-
-    queue_add_blocking_u32(&dvi0.q_colour_valid, &buf);
-
-    if (++scanY >= dviH) {
-      scanY = 0;
+    processInputBuf();
+    if (gNewFrame) {
+      gNewFrame = false;
       uint64_t nowMs =
           static_cast<uint64_t>(to_ms_since_boot(get_absolute_time()));
       uint8_t action = gOsd.update(nowMs, *gInst, readKeys());
@@ -702,12 +732,6 @@ int main() {
           switchInterface(newIface);
         }
       }
-      if (++frame % LED_TOGGLE_FRAMES == 0u) {
-        led = !led;
-        gpio_put(PIN_LED, led ? 1 : 0);
-      }
     }
-
-    processInputBuf();  // (b)+(c) drain after handing off scanline
   }
 }
