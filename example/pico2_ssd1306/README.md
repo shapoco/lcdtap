@@ -1,6 +1,6 @@
 # LcdTap-Pico2 for SSD1306
 
-## Schematics
+## Schematics and Recommended Header Pinout
 
 ![](./image/schematics.png)
 

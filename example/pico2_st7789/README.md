@@ -1,6 +1,6 @@
 # LcdTap-Pico2 for ST7789
 
-## Schematics
+## Schematics and Recommended Header Pinout
 
 ![](./image/schematics.png)
 
@@ -25,10 +25,10 @@ cmake .. -DPICO_SDK_PATH=/path/to/pico-sdk \
 
 | CMake option | Default | Description |
 |---|---|---|
-| `LCDTAP_LCD_SIZE1_W` | `128` | Width of LCD size 1 |
-| `LCDTAP_LCD_SIZE1_H` | `64` | Height of LCD size 1 |
-| `LCDTAP_LCD_SIZE2_W` | `128` | Width of LCD size 2 |
-| `LCDTAP_LCD_SIZE2_H` | `32` | Height of LCD size 2 |
+| `LCDTAP_LCD_SIZE1_W` | `240` | Width of LCD size 1 |
+| `LCDTAP_LCD_SIZE1_H` | `320` | Height of LCD size 1 |
+| `LCDTAP_LCD_SIZE2_W` | `320` | Width of LCD size 2 |
+| `LCDTAP_LCD_SIZE2_H` | `240` | Height of LCD size 2 |
 
 ## Video output
 
