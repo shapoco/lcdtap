@@ -1,4 +1,4 @@
-# pico2_universal
+# LcdTap-Pico2 Universal
 
 A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (On-Screen Display) menu for runtime configuration.
 

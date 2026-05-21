@@ -1,4 +1,4 @@
-# Example Design for SSD1306, SSD1309, etc.
+# LcdTap-Pico2 for SSD1306
 
 ## Schematics
 

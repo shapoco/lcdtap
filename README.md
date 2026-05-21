@@ -1,54 +1,45 @@
 # LcdTap
 
-A library and example that receives LCD controller commands (via SPI or I2C)
+A library and its example design that receives LCD controller commands (via SPI or I2C)
 and outputs the framebuffer as a DVI-D signal.
 
 ![](image/cover.png)
 
 ![](image/use_cases.png)
 
+## Features
+
+- Receives LCD controller commands and reconstructs images into the framebuffer
+- Outputs framebuffer contents as DVI-D signal (using Pico-DVI)
+- Programmable screen sizes (up to 480x320 supported on Pico2)
+- Command Dump: Captures and displays LCD control commands
+- OSD Menu: Configure settings at runtime via on-screen display
+- Supported Controllers: ST7789, ILI9341, ILI9488, SSD1306, SSD1309, SSD1331, and some variants
+- Supported Interfaces: SPI (4-line, 3-line), I2C, Parallel
+- Supported Pixel Formats: Monochrome, RGB111, RGB332, RGB444, RGB565, RGB666
+
 ## Example Design
 
-### Universal
+### Download Pre-built Binary
+
+See [releases](https://github.com/shapoco/lcdtap/releases) for pre-built UF2 binaries.
+
+### LcdTap-Pico2 Universal
 
 Supports multiple LCD controllers and interfaces, selectable at runtime via an OSD menu.
 
 See [pico2_universal](example/pico2_universal/README.md) for build
 instructions, pin assignment, and configuration details.
 
-### for ST7789, ILI9341, ILI9488, etc.
+### LcdTap-Pico2 for ST7789, ILI9341, ILI9488, etc.
 
 See [pico2_st7789](example/pico2_st7789/README.md) for build
 instructions, pin assignment, and configuration details.
 
-### for SSD1306, SSD1309, etc.
+### LcdTap-Pico2 for SSD1306, SSD1309, etc.
 
 See [pico2_ssd1306](example/pico2_ssd1306/README.md) for build
 instructions, pin assignment, and configuration details.
-
-## Supported Controllers
-
-| Controller | Display Type | Default Interface Format | Drawing Commands |
-|:-----------|:------------|:------------------------|:----------------|
-| ST7789     | Color TFT   | RGB565_BE (COLMOD 0x3A selectable) | — |
-| SSD1306    | Mono OLED   | GRAY1_VPACK8_H2L        | — |
-| SSD1331    | Color OLED  | RGB332 (SETREMAP selectable) | DRAWLINE, DRAWRECT, COPY, DIMWINDOW, CLEARWINDOW |
-
-### Supported Interface Pixel Formats
-
-| Enum Value | Bits/pixel | Description |
-|:-----------|:----------:|:------------|
-| `GRAY1_VPACK8_H2L` | 1 | Monochrome, 8 vertical pixels/byte |
-| `RGB111_HPACK2_H2L_RA8` | 3 | RGB111, 2 pixels/byte, right-aligned |
-| `RGB332` | 8 | RGB332 (3-3-2 bits) |
-| `RGB444_HPACK2_H2L_BE` | 12 | RGB444, 2 pixels per 3 bytes |
-| `RGB565_BE` | 16 | RGB565, big-endian |
-| `RGB666_UNPACK_LA8_BE` | 18 | RGB666, left-aligned in 8-bit bytes |
-| `RGB666_UNPACK_RA8_BE` | 18 | RGB666, right-aligned in 8-bit bytes |
-
-## Download Pre-built Binary
-
-See [releases](https://github.com/shapoco/lcdtap/releases) for pre-built UF2 binaries.
 
 ## Video
 

@@ -1,4 +1,4 @@
-# Example Design for ST7789, ILI9341, ILI9488, etc.
+# LcdTap-Pico2 for ST7789
 
 ## Schematics
 
