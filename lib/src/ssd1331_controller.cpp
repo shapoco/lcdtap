@@ -19,7 +19,8 @@ uint16_t Ssd1331Controller::logicalHeight() const {
 void Ssd1331Controller::updateWriteCache() {
   bool mv = (remap & ssd1331::REMAP_ADDR_INC) != 0;   // vertical increment
   bool mx = (remap & ssd1331::REMAP_COL_REMAP) != 0;  // mirror X
-  bool my = (remap & ssd1331::REMAP_COM_REMAP) != 0;  // mirror Y
+  bool my = ((remap & ssd1331::REMAP_COM_REMAP) != 0) ^
+            mv;  // mirror Y (inverted when MV=1)
   // Map hardware window coordinates to logical coordinates used by physIndex().
   // When mv=true the fast axis is the hardware row and the slow axis is the
   // hardware column, so they must be swapped relative to the mv=false case.

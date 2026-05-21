@@ -41,7 +41,7 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->scaleMode = ScaleMode::FIT;
       cfg->inverted = false;
       cfg->swapRB = false;
-      cfg->outputRotation = 0;
+      cfg->outputRotation = 2;
       cfg->forcePowerOn = false;
       break;
     case ControllerType::SSD1331:
@@ -54,7 +54,7 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
       cfg->scaleMode = ScaleMode::FIT;
       cfg->inverted = false;
       cfg->swapRB = false;
-      cfg->outputRotation = 0;
+      cfg->outputRotation = 2;
       cfg->forcePowerOn = false;
       break;
   }
