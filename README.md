@@ -51,10 +51,9 @@ https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
 
 The M5Stack CoreS3 does not have the CS signal exposed on the connector, so one of the following solutions is required.
 
+- [Route CS signal to M-Bus](https://x.com/lovyan03/status/2055491122949165549): Requires modifying M5GFX and recompiling, but no hardware modification is needed.
 - Wire directly to R49 on the back of the board: Hardware modification is required, but no software changes are needed.<br>
     ![](./image/m5stack_cores3_cs.jpg)
-- [Route CS signal to M-Bus](https://x.com/lovyan03/status/2055491122949165549): Requires modifying M5GFX and recompiling, but no hardware modification is needed.
-- Fix CS signal to Low: No software or hardware changes required, but only applicable if the SPI bus is not used for anything other than LCD control.
 
 The remaining signals can be obtained from the rear connector. On CoreS3, MISO is used as DC.
 

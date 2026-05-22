@@ -4,7 +4,7 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 
 ## Features
 
-- Supports four input interfaces selectable via OSD: I2C, 4-Line SPI, 3-Line SPI, Parallel
+- Supports four input interfaces selectable via OSD: I2C, 4-Line SPI, 3-Line SPI, 8-bit Parallel
 - Runtime configuration via OSD menu: interface, controller type, pixel format, LCD size, inversion, R/B swap, rotation, scale mode
 - Settings (including selected interface) saved to flash on Apply and restored at next boot
 - DVI output: 640×480@60Hz or 1280×720@30Hz selectable via GPIO21 at boot
