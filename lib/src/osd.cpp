@@ -96,6 +96,17 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
   uint8_t action = OSD_ACTION_NONE;
 
   if (state_ == OsdState::HIDDEN) {
+    // Quick rotation: Left/Right cycle output rotation without opening OSD
+    if (activeKeys & (OSD_KEY_LEFT | OSD_KEY_RIGHT)) {
+      LcdTapConfig cfg = lcdtap.getConfig();
+      if (activeKeys & OSD_KEY_LEFT) {
+        cfg.outputRotation = (cfg.outputRotation + 3u) & 3u;
+      } else {
+        cfg.outputRotation = (cfg.outputRotation + 1u) & 3u;
+      }
+      lcdtap.setOutputRotation(cfg.outputRotation);
+      action = OSD_ACTION_APPLY;
+    }
     // Show OSD on Enter
     if (activeKeys & OSD_KEY_ENTER) {
       initMenuItems(lcdtap);

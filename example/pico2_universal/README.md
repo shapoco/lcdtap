@@ -24,6 +24,15 @@ Press the Enter key to open the configuration menu.
 
 ![](./image/osd_ss.png)
 
+### While OSD is closed
+
+| Key | Action |
+|-----|--------|
+| Left / Right | Cycle output rotation (0° → 90° → 180° → 270°) and save immediately |
+| Enter | Open the OSD menu |
+
+### While OSD is open
+
 | Key | Action |
 |-----|--------|
 | Up / Down | Navigate menu items |

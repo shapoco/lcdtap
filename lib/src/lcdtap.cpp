@@ -636,7 +636,8 @@ void LcdTap::setOutputRotation(int rot) {
   if (!impl_) return;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK) return;
-  ctrl->outputRotation = static_cast<uint8_t>(rot & 3);
+  ctrl->config.outputRotation = rot & 3u;
+  ctrl->outputRotation = ctrl->config.outputRotation;
   ctrl->calcScaleParams();
 }
 
