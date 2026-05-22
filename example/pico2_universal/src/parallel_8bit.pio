@@ -49,6 +49,16 @@
     wait 0 gpio PAR_WR_PIN    ; wait for WR# LOW  (write strobe asserted)
     wait 1 gpio PAR_WR_PIN    ; wait for WR# HIGH (data valid and stable)
 
+    ; Delay to ensure sufficient data setup time before sampling.
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    
     ; Sample D[7:0] (IN_BASE+0..7 = GPIO3..10) and DC (IN_BASE+8 = GPIO11)
     ; simultaneously.  LEFT shift: ISR[8]=DC, ISR[7]=D7, ..., ISR[0]=D0.
     in   pins, 9
