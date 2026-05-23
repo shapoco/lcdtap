@@ -179,7 +179,7 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   bm.max = 1;
   bm.step = 1;
   bm.value = 0;  // default: DVI Output
-  osd->insertItem(4, bm);
+  osd->insertItem(osd->getItemIndexById(lcdtap::OSD_ITEM_ID_APPLY), bm);
 
   osd->setSelectedIndex(0);
 }

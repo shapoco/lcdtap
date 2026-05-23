@@ -14,22 +14,35 @@ namespace lcdtap {
 //=============================================================================
 // Key codes (bit-field, combine with |)
 //=============================================================================
-static const uint8_t OSD_KEY_UP = (1u << 0);
-static const uint8_t OSD_KEY_DOWN = (1u << 1);
-static const uint8_t OSD_KEY_LEFT = (1u << 2);
-static const uint8_t OSD_KEY_RIGHT = (1u << 3);
-static const uint8_t OSD_KEY_ENTER = (1u << 4);
+static constexpr uint8_t OSD_KEY_UP = (1u << 0);
+static constexpr uint8_t OSD_KEY_DOWN = (1u << 1);
+static constexpr uint8_t OSD_KEY_LEFT = (1u << 2);
+static constexpr uint8_t OSD_KEY_RIGHT = (1u << 3);
+static constexpr uint8_t OSD_KEY_ENTER = (1u << 4);
 
 //=============================================================================
 // Action codes returned by Osd::update()
 //=============================================================================
-static const uint8_t OSD_ACTION_NONE = 0;
-static const uint8_t OSD_ACTION_CANCEL = 1;
-static const uint8_t OSD_ACTION_APPLY = 2;
+static constexpr uint8_t OSD_ACTION_NONE = 0;
+static constexpr uint8_t OSD_ACTION_CANCEL = 1;
+static constexpr uint8_t OSD_ACTION_APPLY = 2;
+
+// Internal item IDs (< OSD_USER_ITEM_ID_BASE)
+static constexpr uint16_t OSD_ITEM_ID_CONTROLLER = 1u;
+static constexpr uint16_t OSD_ITEM_ID_LCD_WIDTH = 3u;
+static constexpr uint16_t OSD_ITEM_ID_LCD_HEIGHT = 4u;
+static constexpr uint16_t OSD_ITEM_ID_INVERSION = 5u;
+static constexpr uint16_t OSD_ITEM_ID_SWAP_RB = 6u;
+static constexpr uint16_t OSD_ITEM_ID_OUTPUT_ROT = 7u;
+static constexpr uint16_t OSD_ITEM_ID_SCALE_MODE = 8u;
+static constexpr uint16_t OSD_ITEM_ID_FORCE_PWR_ON = 9u;
+static constexpr uint16_t OSD_ITEM_ID_VIEW_DUMP = 12u;
+static constexpr uint16_t OSD_ITEM_ID_APPLY = 13u;
+static constexpr uint16_t OSD_ITEM_ID_CANCEL = 14u;
 
 // User-defined item IDs must be >= this value. IDs below are reserved for
 // built-in items managed internally by the Osd class.
-static const uint16_t OSD_USER_ITEM_ID_BASE = 0x8000u;
+static constexpr uint16_t OSD_USER_ITEM_ID_BASE = 0x8000u;
 
 //=============================================================================
 // Menu item type
@@ -224,7 +237,8 @@ class Osd {
   void fillRowColor(int row, uint8_t colByte);
 
   // Fill a range of columns in the color buffer.
-  void setColorRange(int row, int col, int len, uint8_t colByte, uint8_t mask = 0xFF);
+  void setColorRange(int row, int col, int len, uint8_t colByte,
+                     uint8_t mask = 0xFF);
 
   // Write a null-terminated string into the text buffer.
   // maxLen < 0 means "no limit" (caller must ensure it fits within COLS).

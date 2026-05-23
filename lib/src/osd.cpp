@@ -20,21 +20,6 @@ static const char* kRotationNames[] = {"0", "90", "180", "270"};
 static const char* kScaleModeNames[] = {"STRETCH", "FIT", "PIXEL_PERF"};
 static constexpr int kNumScaleModes = 3;
 
-// Internal item IDs (< OSD_USER_ITEM_ID_BASE)
-namespace {
-constexpr uint16_t ITEM_ID_CONTROLLER = 1u;
-constexpr uint16_t ITEM_ID_LCD_WIDTH = 3u;
-constexpr uint16_t ITEM_ID_LCD_HEIGHT = 4u;
-constexpr uint16_t ITEM_ID_INVERSION = 5u;
-constexpr uint16_t ITEM_ID_SWAP_RB = 6u;
-constexpr uint16_t ITEM_ID_OUTPUT_ROT = 7u;
-constexpr uint16_t ITEM_ID_SCALE_MODE = 8u;
-constexpr uint16_t ITEM_ID_FORCE_PWR_ON = 9u;
-constexpr uint16_t ITEM_ID_VIEW_DUMP = 12u;
-constexpr uint16_t ITEM_ID_APPLY = 13u;
-constexpr uint16_t ITEM_ID_CANCEL = 14u;
-}  // namespace
-
 //=============================================================================
 // getDefaultOsdConfig
 //=============================================================================
@@ -132,7 +117,7 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
 
     if (sel.type == OsdMenuType::ACTION) {
       if (activeKeys & OSD_KEY_ENTER) {
-        if (sel.id == ITEM_ID_VIEW_DUMP) {
+        if (sel.id == OSD_ITEM_ID_VIEW_DUMP) {
           state_ = OsdState::DUMP_VIEW;
           dumpScrollOffset_ = 0;
           lastDumpState_ = lcdtap.dumpGetState();
@@ -188,7 +173,7 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
         }
       }
       if (activeKeys & OSD_KEY_ENTER) {
-        setSelectedIndex(getItemIndexById(ITEM_ID_APPLY));
+        setSelectedIndex(getItemIndexById(OSD_ITEM_ID_APPLY));
         renderAll();
       }
     }
@@ -291,7 +276,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Controller Type
   {
-    OsdMenuItem& it = add(ITEM_ID_CONTROLLER);
+    OsdMenuItem& it = add(OSD_ITEM_ID_CONTROLLER);
     it.type = OsdMenuType::ENUM;
     it.name = "Controller Type";
     it.unit = "";
@@ -304,7 +289,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // LCD Width
   {
-    OsdMenuItem& it = add(ITEM_ID_LCD_WIDTH);
+    OsdMenuItem& it = add(OSD_ITEM_ID_LCD_WIDTH);
     it.type = OsdMenuType::INTEGER;
     it.name = "LCD Width";
     it.unit = "px";
@@ -317,7 +302,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // LCD Height
   {
-    OsdMenuItem& it = add(ITEM_ID_LCD_HEIGHT);
+    OsdMenuItem& it = add(OSD_ITEM_ID_LCD_HEIGHT);
     it.type = OsdMenuType::INTEGER;
     it.name = "LCD Height";
     it.unit = "px";
@@ -330,7 +315,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Inversion
   {
-    OsdMenuItem& it = add(ITEM_ID_INVERSION);
+    OsdMenuItem& it = add(OSD_ITEM_ID_INVERSION);
     it.type = OsdMenuType::BOOL;
     it.name = "Inversion";
     it.unit = "";
@@ -343,7 +328,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Swap Red/Blue
   {
-    OsdMenuItem& it = add(ITEM_ID_SWAP_RB);
+    OsdMenuItem& it = add(OSD_ITEM_ID_SWAP_RB);
     it.type = OsdMenuType::BOOL;
     it.name = "Swap Red/Blue";
     it.unit = "";
@@ -356,7 +341,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Force Power On
   {
-    OsdMenuItem& it = add(ITEM_ID_FORCE_PWR_ON);
+    OsdMenuItem& it = add(OSD_ITEM_ID_FORCE_PWR_ON);
     it.type = OsdMenuType::BOOL;
     it.name = "Force Power On";
     it.unit = "";
@@ -369,7 +354,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Output Rotation
   {
-    OsdMenuItem& it = add(ITEM_ID_OUTPUT_ROT);
+    OsdMenuItem& it = add(OSD_ITEM_ID_OUTPUT_ROT);
     it.type = OsdMenuType::ENUM;
     it.name = "Output Rotation";
     it.unit = "deg";
@@ -382,7 +367,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Output Scaling
   {
-    OsdMenuItem& it = add(ITEM_ID_SCALE_MODE);
+    OsdMenuItem& it = add(OSD_ITEM_ID_SCALE_MODE);
     it.type = OsdMenuType::ENUM;
     it.name = "Output Scaling";
     it.unit = "";
@@ -395,7 +380,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Command Dump
   {
-    OsdMenuItem& it = add(ITEM_ID_VIEW_DUMP);
+    OsdMenuItem& it = add(OSD_ITEM_ID_VIEW_DUMP);
     it.type = OsdMenuType::ACTION;
     it.name = "Command Dump";
     it.unit = "";
@@ -408,7 +393,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Apply
   {
-    OsdMenuItem& it = add(ITEM_ID_APPLY);
+    OsdMenuItem& it = add(OSD_ITEM_ID_APPLY);
     it.type = OsdMenuType::ACTION;
     it.name = "Apply";
     it.unit = "";
@@ -421,7 +406,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
 
   // Cancel
   {
-    OsdMenuItem& it = add(ITEM_ID_CANCEL);
+    OsdMenuItem& it = add(OSD_ITEM_ID_CANCEL);
     it.type = OsdMenuType::ACTION;
     it.name = "Cancel";
     it.unit = "";
@@ -516,19 +501,19 @@ LcdTapConfig Osd::buildConfig() const {
   };
 
   ControllerType controller =
-      static_cast<ControllerType>(get(ITEM_ID_CONTROLLER, 0));
+      static_cast<ControllerType>(get(OSD_ITEM_ID_CONTROLLER, 0));
 
   LcdTapConfig cfg;
   getDefaultConfig(controller, &cfg);
 
-  cfg.lcdWidth = static_cast<uint16_t>(get(ITEM_ID_LCD_WIDTH, 240));
-  cfg.lcdHeight = static_cast<uint16_t>(get(ITEM_ID_LCD_HEIGHT, 320));
-  cfg.inverted = (get(ITEM_ID_INVERSION, 0) != 0);
-  cfg.swapRB = (get(ITEM_ID_SWAP_RB, 0) != 0);
+  cfg.lcdWidth = static_cast<uint16_t>(get(OSD_ITEM_ID_LCD_WIDTH, 240));
+  cfg.lcdHeight = static_cast<uint16_t>(get(OSD_ITEM_ID_LCD_HEIGHT, 320));
+  cfg.inverted = (get(OSD_ITEM_ID_INVERSION, 0) != 0);
+  cfg.swapRB = (get(OSD_ITEM_ID_SWAP_RB, 0) != 0);
   // dviWidth / dviHeight: not set here; preserved by applyConfig()
-  cfg.outputRotation = static_cast<uint8_t>(get(ITEM_ID_OUTPUT_ROT, 0) & 3u);
-  cfg.scaleMode = static_cast<ScaleMode>(get(ITEM_ID_SCALE_MODE, 0));
-  cfg.forcePowerOn = (get(ITEM_ID_FORCE_PWR_ON, 0) != 0);
+  cfg.outputRotation = static_cast<uint8_t>(get(OSD_ITEM_ID_OUTPUT_ROT, 0) & 3u);
+  cfg.scaleMode = static_cast<ScaleMode>(get(OSD_ITEM_ID_SCALE_MODE, 0));
+  cfg.forcePowerOn = (get(OSD_ITEM_ID_FORCE_PWR_ON, 0) != 0);
 
   return cfg;
 }
@@ -804,14 +789,14 @@ void Osd::loadConfig(const LcdTapConfig& cfg) {
     }
   };
 
-  set(ITEM_ID_CONTROLLER, static_cast<int16_t>(cfg.controller));
-  set(ITEM_ID_LCD_WIDTH, static_cast<int16_t>(cfg.lcdWidth));
-  set(ITEM_ID_LCD_HEIGHT, static_cast<int16_t>(cfg.lcdHeight));
-  set(ITEM_ID_INVERSION, cfg.inverted ? 1 : 0);
-  set(ITEM_ID_SWAP_RB, cfg.swapRB ? 1 : 0);
-  set(ITEM_ID_OUTPUT_ROT, static_cast<int16_t>(cfg.outputRotation & 3u));
-  set(ITEM_ID_SCALE_MODE, static_cast<int16_t>(cfg.scaleMode));
-  set(ITEM_ID_FORCE_PWR_ON, cfg.forcePowerOn ? 1 : 0);
+  set(OSD_ITEM_ID_CONTROLLER, static_cast<int16_t>(cfg.controller));
+  set(OSD_ITEM_ID_LCD_WIDTH, static_cast<int16_t>(cfg.lcdWidth));
+  set(OSD_ITEM_ID_LCD_HEIGHT, static_cast<int16_t>(cfg.lcdHeight));
+  set(OSD_ITEM_ID_INVERSION, cfg.inverted ? 1 : 0);
+  set(OSD_ITEM_ID_SWAP_RB, cfg.swapRB ? 1 : 0);
+  set(OSD_ITEM_ID_OUTPUT_ROT, static_cast<int16_t>(cfg.outputRotation & 3u));
+  set(OSD_ITEM_ID_SCALE_MODE, static_cast<int16_t>(cfg.scaleMode));
+  set(OSD_ITEM_ID_FORCE_PWR_ON, cfg.forcePowerOn ? 1 : 0);
 
   renderAll();
 }
