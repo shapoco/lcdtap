@@ -24,6 +24,7 @@ add_subdirectory(
 add_executable(lcdtap_pico2_universal
     src/main.cpp
     src/flash_config.cpp
+    src/usb_msc.cpp
 )
 
 # Generate PIO headers
@@ -39,6 +40,7 @@ pico_generate_pio_header(lcdtap_pico2_universal
 
 target_include_directories(lcdtap_pico2_universal PRIVATE
     include
+    src                                          # tusb_config.h
     # PicoDVI pin-config header lives here
     ../../submodule/PicoDVI/software/include
 )
@@ -48,8 +50,7 @@ target_compile_definitions(lcdtap_pico2_universal PRIVATE
     DVI_DEFAULT_PIO_INST=pio0
 )
 
-# Forward framebuffer-size overrides only when explicitly passed via -D.
-# Defaults are defined in config.h via #ifndef/#define.
+# Forward framebuffer-size overrides only when explicitly passed.
 foreach(VAR
         LCDTAP_LCD_SIZE_W LCDTAP_LCD_SIZE_H)
     if(DEFINED ${VAR})
@@ -62,6 +63,7 @@ target_link_libraries(lcdtap_pico2_universal
     libdvi
     pico_stdlib
     pico_multicore
+    pico_unique_id
     hardware_clocks
     hardware_dma
     hardware_flash
@@ -71,6 +73,9 @@ target_link_libraries(lcdtap_pico2_universal
     hardware_pio
     hardware_sync
     hardware_vreg
+    hardware_watchdog
+    tinyusb_device
+    tinyusb_board
 )
 
 # Generate UF2 for drag-and-drop flashing

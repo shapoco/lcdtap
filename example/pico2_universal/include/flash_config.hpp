@@ -11,9 +11,15 @@ enum class InterfaceType : uint8_t {
   PARALLEL = 3,
 };
 
+enum class BootMode : uint8_t {
+  DVI_OUTPUT = 0,
+  USB_MASS_STORAGE = 1,
+};
+
 struct ConfigFile {
   lcdtap::LcdTapConfig libConfig;
   InterfaceType interfaceType;
+  BootMode bootMode;
 };
 
 bool loadConfig(ConfigFile* out);

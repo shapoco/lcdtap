@@ -13,6 +13,7 @@
 #include "hardware/structs/i2c.h"
 #include "hardware/timer.h"
 #include "hardware/vreg.h"
+#include "hardware/watchdog.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 
@@ -28,6 +29,7 @@
 #include "parallel_8bit.pio.h"
 #include "spi_3line_mode0.pio.h"
 #include "spi_4line_mode0.pio.h"
+#include "usb_msc.hpp"
 
 static_assert(PIN_SPI_CS == SPI_CS_PIN,
               "PIN_SPI_CS mismatch with spi_4line_mode0.pio");
@@ -126,9 +128,12 @@ static constexpr uint16_t OSD_USER_ITEM_ID_PRESET_SSD1331 =
     lcdtap::OSD_USER_ITEM_ID_BASE + 2u;
 static constexpr uint16_t OSD_USER_ITEM_ID_INTERFACE =
     lcdtap::OSD_USER_ITEM_ID_BASE + 3u;
+static constexpr uint16_t OSD_USER_ITEM_ID_BOOT_MODE =
+    lcdtap::OSD_USER_ITEM_ID_BASE + 4u;
 
 static const char *kInterfaceNames[] = {"I2C", "4Line SPI", "3Line SPI",
                                         "Parallel"};
+static const char *kBootModeNames[] = {"DVI Output", "USB Storage"};
 
 static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   // Insert preset actions at the top of the menu
@@ -162,6 +167,19 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   item.step = 1;
   item.value = static_cast<int16_t>(gCurrentIface);
   osd->insertItem(3, item);
+
+  // Insert Next Boot selector at index 4
+  lcdtap::OsdMenuItem bm = {};
+  bm.id = OSD_USER_ITEM_ID_BOOT_MODE;
+  bm.type = lcdtap::OsdMenuType::ENUM;
+  bm.name = "Next Boot";
+  bm.unit = "";
+  bm.values = kBootModeNames;
+  bm.min = 0;
+  bm.max = 1;
+  bm.step = 1;
+  bm.value = 0;  // default: DVI Output
+  osd->insertItem(4, bm);
 
   osd->setSelectedIndex(0);
 }
@@ -617,6 +635,67 @@ int main() {
       dvi720p ? &dvi_timing_1280x720p_reduced_30hz : &dvi_timing_640x480p_60hz;
 
   // -------------------------------------------------------------------------
+  // 1b. Read flash config — check for USB mass storage boot mode
+  // -------------------------------------------------------------------------
+  ConfigFile savedCfg = {};
+  bool hasSavedCfg = loadConfig(&savedCfg);
+  if (hasSavedCfg && savedCfg.bootMode == BootMode::USB_MASS_STORAGE) {
+    // Reset bootMode now so next reboot returns to DVI output.
+    savedCfg.bootMode = BootMode::DVI_OUTPUT;
+    saveConfig(savedCfg);
+
+    // USB mode uses 125 MHz system clock (USB PHY has its own 48 MHz PLL).
+    vreg_set_voltage(VREG_VOLTAGE_1_20);
+    sleep_ms(10);
+    set_sys_clock_khz(125000, /*required=*/true);
+
+    // LED on to indicate USB mode.
+    gpio_init(PIN_LED);
+    gpio_set_dir(PIN_LED, GPIO_OUT);
+    gpio_put(PIN_LED, 1);
+
+    // RST input.
+    gpio_init(PIN_RST);
+    gpio_set_dir(PIN_RST, GPIO_IN);
+    gpio_pull_up(PIN_RST);
+
+    // LcdTap init (DVI dimensions are nominal; DVI is not started).
+    lcdtap::LcdTapConfig usbCfg = savedCfg.libConfig;
+    usbCfg.dviWidth = 640;
+    usbCfg.dviHeight = 480;
+    gCurrentIface = savedCfg.interfaceType;
+
+    lcdtap::HostInterface usbHost;
+    usbHost.alloc = poolAlloc;
+    usbHost.free = poolFree;
+    usbHost.log = nullptr;
+    usbHost.userData = nullptr;
+
+    lcdtap::LcdTap usbInst(usbCfg, usbHost);
+    if (usbInst.getStatus() != lcdtap::Status::OK) {
+      // Fatal error: reboot immediately (bootMode already reset to DVI).
+      watchdog_reboot(0, 0, 0);
+      watchdog_enable(1, false);
+      for (;;) tight_loop_contents();
+    }
+    gInst = &usbInst;
+
+    // RST IRQ (reuses same handler as DVI mode).
+    gpio_set_irq_enabled_with_callback(PIN_RST,
+                                       GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
+                                       /*enabled=*/true, &gpioIrqHandler);
+    irq_set_priority(IO_IRQ_BANK0, 0x00);
+
+    // Start input interface so the LCD master receives ACKs.
+    switchInterface(gCurrentIface);
+
+    // Run USB mass storage loop — never returns.
+    // processInputBuf is passed as a callback and called continuously inside
+    // the loop until the first data-sector read triggers the PNG snapshot.
+    runUsbMassStorage(&usbInst, processInputBuf);
+  }
+
+  // -------------------------------------------------------------------------
   // 2. Voltage regulator and system clock
   // -------------------------------------------------------------------------
   vreg_set_voltage(VREG_VOLTAGE_1_20);
@@ -666,14 +745,12 @@ int main() {
 
   // Restore settings saved to flash; DVI dimensions and interface type are
   // restored here; interface is applied later via switchInterface().
-  {
-    ConfigFile saved;
-    if (loadConfig(&saved)) {
-      saved.libConfig.dviWidth = cfg.dviWidth;
-      saved.libConfig.dviHeight = cfg.dviHeight;
-      cfg = saved.libConfig;
-      gCurrentIface = saved.interfaceType;
-    }
+  // (Config was already loaded in step 1b.)
+  if (hasSavedCfg) {
+    savedCfg.libConfig.dviWidth = cfg.dviWidth;
+    savedCfg.libConfig.dviHeight = cfg.dviHeight;
+    cfg = savedCfg.libConfig;
+    gCurrentIface = savedCfg.interfaceType;
   }
 
   lcdtap::HostInterface host;
@@ -740,13 +817,26 @@ int main() {
             ifaceItem ? static_cast<InterfaceType>(ifaceItem->value)
                       : gCurrentIface;
 
+        const lcdtap::OsdMenuItem *bmItem = nullptr;
+        gOsd.getItemById(OSD_USER_ITEM_ID_BOOT_MODE, &bmItem);
+        BootMode newBootMode = (bmItem && bmItem->value == 1)
+                                   ? BootMode::USB_MASS_STORAGE
+                                   : BootMode::DVI_OUTPUT;
+
         ConfigFile toSave;
         toSave.libConfig = gInst->getConfig();
         toSave.interfaceType = newIface;
+        toSave.bootMode = newBootMode;
         saveConfig(toSave);
 
         if (newIface != gCurrentIface) {
           switchInterface(newIface);
+        }
+
+        if (newBootMode == BootMode::USB_MASS_STORAGE) {
+          watchdog_reboot(0, 0, 0);
+          watchdog_enable(1, false);
+          for (;;) tight_loop_contents();
         }
       }
     }
