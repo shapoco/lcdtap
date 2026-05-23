@@ -24,7 +24,6 @@ add_subdirectory(
 add_executable(lcdtap_pico2_universal
     src/main.cpp
     src/flash_config.cpp
-    src/usb_msc.cpp
 )
 
 # Generate PIO headers
@@ -40,7 +39,6 @@ pico_generate_pio_header(lcdtap_pico2_universal
 
 target_include_directories(lcdtap_pico2_universal PRIVATE
     include
-    src                                          # tusb_config.h
     # PicoDVI pin-config header lives here
     ../../submodule/PicoDVI/software/include
 )
@@ -63,7 +61,6 @@ target_link_libraries(lcdtap_pico2_universal
     libdvi
     pico_stdlib
     pico_multicore
-    pico_unique_id
     hardware_clocks
     hardware_dma
     hardware_flash
@@ -74,8 +71,6 @@ target_link_libraries(lcdtap_pico2_universal
     hardware_sync
     hardware_vreg
     hardware_watchdog
-    tinyusb_device
-    tinyusb_board
 )
 
 # Generate UF2 for drag-and-drop flashing
