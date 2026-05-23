@@ -103,7 +103,7 @@ class ControllerBase {
   void resetCommon();
 
   // Write one RGB565 pixel to the framebuffer (respects MADCTL BGR)
-  [[gnu::always_inline]] void writePixelRgb565(uint16_t px) {
+  LCDTAP_INLINE void writePixelRgb565(uint16_t px) {
     if (cachedBGR) {  // BGR: swap R[15:11] and B[4:0]
       uint16_t r = (px >> 11) & 0x1Fu;
       uint16_t g = (px >> 5) & 0x3Fu;

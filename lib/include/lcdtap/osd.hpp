@@ -110,6 +110,7 @@ class Osd {
   int getItemCount() const;
   int getSelectedIndex() const;
   void setSelectedIndex(int index);
+  int getItemIndexById(uint16_t id) const;
   void getItemByIndex(int index, const OsdMenuItem** item) const;
   void getItemById(uint16_t id, const OsdMenuItem** item) const;
   void insertItem(int index, const OsdMenuItem& item);

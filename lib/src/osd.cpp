@@ -187,6 +187,10 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
           default: break;
         }
       }
+      if (activeKeys & OSD_KEY_ENTER) {
+        setSelectedIndex(getItemIndexById(ITEM_ID_APPLY));
+        renderAll();
+      }
     }
 
     if (state_ == OsdState::MAIN_MENU) renderAll();
@@ -759,18 +763,19 @@ void Osd::setSelectedIndex(int index) {
   updateScroll();
 }
 
+int Osd::getItemIndexById(uint16_t id) const {
+  for (int i = 0; i < numItems_; ++i) {
+    if (items_[i].id == id) return i;
+  }
+  return -1;
+}
+
 void Osd::getItemByIndex(int index, const OsdMenuItem** item) const {
   *item = (index >= 0 && index < numItems_) ? &items_[index] : nullptr;
 }
 
 void Osd::getItemById(uint16_t id, const OsdMenuItem** item) const {
-  for (int i = 0; i < numItems_; ++i) {
-    if (items_[i].id == id) {
-      *item = &items_[i];
-      return;
-    }
-  }
-  *item = nullptr;
+  getItemByIndex(getItemIndexById(id), item);
 }
 
 void Osd::insertItem(int index, const OsdMenuItem& item) {

@@ -22,9 +22,9 @@
 // CRC32 (IEEE 802.3 / zlib / PNG)
 // =============================================================================
 
-static uint32_t crc32_init() { return 0xFFFFFFFFu; }
+static uint32_t crc32Init() { return 0xFFFFFFFFu; }
 
-static uint32_t crc32_update(uint32_t crc, const uint8_t *data, size_t len) {
+static uint32_t crc32Update(uint32_t crc, const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; ++i) {
     crc ^= data[i];
     for (int j = 0; j < 8; ++j) crc = (crc >> 1) ^ (0xEDB88320u & -(crc & 1u));
@@ -32,17 +32,17 @@ static uint32_t crc32_update(uint32_t crc, const uint8_t *data, size_t len) {
   return crc;
 }
 
-static uint32_t crc32_finalize(uint32_t crc) { return crc ^ 0xFFFFFFFFu; }
+static uint32_t crc32Finalize(uint32_t crc) { return crc ^ 0xFFFFFFFFu; }
 
-static uint32_t crc32_buf(const uint8_t *data, size_t len) {
-  return crc32_finalize(crc32_update(crc32_init(), data, len));
+static uint32_t crc32Buf(const uint8_t *data, size_t len) {
+  return crc32Finalize(crc32Update(crc32Init(), data, len));
 }
 
 // =============================================================================
 // Adler-32 (zlib checksum used in PNG zlib stream)
 // =============================================================================
 
-static void adler32_update(uint32_t &s1, uint32_t &s2, uint8_t byte) {
+static void adler32Update(uint32_t &s1, uint32_t &s2, uint8_t byte) {
   s1 = (s1 + byte) % 65521u;
   s2 = (s2 + s1) % 65521u;
 }
@@ -58,24 +58,31 @@ static void adler32_update(uint32_t &s1, uint32_t &s2, uint8_t byte) {
 
 struct PngSnapshot {
   const uint16_t *framebuf;
+  uint32_t lcdWidth;
+  uint32_t lcdHeight;
   uint32_t width;
   uint32_t height;
+  bool inverted;
+  bool swapRB;
+  uint8_t rotation;
   uint32_t adler32;
-  uint32_t ihdr_crc32;
-  uint32_t idat_crc32;
-  uint32_t file_size;
-  uint32_t idat_payload_size;
+  uint32_t ihdrCrc32;
+  uint32_t idatCrc32;
+  uint32_t fileSize;
+  uint32_t idatPayloadSize;
 };
 
 static PngSnapshot gSnap;
 static bool gSnapReady = false;
-static bool gVolumeSerialUpdateReq = false;
 static lcdtap::LcdTap *gInstUsb = nullptr;
 static uint32_t gFileSizeUsb = 0u;
 static uint32_t gVolumeSerialUsb = 0x04030201u;
+static bool gInvertedUsb = false;
+static bool gSwapRbUsb = false;
+static uint8_t gOutputRotationUsb = 0u;
 
-static inline void rgb565_to_rgb888(uint16_t px, uint8_t &r, uint8_t &g,
-                                    uint8_t &b) {
+static LCDTAP_INLINE void rgb565To888(uint16_t px, uint8_t &r, uint8_t &g,
+                                      uint8_t &b) {
   uint8_t r5 = (px >> 11) & 0x1Fu;
   uint8_t g6 = (px >> 5) & 0x3Fu;
   uint8_t b5 = px & 0x1Fu;
@@ -84,94 +91,148 @@ static inline void rgb565_to_rgb888(uint16_t px, uint8_t &r, uint8_t &g,
   b = (b5 << 3) | (b5 >> 2);
 }
 
-static void png_snapshot_init(PngSnapshot *snap, lcdtap::LcdTap *inst) {
-  const lcdtap::LcdTapConfig cfg = inst->getConfig();
+static LCDTAP_INLINE uint16_t applyPixelFlags(uint16_t px, bool inverted,
+                                              bool swap_rb) {
+  if (inverted) {
+    px ^= 0xFFFFu;
+  }
+  if (swap_rb) {
+    px = static_cast<uint16_t>((px & 0x07E0u) | ((px & 0x001Fu) << 11u) |
+                               ((px & 0xF800u) >> 11u));
+  }
+  return px;
+}
+
+static LCDTAP_INLINE uint16_t snapshotPixelAt(const PngSnapshot *snap,
+                                              uint32_t x, uint32_t y) {
+  uint32_t srcX = x;
+  uint32_t srcY = y;
+
+  switch (snap->rotation & 3u) {
+    default:
+    case 0u:
+      // rot=0: normal
+      break;
+    case 1u:
+      // rot=1: 90° CW
+      srcX = y;
+      srcY = snap->lcdHeight - 1u - x;
+      break;
+    case 2u:
+      // rot=2: 180°
+      srcX = snap->lcdWidth - 1u - x;
+      srcY = snap->lcdHeight - 1u - y;
+      break;
+    case 3u:
+      // rot=3: 270° CW
+      srcX = snap->lcdWidth - 1u - y;
+      srcY = x;
+      break;
+  }
+
+  const uint16_t px = snap->framebuf[srcY * snap->lcdWidth + srcX];
+  return applyPixelFlags(px, snap->inverted, snap->swapRB);
+}
+
+static void pngSnapshotInit(PngSnapshot *snap, lcdtap::LcdTap *inst) {
   snap->framebuf = inst->getFramebuf();
-  snap->width = cfg.lcdWidth;
-  snap->height = cfg.lcdHeight;
+  snap->lcdWidth = inst->getConfig().lcdWidth;
+  snap->lcdHeight = inst->getConfig().lcdHeight;
+  snap->inverted = gInvertedUsb;
+  snap->swapRB = gSwapRbUsb;
+  snap->rotation = gOutputRotationUsb & 3u;
+
+  if ((snap->rotation & 1u) != 0u) {
+    snap->width = snap->lcdHeight;
+    snap->height = snap->lcdWidth;
+  } else {
+    snap->width = snap->lcdWidth;
+    snap->height = snap->lcdHeight;
+  }
 
   const uint32_t W = snap->width;
   const uint32_t H = snap->height;
   const uint32_t ROW_STRIDE = 5u + 1u + W * 3u;
   const uint32_t LEN = 1u + W * 3u;  // filter byte + pixels per row
   const uint32_t IDAT_PAYLOAD_SIZE = 2u + H * ROW_STRIDE + 4u;
-  snap->idat_payload_size = IDAT_PAYLOAD_SIZE;
-  snap->file_size = 8u + 25u + (4u + 4u + IDAT_PAYLOAD_SIZE + 4u) + 12u;
+  snap->idatPayloadSize = IDAT_PAYLOAD_SIZE;
+  snap->fileSize = 8u + 25u + (4u + 4u + IDAT_PAYLOAD_SIZE + 4u) + 12u;
 
   // ---- IHDR CRC32 (covers "IHDR" + 13 data bytes) ----
-  uint8_t ihdr_crc_buf[17];
-  ihdr_crc_buf[0] = 'I';
-  ihdr_crc_buf[1] = 'H';
-  ihdr_crc_buf[2] = 'D';
-  ihdr_crc_buf[3] = 'R';
-  ihdr_crc_buf[4] = (W >> 24) & 0xFF;
-  ihdr_crc_buf[5] = (W >> 16) & 0xFF;
-  ihdr_crc_buf[6] = (W >> 8) & 0xFF;
-  ihdr_crc_buf[7] = W & 0xFF;
-  ihdr_crc_buf[8] = (H >> 24) & 0xFF;
-  ihdr_crc_buf[9] = (H >> 16) & 0xFF;
-  ihdr_crc_buf[10] = (H >> 8) & 0xFF;
-  ihdr_crc_buf[11] = H & 0xFF;
-  ihdr_crc_buf[12] = 8;  // bit depth
-  ihdr_crc_buf[13] = 2;  // color type: RGB
-  ihdr_crc_buf[14] = 0;  // compression: deflate
-  ihdr_crc_buf[15] = 0;  // filter: adaptive
-  ihdr_crc_buf[16] = 0;  // interlace: none
-  snap->ihdr_crc32 = crc32_buf(ihdr_crc_buf, 17);
+  uint8_t ihdrCrcBuf[17];
+  ihdrCrcBuf[0] = 'I';
+  ihdrCrcBuf[1] = 'H';
+  ihdrCrcBuf[2] = 'D';
+  ihdrCrcBuf[3] = 'R';
+  ihdrCrcBuf[4] = (W >> 24) & 0xFF;
+  ihdrCrcBuf[5] = (W >> 16) & 0xFF;
+  ihdrCrcBuf[6] = (W >> 8) & 0xFF;
+  ihdrCrcBuf[7] = W & 0xFF;
+  ihdrCrcBuf[8] = (H >> 24) & 0xFF;
+  ihdrCrcBuf[9] = (H >> 16) & 0xFF;
+  ihdrCrcBuf[10] = (H >> 8) & 0xFF;
+  ihdrCrcBuf[11] = H & 0xFF;
+  ihdrCrcBuf[12] = 8;  // bit depth
+  ihdrCrcBuf[13] = 2;  // color type: RGB
+  ihdrCrcBuf[14] = 0;  // compression: deflate
+  ihdrCrcBuf[15] = 0;  // filter: adaptive
+  ihdrCrcBuf[16] = 0;  // interlace: none
+  snap->ihdrCrc32 = crc32Buf(ihdrCrcBuf, 17);
 
   // ---- Adler-32 + IDAT CRC32 in one framebuf pass ----
-  uint32_t adler_s1 = 1u, adler_s2 = 0u;
-  uint32_t idat_crc = crc32_init();
+  uint32_t adlerS1 = 1u, adlerS2 = 0u;
+  uint32_t idatCrc = crc32Init();
 
-  const uint8_t idat_type[4] = {'I', 'D', 'A', 'T'};
-  idat_crc = crc32_update(idat_crc, idat_type, 4);
+  const uint8_t idatType[4] = {'I', 'D', 'A', 'T'};
+  idatCrc = crc32Update(idatCrc, idatType, 4);
 
-  const uint8_t zlib_hdr[2] = {0x78, 0x01};
-  idat_crc = crc32_update(idat_crc, zlib_hdr, 2);
+  const uint8_t zlibHdr[2] = {0x78, 0x01};
+  idatCrc = crc32Update(idatCrc, zlibHdr, 2);
 
   for (uint32_t y = 0; y < H; ++y) {
-    bool last_row = (y == H - 1u);
+    bool lastRow = (y == H - 1u);
     uint16_t len16 = static_cast<uint16_t>(LEN);
     uint16_t nlen16 = ~len16;
-    uint8_t blk_hdr[5] = {
-        static_cast<uint8_t>(last_row ? 0x01u : 0x00u),
+    uint8_t blkHdr[5] = {
+        static_cast<uint8_t>(lastRow ? 0x01u : 0x00u),
         static_cast<uint8_t>(len16 & 0xFFu),
         static_cast<uint8_t>(len16 >> 8u),
         static_cast<uint8_t>(nlen16 & 0xFFu),
         static_cast<uint8_t>(nlen16 >> 8u),
     };
-    idat_crc = crc32_update(idat_crc, blk_hdr, 5);
+    idatCrc = crc32Update(idatCrc, blkHdr, 5);
 
-    const uint8_t filter_byte = 0x00u;
-    idat_crc = crc32_update(idat_crc, &filter_byte, 1);
-    adler32_update(adler_s1, adler_s2, filter_byte);
+    const uint8_t filterByte = 0x00u;
+    idatCrc = crc32Update(idatCrc, &filterByte, 1);
+    adler32Update(adlerS1, adlerS2, filterByte);
 
     for (uint32_t x = 0; x < W; ++x) {
       uint8_t r, g, b;
-      rgb565_to_rgb888(snap->framebuf[y * W + x], r, g, b);
+      rgb565To888(snapshotPixelAt(snap, x, y), r, g, b);
       const uint8_t px[3] = {r, g, b};
-      idat_crc = crc32_update(idat_crc, px, 3);
-      adler32_update(adler_s1, adler_s2, r);
-      adler32_update(adler_s1, adler_s2, g);
-      adler32_update(adler_s1, adler_s2, b);
+      idatCrc = crc32Update(idatCrc, px, 3);
+      adler32Update(adlerS1, adlerS2, r);
+      adler32Update(adlerS1, adlerS2, g);
+      adler32Update(adlerS1, adlerS2, b);
     }
   }
 
-  snap->adler32 = (adler_s2 << 16u) | adler_s1;
+  snap->adler32 = (adlerS2 << 16u) | adlerS1;
 
-  const uint8_t adler_be[4] = {
+  const uint8_t adlerBe[4] = {
       static_cast<uint8_t>((snap->adler32 >> 24u) & 0xFFu),
       static_cast<uint8_t>((snap->adler32 >> 16u) & 0xFFu),
       static_cast<uint8_t>((snap->adler32 >> 8u) & 0xFFu),
       static_cast<uint8_t>(snap->adler32 & 0xFFu),
   };
-  idat_crc = crc32_update(idat_crc, adler_be, 4);
-  snap->idat_crc32 = crc32_finalize(idat_crc);
+  idatCrc = crc32Update(idatCrc, adlerBe, 4);
+  snap->idatCrc32 = crc32Finalize(idatCrc);
 }
 
 // Returns the byte at file offset `offset` within the PNG stream.
 // Computed entirely from the snapshot (no buffering needed).
-static uint8_t png_byte_at(const PngSnapshot *snap, uint32_t offset) {
+static LCDTAP_INLINE uint8_t pngByteAt(const PngSnapshot *snap,
+                                       uint32_t offset) {
   const uint32_t W = snap->width;
   const uint32_t H = snap->height;
   const uint32_t ROW_STRIDE = 5u + 1u + W * 3u;
@@ -201,11 +262,11 @@ static uint8_t png_byte_at(const PngSnapshot *snap, uint32_t offset) {
     }
     i -= 13u;
     // CRC32
-    return static_cast<uint8_t>((snap->ihdr_crc32 >> (24u - 8u * i)) & 0xFFu);
+    return static_cast<uint8_t>((snap->ihdrCrc32 >> (24u - 8u * i)) & 0xFFu);
   }
 
   // IDAT chunk [33..33 + 4 + 4 + IDAT_PAYLOAD_SIZE + 4 - 1]
-  const uint32_t IDAT_PAYLOAD_SIZE = snap->idat_payload_size;
+  const uint32_t IDAT_PAYLOAD_SIZE = snap->idatPayloadSize;
   const uint32_t IDAT_TOTAL = 4u + 4u + IDAT_PAYLOAD_SIZE + 4u;
   const uint32_t IDAT_END = 33u + IDAT_TOTAL;
 
@@ -236,11 +297,11 @@ static uint8_t png_byte_at(const PngSnapshot *snap, uint32_t offset) {
 
       // DEFLATE stored block header (5 bytes)
       if (col < 5u) {
-        bool last_row = (row == H - 1u);
+        bool lastRow = (row == H - 1u);
         uint16_t len16 = static_cast<uint16_t>(LEN);
         uint16_t nlen16 = ~len16;
         switch (col) {
-          case 0: return last_row ? 0x01u : 0x00u;
+          case 0: return lastRow ? 0x01u : 0x00u;
           case 1: return static_cast<uint8_t>(len16 & 0xFFu);
           case 2: return static_cast<uint8_t>(len16 >> 8u);
           case 3: return static_cast<uint8_t>(nlen16 & 0xFFu);
@@ -257,7 +318,7 @@ static uint8_t png_byte_at(const PngSnapshot *snap, uint32_t offset) {
       uint32_t x = col / 3u;
       uint32_t ch = col % 3u;
       uint8_t r, g, b;
-      rgb565_to_rgb888(snap->framebuf[row * W + x], r, g, b);
+      rgb565To888(snapshotPixelAt(snap, x, row), r, g, b);
       return ch == 0u ? r : ch == 1u ? g : b;
     }
     i -= BLOCKS_SIZE;
@@ -270,13 +331,13 @@ static uint8_t png_byte_at(const PngSnapshot *snap, uint32_t offset) {
 
     // IDAT chunk CRC32 (4 bytes BE)
     if (i < 4u) {
-      return static_cast<uint8_t>((snap->idat_crc32 >> (24u - 8u * i)) & 0xFFu);
+      return static_cast<uint8_t>((snap->idatCrc32 >> (24u - 8u * i)) & 0xFFu);
     }
     return 0u;
   }
 
   // IEND chunk [IDAT_END..IDAT_END+11]: length=0, "IEND", crc=0xAE426082
-  if (offset < snap->file_size) {
+  if (offset < snap->fileSize) {
     static const uint8_t IEND[12] = {0,   0,   0,    0,    'I',  'E',
                                      'N', 'D', 0xAE, 0x42, 0x60, 0x82};
     return IEND[offset - IDAT_END];
@@ -298,37 +359,36 @@ static constexpr uint32_t ROOT_DIR_SECTOR = 4u;
 static constexpr uint32_t DATA_SECTOR_START = 5u;  // cluster 2 → sector 5
 
 // Returns the FAT12 value for cluster `n`.
-// frame_buffer.png occupies clusters 2..2+num_png_clusters-1.
-static uint16_t fat12_entry(uint32_t n, uint32_t num_png_clusters) {
-  if (n == 0u) return 0xFF8u;                 // media descriptor
-  if (n == 1u) return 0xFFFu;                 // volume end-of-chain
-  uint32_t png_last = 1u + num_png_clusters;  // last PNG cluster
-  if (n >= 2u && n <= png_last)
-    return (n == png_last) ? 0xFFFu : static_cast<uint16_t>(n + 1u);
+// frame_buffer.png occupies clusters 2..2+numPngClusters-1.
+static uint16_t fat12Entry(uint32_t n, uint32_t numPngClusters) {
+  if (n == 0u) return 0xFF8u;              // media descriptor
+  if (n == 1u) return 0xFFFu;              // volume end-of-chain
+  uint32_t pngLast = 1u + numPngClusters;  // last PNG cluster
+  if (n >= 2u && n <= pngLast)
+    return (n == pngLast) ? 0xFFFu : static_cast<uint16_t>(n + 1u);
   return 0x000u;  // free
 }
 
 // Fill one FAT sector (s = 0-based index from FAT area start).
-static void fill_fat_sector(uint8_t *buf, uint32_t s,
-                            uint32_t num_file_clusters) {
+static void fillFatSector(uint8_t *buf, uint32_t s, uint32_t numFileClusters) {
   memset(buf, 0, DISK_SECTOR_SIZE);
-  uint32_t byte_start = s * DISK_SECTOR_SIZE;
-  uint32_t byte_end = byte_start + DISK_SECTOR_SIZE;
+  uint32_t byteStart = s * DISK_SECTOR_SIZE;
+  uint32_t byteEnd = byteStart + DISK_SECTOR_SIZE;
   // Each group of 3 bytes encodes two 12-bit FAT entries
-  uint32_t first_group = byte_start / 3u;
-  uint32_t last_group = (byte_end - 1u) / 3u;
-  for (uint32_t g = first_group; g <= last_group; ++g) {
-    uint16_t ea = fat12_entry(g * 2u, num_file_clusters);
-    uint16_t eb = fat12_entry(g * 2u + 1u, num_file_clusters);
+  uint32_t firstGroup = byteStart / 3u;
+  uint32_t lastGroup = (byteEnd - 1u) / 3u;
+  for (uint32_t g = firstGroup; g <= lastGroup; ++g) {
+    uint16_t ea = fat12Entry(g * 2u, numFileClusters);
+    uint16_t eb = fat12Entry(g * 2u + 1u, numFileClusters);
     uint8_t gb[3] = {
         static_cast<uint8_t>(ea & 0xFFu),
         static_cast<uint8_t>(((eb & 0x0Fu) << 4u) | ((ea >> 8u) & 0x0Fu)),
         static_cast<uint8_t>((eb >> 4u) & 0xFFu),
     };
     for (uint32_t bi = 0; bi < 3u; ++bi) {
-      uint32_t fat_byte = g * 3u + bi;
-      if (fat_byte >= byte_start && fat_byte < byte_end)
-        buf[fat_byte - byte_start] = gb[bi];
+      uint32_t fatByte = g * 3u + bi;
+      if (fatByte >= byteStart && fatByte < byteEnd)
+        buf[fatByte - byteStart] = gb[bi];
     }
   }
 }
@@ -340,7 +400,7 @@ static constexpr uint8_t LFN_CHECKSUM = 0xCBu;
 //   Entry 0: LFN seq=0x42 (chars 13-16 + null of "frame_buffer.png")
 //   Entry 1: LFN seq=0x01 (chars 0-12 of "frame_buffer.png")
 //   Entry 2: 8.3 short entry "FRAMEBUF.PNG"
-static void fill_root_dir(uint8_t *buf, uint32_t file_size) {
+static void fillRootDir(uint8_t *buf, uint32_t fileSize) {
   memset(buf, 0, DISK_SECTOR_SIZE);
 
   // LFN entry 2 (sequence 0x42 = last, chars 13..): 'p','n','g','\0',padding
@@ -396,15 +456,15 @@ static void fill_root_dir(uint8_t *buf, uint32_t file_size) {
     e[26] = 0x02u;  // first cluster low = 2
     e[27] = 0x00u;
     // File size (4 bytes LE)
-    e[28] = static_cast<uint8_t>(file_size & 0xFFu);
-    e[29] = static_cast<uint8_t>((file_size >> 8u) & 0xFFu);
-    e[30] = static_cast<uint8_t>((file_size >> 16u) & 0xFFu);
-    e[31] = static_cast<uint8_t>((file_size >> 24u) & 0xFFu);
+    e[28] = static_cast<uint8_t>(fileSize & 0xFFu);
+    e[29] = static_cast<uint8_t>((fileSize >> 8u) & 0xFFu);
+    e[30] = static_cast<uint8_t>((fileSize >> 16u) & 0xFFu);
+    e[31] = static_cast<uint8_t>((fileSize >> 24u) & 0xFFu);
   }
 }
 
 // Fill boot sector (BPB for FAT12).
-static void fill_boot_sector(uint8_t *buf, uint32_t volume_serial) {
+static void fillBootSector(uint8_t *buf, uint32_t volumeSerial) {
   memset(buf, 0, DISK_SECTOR_SIZE);
   // Jump + NOP
   buf[0] = 0xEBu;
@@ -432,10 +492,10 @@ static void fill_boot_sector(uint8_t *buf, uint32_t volume_serial) {
   // Extended BPB
   buf[36] = 0x80u;  // drive number
   buf[38] = 0x29u;  // extended boot signature
-  buf[39] = static_cast<uint8_t>(volume_serial & 0xFFu);
-  buf[40] = static_cast<uint8_t>((volume_serial >> 8u) & 0xFFu);
-  buf[41] = static_cast<uint8_t>((volume_serial >> 16u) & 0xFFu);
-  buf[42] = static_cast<uint8_t>((volume_serial >> 24u) & 0xFFu);
+  buf[39] = static_cast<uint8_t>(volumeSerial & 0xFFu);
+  buf[40] = static_cast<uint8_t>((volumeSerial >> 8u) & 0xFFu);
+  buf[41] = static_cast<uint8_t>((volumeSerial >> 16u) & 0xFFu);
+  buf[42] = static_cast<uint8_t>((volumeSerial >> 24u) & 0xFFu);
   memcpy(buf + 43, "LCDTAP     ", 11);
   memcpy(buf + 54, "FAT12   ", 8);
   buf[510] = 0x55u;
@@ -447,38 +507,33 @@ static void fill_boot_sector(uint8_t *buf, uint32_t volume_serial) {
 // Data sectors trigger a lazy snapshot on first access so that
 // processInputBuf() has had time to fill the framebuffer while the OS scanned
 // the metadata sectors.
-static void generate_sector(uint32_t lba, uint8_t *buf) {
+static void generateSector(uint32_t lba, uint8_t *buf) {
   memset(buf, 0, DISK_SECTOR_SIZE);
   if (lba == 0u) {
     // The host re-reads the boot sector on each drive scan (e.g. when the user
     // opens the file explorer). Reset the snapshot flag so the next file copy
     // gets a fresh framebuffer capture.
     gSnapReady = false;
-    if (gVolumeSerialUpdateReq) {
-      gVolumeSerialUpdateReq = false;
-      // Change the volume serial on each boot-sector read to discourage
-      // host-side cache reuse of file contents.
-      gVolumeSerialUsb += 1u;
-    }
-    fill_boot_sector(buf, gVolumeSerialUsb);
+    // Change the volume serial on each boot-sector read to discourage
+    // host-side cache reuse of file contents.
+    gVolumeSerialUsb += 1;
+    fillBootSector(buf, gVolumeSerialUsb);
   } else if (lba >= FAT_SECTOR_START &&
              lba < FAT_SECTOR_START + FAT_SECTOR_COUNT) {
-    uint32_t num_clusters =
+    uint32_t numClusters =
         (gFileSizeUsb + DISK_SECTOR_SIZE - 1u) / DISK_SECTOR_SIZE;
-    fill_fat_sector(buf, lba - FAT_SECTOR_START, num_clusters);
+    fillFatSector(buf, lba - FAT_SECTOR_START, numClusters);
   } else if (lba == ROOT_DIR_SECTOR) {
-    fill_root_dir(buf, gFileSizeUsb);
+    fillRootDir(buf, gFileSizeUsb);
   } else if (lba >= DATA_SECTOR_START) {
-    gVolumeSerialUpdateReq = true;
     if (!gSnapReady) {
-      png_snapshot_init(&gSnap, gInstUsb);
+      pngSnapshotInit(&gSnap, gInstUsb);
       gSnapReady = true;
     }
-    uint32_t byte_offset = (lba - DATA_SECTOR_START) * DISK_SECTOR_SIZE;
+    uint32_t byteOffset = (lba - DATA_SECTOR_START) * DISK_SECTOR_SIZE;
     for (uint32_t i = 0u; i < DISK_SECTOR_SIZE; ++i) {
-      uint32_t file_off = byte_offset + i;
-      buf[i] =
-          (file_off < gSnap.file_size) ? png_byte_at(&gSnap, file_off) : 0u;
+      uint32_t fileOff = byteOffset + i;
+      buf[i] = (fileOff < gSnap.fileSize) ? pngByteAt(&gSnap, fileOff) : 0u;
     }
   }
 }
@@ -492,7 +547,7 @@ static constexpr uint8_t EPNUM_MSC_IN = 0x81u;
 
 enum { ITF_NUM_MSC = 0, ITF_NUM_TOTAL };
 
-static tusb_desc_device_t const desc_device = {
+static tusb_desc_device_t const descDevice = {
     .bLength = sizeof(tusb_desc_device_t),
     .bDescriptorType = TUSB_DESC_DEVICE,
     .bcdUSB = 0x0200,
@@ -511,7 +566,7 @@ static tusb_desc_device_t const desc_device = {
 
 #define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN)
 
-static uint8_t const desc_configuration[] = {
+static uint8_t const descConfiguration[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
     TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EPNUM_MSC_OUT, EPNUM_MSC_IN, 64),
 };
@@ -524,19 +579,19 @@ enum {
 };
 
 uint8_t const *tud_descriptor_device_cb(void) {
-  return reinterpret_cast<uint8_t const *>(&desc_device);
+  return reinterpret_cast<uint8_t const *>(&descDevice);
 }
 
 uint8_t const *tud_descriptor_configuration_cb(uint8_t /*index*/) {
-  return desc_configuration;
+  return descConfiguration;
 }
 
 uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t /*langid*/) {
-  static uint16_t desc_str[32];
+  static uint16_t descStr[32];
   uint8_t count;
 
   if (index == STRID_LANGID) {
-    desc_str[1] = 0x0409u;
+    descStr[1] = 0x0409u;
     count = 1;
   } else if (index == STRID_SERIAL) {
     pico_unique_board_id_t uid;
@@ -544,8 +599,8 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t /*langid*/) {
     count = 0;
     for (int i = 0; i < 8 && count < 16; ++i) {
       uint8_t b = uid.id[i];
-      desc_str[1 + count++] = "0123456789ABCDEF"[b >> 4u];
-      desc_str[1 + count++] = "0123456789ABCDEF"[b & 0x0Fu];
+      descStr[1 + count++] = "0123456789ABCDEF"[b >> 4u];
+      descStr[1 + count++] = "0123456789ABCDEF"[b & 0x0Fu];
     }
   } else {
     static const char *const kStrings[] = {
@@ -558,14 +613,14 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t /*langid*/) {
     const char *str = kStrings[index];
     count = 0;
     while (str[count] && count < 31u) {
-      desc_str[1 + count] = static_cast<uint8_t>(str[count]);
+      descStr[1 + count] = static_cast<uint8_t>(str[count]);
       ++count;
     }
   }
 
-  desc_str[0] =
+  descStr[0] =
       static_cast<uint16_t>((TUSB_DESC_STRING << 8u) | (2u * count + 2u));
-  return desc_str;
+  return descStr;
 }
 
 // =============================================================================
@@ -598,7 +653,7 @@ int32_t tud_msc_read10_cb(uint8_t /*lun*/, uint32_t lba, uint32_t offset,
                           void *buffer, uint32_t bufsize) {
   if (lba >= DISK_SECTOR_COUNT) return -1;
   uint8_t sector[DISK_SECTOR_SIZE];
-  generate_sector(lba, sector);
+  generateSector(lba, sector);
   uint32_t avail = DISK_SECTOR_SIZE - offset;
   uint32_t n = bufsize < avail ? bufsize : avail;
   memcpy(buffer, sector + offset, n);
@@ -621,15 +676,23 @@ int32_t tud_msc_scsi_cb(uint8_t /*lun*/, uint8_t const /*scsi_cmd*/[16],
 // =============================================================================
 
 [[noreturn]] void runUsbMassStorage(lcdtap::LcdTap *inst,
-                                    void (*process_input_cb)()) {
+                                    void (*processInputCb)()) {
   gInstUsb = inst;
   gSnapReady = false;
 
-  // Pre-compute file size from dimensions only (no pixel data needed yet).
+  // Capture display transform config for USB snapshot generation.
+  // These values are frozen into each snapshot when the host reads data
+  // sectors.
   {
     const lcdtap::LcdTapConfig cfg = inst->getConfig();
-    const uint32_t W = cfg.lcdWidth;
-    const uint32_t H = cfg.lcdHeight;
+    gOutputRotationUsb = cfg.outputRotation & 3u;
+    gInvertedUsb = inst->isOutputInverted();
+    gSwapRbUsb = inst->isOutputSwapRB();
+
+    const uint32_t W =
+        (gOutputRotationUsb & 1u) != 0u ? cfg.lcdHeight : cfg.lcdWidth;
+    const uint32_t H =
+        (gOutputRotationUsb & 1u) != 0u ? cfg.lcdWidth : cfg.lcdHeight;
     const uint32_t ROW_STRIDE = 5u + 1u + W * 3u;
     const uint32_t IDAT_PAYLOAD_SIZE = 2u + H * ROW_STRIDE + 4u;
     gFileSizeUsb = 8u + 25u + (4u + 4u + IDAT_PAYLOAD_SIZE + 4u) + 12u;
@@ -641,11 +704,11 @@ int32_t tud_msc_scsi_cb(uint8_t /*lun*/, uint8_t const /*scsi_cmd*/[16],
     tud_task();
 
     // Keep draining LCD input into the framebuffer continuously.
-    // The snapshot (in generate_sector) captures Adler-32/CRC32 once per copy;
+    // The snapshot (in generateSector) captures Adler-32/CRC32 once per copy;
     // if the framebuffer changes afterwards the checksums may drift, but PNG
     // decoders tolerate this and the pixel content will be current.
-    if (process_input_cb) {
-      process_input_cb();
+    if (processInputCb) {
+      processInputCb();
     }
 
     // Enter key (active-low) → watchdog reset back to DVI mode.

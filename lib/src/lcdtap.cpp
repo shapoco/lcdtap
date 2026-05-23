@@ -619,6 +619,18 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   return Status::OK;
 }
 
+bool LcdTap::isOutputInverted() const {
+  if (!impl_) return false;
+  const ControllerBase* ctrl = static_cast<const ControllerBase*>(impl_);
+  return ctrl->inverted;
+}
+
+bool LcdTap::isOutputSwapRB() const {
+  if (!impl_) return false;
+  const ControllerBase* ctrl = static_cast<const ControllerBase*>(impl_);
+  return ctrl->cachedBGR;
+}
+
 uint16_t* LcdTap::getFramebuf() {
   if (!impl_) return nullptr;
   return static_cast<ControllerBase*>(impl_)->framebuf;

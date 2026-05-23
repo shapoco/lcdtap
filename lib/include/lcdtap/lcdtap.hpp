@@ -191,6 +191,12 @@ class LcdTap {
   // fails (the previous state is left intact in that case).
   Status updateConfig(const LcdTapConfig& cfg);
 
+  // Returns true if the display is currently inverted.
+  bool isOutputInverted() const;
+
+  // Returns true if the R and B channels are swapped.
+  bool isOutputSwapRB() const;
+
   //--- Command dump ---
 
   static constexpr int DUMP_BUFFER_SIZE = 256;

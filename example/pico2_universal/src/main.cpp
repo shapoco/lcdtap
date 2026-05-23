@@ -639,7 +639,8 @@ int main() {
   // -------------------------------------------------------------------------
   ConfigFile savedCfg = {};
   bool hasSavedCfg = loadConfig(&savedCfg);
-  if (hasSavedCfg && savedCfg.bootMode == BootMode::USB_MASS_STORAGE) {
+  if (hasSavedCfg && (savedCfg.bootMode == BootMode::USB_MASS_STORAGE ||
+                      !gpio_get(PIN_KEY_DOWN))) {
     // Reset bootMode now so next reboot returns to DVI output.
     savedCfg.bootMode = BootMode::DVI_OUTPUT;
     saveConfig(savedCfg);
