@@ -514,9 +514,6 @@ static void generateSector(uint32_t lba, uint8_t *buf) {
     // opens the file explorer). Reset the snapshot flag so the next file copy
     // gets a fresh framebuffer capture.
     gSnapReady = false;
-    // Change the volume serial on each boot-sector read to discourage
-    // host-side cache reuse of file contents.
-    gVolumeSerialUsb += 1;
     fillBootSector(buf, gVolumeSerialUsb);
   } else if (lba >= FAT_SECTOR_START &&
              lba < FAT_SECTOR_START + FAT_SECTOR_COUNT) {
