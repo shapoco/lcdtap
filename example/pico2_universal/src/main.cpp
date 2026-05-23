@@ -644,10 +644,10 @@ int main() {
     savedCfg.bootMode = BootMode::DVI_OUTPUT;
     saveConfig(savedCfg);
 
-    // USB mode uses 125 MHz system clock (USB PHY has its own 48 MHz PLL).
+    // USB mode uses 250 MHz system clock (USB PHY has its own 48 MHz PLL).
     vreg_set_voltage(VREG_VOLTAGE_1_20);
     sleep_ms(10);
-    set_sys_clock_khz(125000, /*required=*/true);
+    set_sys_clock_khz(250000, /*required=*/true);
 
     // LED on to indicate USB mode.
     gpio_init(PIN_LED);

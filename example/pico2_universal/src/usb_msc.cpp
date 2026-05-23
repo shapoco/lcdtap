@@ -69,8 +69,10 @@ struct PngSnapshot {
 
 static PngSnapshot gSnap;
 static bool gSnapReady = false;
+static bool gVolumeSerialUpdateReq = false;
 static lcdtap::LcdTap *gInstUsb = nullptr;
 static uint32_t gFileSizeUsb = 0u;
+static uint32_t gVolumeSerialUsb = 0x04030201u;
 
 static inline void rgb565_to_rgb888(uint16_t px, uint8_t &r, uint8_t &g,
                                     uint8_t &b) {
@@ -402,7 +404,7 @@ static void fill_root_dir(uint8_t *buf, uint32_t file_size) {
 }
 
 // Fill boot sector (BPB for FAT12).
-static void fill_boot_sector(uint8_t *buf) {
+static void fill_boot_sector(uint8_t *buf, uint32_t volume_serial) {
   memset(buf, 0, DISK_SECTOR_SIZE);
   // Jump + NOP
   buf[0] = 0xEBu;
@@ -430,10 +432,10 @@ static void fill_boot_sector(uint8_t *buf) {
   // Extended BPB
   buf[36] = 0x80u;  // drive number
   buf[38] = 0x29u;  // extended boot signature
-  buf[39] = 0x01u;
-  buf[40] = 0x02u;
-  buf[41] = 0x03u;
-  buf[42] = 0x04u;  // volume ID
+  buf[39] = static_cast<uint8_t>(volume_serial & 0xFFu);
+  buf[40] = static_cast<uint8_t>((volume_serial >> 8u) & 0xFFu);
+  buf[41] = static_cast<uint8_t>((volume_serial >> 16u) & 0xFFu);
+  buf[42] = static_cast<uint8_t>((volume_serial >> 24u) & 0xFFu);
   memcpy(buf + 43, "LCDTAP     ", 11);
   memcpy(buf + 54, "FAT12   ", 8);
   buf[510] = 0x55u;
@@ -452,7 +454,13 @@ static void generate_sector(uint32_t lba, uint8_t *buf) {
     // opens the file explorer). Reset the snapshot flag so the next file copy
     // gets a fresh framebuffer capture.
     gSnapReady = false;
-    fill_boot_sector(buf);
+    if (gVolumeSerialUpdateReq) {
+      gVolumeSerialUpdateReq = false;
+      // Change the volume serial on each boot-sector read to discourage
+      // host-side cache reuse of file contents.
+      gVolumeSerialUsb += 1u;
+    }
+    fill_boot_sector(buf, gVolumeSerialUsb);
   } else if (lba >= FAT_SECTOR_START &&
              lba < FAT_SECTOR_START + FAT_SECTOR_COUNT) {
     uint32_t num_clusters =
@@ -461,6 +469,7 @@ static void generate_sector(uint32_t lba, uint8_t *buf) {
   } else if (lba == ROOT_DIR_SECTOR) {
     fill_root_dir(buf, gFileSizeUsb);
   } else if (lba >= DATA_SECTOR_START) {
+    gVolumeSerialUpdateReq = true;
     if (!gSnapReady) {
       png_snapshot_init(&gSnap, gInstUsb);
       gSnapReady = true;
