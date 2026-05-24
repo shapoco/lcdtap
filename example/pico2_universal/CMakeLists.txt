@@ -24,6 +24,7 @@ add_subdirectory(
 add_executable(lcdtap_pico2_universal
     src/main.cpp
     src/flash_config.cpp
+    src/uart_if.cpp
 )
 
 # Generate PIO headers
@@ -72,6 +73,10 @@ target_link_libraries(lcdtap_pico2_universal
     hardware_vreg
     hardware_watchdog
 )
+
+# Enable USB CDC stdio; disable UART stdio
+pico_enable_stdio_usb(lcdtap_pico2_universal 1)
+pico_enable_stdio_uart(lcdtap_pico2_universal 0)
 
 # Generate UF2 for drag-and-drop flashing
 pico_add_extra_outputs(lcdtap_pico2_universal)

@@ -328,7 +328,7 @@ void ControllerBase::feedData(const uint8_t* data, uint32_t numBytes,
                               uint32_t stride) {
   if (stride == 0) stride = 1;  // safety guard
   if (isRamWriteCommand()) {
-    processRamwrData(data, numBytes, stride);
+    if (!writeProtected) processRamwrData(data, numBytes, stride);
   } else {
     for (uint32_t i = 0; i < numBytes * stride; i += stride) {
       feedDataByte(data[i]);
@@ -634,6 +634,16 @@ bool LcdTap::isOutputSwapRB() const {
 uint16_t* LcdTap::getFramebuf() {
   if (!impl_) return nullptr;
   return static_cast<ControllerBase*>(impl_)->framebuf;
+}
+
+void LcdTap::setWriteProtected(bool protect) {
+  if (!impl_) return;
+  static_cast<ControllerBase*>(impl_)->writeProtected = protect;
+}
+
+bool LcdTap::isWriteProtected() const {
+  if (!impl_) return false;
+  return static_cast<const ControllerBase*>(impl_)->writeProtected;
 }
 
 void LcdTap::setDisplayOn(bool on) {

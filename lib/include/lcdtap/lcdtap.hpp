@@ -217,6 +217,14 @@ class LcdTap {
 
   const uint16_t* dumpGetBuffer() const;
 
+  //--- Write protection ---
+
+  // When true, RAM write commands (RAMWR) are silently discarded while all
+  // other commands continue to be processed. Use before reading getFramebuf()
+  // to prevent partial writes during readout.
+  void setWriteProtected(bool protect);
+  bool isWriteProtected() const;
+
   //--- Test / debug ---
 
   // Returns a direct write pointer to the framebuffer.

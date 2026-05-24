@@ -29,6 +29,7 @@
 #include "parallel_8bit.pio.h"
 #include "spi_3line_mode0.pio.h"
 #include "spi_4line_mode0.pio.h"
+#include "uart_if.hpp"
 
 static_assert(PIN_SPI_CS == SPI_CS_PIN,
               "PIN_SPI_CS mismatch with spi_4line_mode0.pio");
@@ -422,6 +423,7 @@ static void i2cSlaveInit() {
 
 // =============================================================================
 // Interface switching (teardown current, setup new)
+// Also used as a callback from uartIfInit().
 // =============================================================================
 static void switchInterface(InterfaceType newIface) {
   if (gIfaceActive) {
@@ -727,12 +729,18 @@ int main() {
   add_repeating_timer_us(-200, dviTimerCallback, nullptr, &gDviTimer);
 
   // -------------------------------------------------------------------------
-  // 10. Main loop (Core 0)
+  // 10. USB CDC serial interface
+  // -------------------------------------------------------------------------
+  uartIfInit(&inst, &gCurrentIface, switchInterface, saveConfig);
+
+  // -------------------------------------------------------------------------
+  // 11. Main loop (Core 0)
   //     DVI scanline filling is handled by dviTimerCallback (IRQ, 200 µs).
   //     This loop processes LCD input and handles per-frame OSD/config work.
   // -------------------------------------------------------------------------
   while (true) {
     processInputBuf();
+    uartIfProcess();
     if (gNewFrame) {
       gNewFrame = false;
       uint64_t nowMs =

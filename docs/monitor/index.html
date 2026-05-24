@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LcdTap Monitor</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #21262d;
+  --surface3: #2d333b;
+  --accent: #58a6ff;
+  --accent-hover: #79b8ff;
+  --green: #3fb950;
+  --yellow: #e3b341;
+  --red: #f85149;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --border: #30363d;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.conn-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+.conn-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.conn-dot.error { background: var(--red); }
+
+.header-spacer { flex: 1; }
+
+.conn-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+button {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 6px 14px;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+button:hover:not(:disabled) { background: var(--surface3); border-color: var(--accent); }
+button:active:not(:disabled) { transform: scale(0.97); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+button.primary {
+  background: var(--accent);
+  color: #0d1117;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+button.danger {
+  background: rgba(248,81,73,0.15);
+  border-color: var(--red);
+  color: var(--red);
+}
+button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
+
+/* ── Tabs ────────────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab-btn:hover:not(:disabled) { color: var(--text); background: transparent; border-color: transparent; }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-btn:disabled { opacity: 0.35; }
+
+.tab-pane { display: none; padding: 20px 16px; }
+.tab-pane.active { display: block; }
+
+/* ── Toast / status bar ──────────────────────────────────── */
+#toast-area {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(360px, calc(100vw - 32px));
+}
+.toast {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  animation: slideIn 0.2s ease;
+}
+.toast.error { border-color: var(--red); color: var(--red); }
+.toast.success { border-color: var(--green); color: var(--green); }
+@keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+
+/* ── Config tab ──────────────────────────────────────────── */
+.param-list { display: flex; flex-direction: column; gap: 12px; max-width: 520px; }
+
+.param-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.param-label {
+  flex: 1;
+  min-width: 140px;
+  font-weight: 500;
+}
+.param-label small { display: block; color: var(--text-muted); font-size: 11px; font-weight: 400; }
+
+.param-ctrl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+/* Integer control */
+.int-ctrl { display: flex; align-items: center; gap: 4px; }
+.int-ctrl button { padding: 4px 10px; font-size: 16px; line-height: 1; }
+.int-ctrl input[type=number] {
+  width: 80px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 5px 8px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.int-ctrl input[type=number]::-webkit-inner-spin-button,
+.int-ctrl input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+.int-ctrl input:focus { outline: none; border-color: var(--accent); }
+.unit-label { color: var(--text-muted); font-size: 12px; min-width: 24px; }
+
+/* Toggle switch */
+.toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.toggle input:checked + .toggle-track { background: var(--accent); border-color: var(--accent); }
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  left: 3px; top: 3px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.2s, background 0.2s;
+}
+.toggle input:checked + .toggle-track::after { transform: translateX(20px); background: #0d1117; }
+
+/* Enum control */
+.param-ctrl select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 5px 30px 5px 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b949e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+  min-width: 160px;
+}
+.param-ctrl select:focus { outline: none; border-color: var(--accent); }
+
+.config-actions { margin-top: 20px; display: flex; gap: 10px; }
+
+/* ── Frame Buffer tab ────────────────────────────────────── */
+.fb-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+
+.auto-reload-ctrl { display: flex; align-items: center; gap: 8px; }
+.auto-reload-ctrl label { font-size: 13px; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+
+.fb-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: inline-block;
+  max-width: 100%;
+}
+
+#fb-canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  max-width: min(640px, calc(100vw - 56px));
+  height: auto;
+  background: #000;
+  border-radius: 2px;
+}
+
+.fb-info { margin-top: 8px; font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+
+/* ── Command Dump tab ────────────────────────────────────── */
+.dump-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+
+.dump-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  font-size: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  background: var(--surface3);
+  color: var(--text-muted);
+}
+.status-badge.WAIT { background: rgba(139,148,158,0.2); color: var(--text-muted); }
+.status-badge.ACTIVE { background: rgba(63,185,80,0.2); color: var(--green); }
+.status-badge.COMPLETE { background: rgba(88,166,255,0.2); color: var(--accent); }
+
+#dump-byte-count { color: var(--text-muted); font-family: var(--font-mono); }
+
+.dump-view-wrapper {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  overflow-x: auto;
+}
+
+#dump-view {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.dump-row { display: flex; align-items: center; gap: 2px; margin-bottom: 2px; }
+.dump-row-addr {
+  color: var(--text-muted);
+  width: 40px;
+  flex-shrink: 0;
+  user-select: none;
+  font-size: 11px;
+}
+
+.dump-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 20px;
+  border-radius: 2px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  user-select: all;
+}
+/* Command byte: cyan */
+.dump-cell.cmd { background: #00c3ff; color: #000; }
+/* Data byte: alternating dark */
+.dump-cell.dat0 { background: #000; color: #e6edf3; }
+.dump-cell.dat1 { background: #1a1a1a; color: #e6edf3; }
+/* HW Reset: yellow */
+.dump-cell.evt-rst { background: #ffe300; color: #000; font-size: 9px; font-weight: 700; }
+/* Unknown event: red */
+.dump-cell.evt-unk { background: #ff0042; color: #000; }
+
+/* ── Utility ──────────────────────────────────────────────── */
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 480px) {
+  header { padding: 8px 12px; }
+  .tab-btn { padding: 10px 14px; }
+  .tab-pane { padding: 14px 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────── -->
+<header>
+  <h1>LcdTap Monitor</h1>
+  <div class="conn-status">
+    <div class="conn-dot" id="conn-dot"></div>
+    <span id="conn-label">Disconnected</span>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="conn-controls">
+    <button id="btn-connect" class="primary">Connect</button>
+    <button id="btn-disconnect" disabled>Disconnect</button>
+  </div>
+</header>
+
+<!-- ── Tabs ────────────────────────────────────────────── -->
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="config" disabled>Config</button>
+  <button class="tab-btn" data-tab="framebuffer" disabled>Frame Buffer</button>
+  <button class="tab-btn" data-tab="dump" disabled>Command Dump</button>
+</div>
+
+<!-- ── Config tab ──────────────────────────────────────── -->
+<div class="tab-pane active" id="tab-config">
+  <div class="section-title">Parameters</div>
+  <div class="param-list" id="param-list">
+    <div style="color:var(--text-muted)">Connect to a device to load parameters.</div>
+  </div>
+  <div class="config-actions">
+    <button id="btn-apply" class="primary" disabled>Apply</button>
+    <button id="btn-refresh-params" disabled>Refresh</button>
+  </div>
+</div>
+
+<!-- ── Frame Buffer tab ────────────────────────────────── -->
+<div class="tab-pane" id="tab-framebuffer">
+  <div class="fb-controls">
+    <button id="btn-capture" disabled>Capture</button>
+    <button id="btn-copy" disabled>Copy</button>
+    <button id="btn-save" disabled>Save</button>
+    <div class="auto-reload-ctrl">
+      <label>
+        <div class="toggle">
+          <input type="checkbox" id="auto-reload">
+          <div class="toggle-track"></div>
+        </div>
+        Auto Reload (5s)
+      </label>
+    </div>
+  </div>
+  <div class="fb-container">
+    <canvas id="fb-canvas" width="1" height="1"></canvas>
+    <div class="fb-info" id="fb-info">No image captured.</div>
+  </div>
+</div>
+
+<!-- ── Command Dump tab ────────────────────────────────── -->
+<div class="tab-pane" id="tab-dump">
+  <div class="dump-controls">
+    <button id="btn-force-trigger" disabled>Force Trigger</button>
+    <button id="btn-abort" class="danger" disabled>Abort</button>
+  </div>
+  <div class="dump-status-bar">
+    <span>Status:</span>
+    <span class="status-badge WAIT" id="dump-status-badge">WAIT</span>
+    <span id="dump-byte-count">– bytes</span>
+  </div>
+  <div class="dump-view-wrapper">
+    <div id="dump-view" style="color:var(--text-muted)">No data.</div>
+  </div>
+</div>
+
+<!-- ── Toast area ──────────────────────────────────────── -->
+<div id="toast-area"></div>
+
+<script>
+'use strict';
+
+// ─── Serial Connection ──────────────────────────────────────────────────────
+
+class SerialConnection {
+  constructor() {
+    this._port = null;
+    this._reader = null;
+    this._writer = null;
+    this._lineBuffer = '';
+    this._lineResolvers = [];
+    this._running = false;
+  }
+
+  get connected() { return this._port !== null; }
+
+  async connect() {
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    this._port = port;
+    this._writer = port.writable.getWriter();
+    this._running = true;
+    this._readLoop();
+  }
+
+  async disconnect() {
+    this._running = false;
+    // Reject any pending resolvers
+    for (const { reject } of this._lineResolvers) {
+      reject(new Error('Disconnected'));
+    }
+    this._lineResolvers = [];
+    this._lineBuffer = '';
+    try { if (this._reader) this._reader.cancel(); } catch (_) {}
+    try { if (this._writer) this._writer.releaseLock(); } catch (_) {}
+    try { if (this._port) await this._port.close(); } catch (_) {}
+    this._port = null;
+    this._reader = null;
+    this._writer = null;
+  }
+
+  async _readLoop() {
+    const decoder = new TextDecoder();
+    let reader;
+    try {
+      reader = this._port.readable.getReader();
+      this._reader = reader;
+      while (this._running) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        this._lineBuffer += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = this._lineBuffer.indexOf('\r\n')) !== -1) {
+          const line = this._lineBuffer.substring(0, idx);
+          this._lineBuffer = this._lineBuffer.substring(idx + 2);
+          if (this._lineResolvers.length > 0) {
+            const { resolve } = this._lineResolvers.shift();
+            resolve(line);
+          }
+        }
+      }
+    } catch (e) {
+      if (this._running) console.error('Read error:', e);
+    } finally {
+      try { reader.releaseLock(); } catch (_) {}
+    }
+  }
+
+  async sendCommand(cmdObj, timeoutMs = 8000) {
+    if (!this._port) throw new Error('Not connected');
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const idx = this._lineResolvers.findIndex(r => r.resolve === resolve || r.reject === reject);
+        if (idx !== -1) this._lineResolvers.splice(idx, 1);
+        reject(new Error('Timeout'));
+      }, timeoutMs);
+
+      this._lineResolvers.push({
+        resolve: (line) => { clearTimeout(timer); resolve(line); },
+        reject:  (err)  => { clearTimeout(timer); reject(err); },
+      });
+
+      const encoder = new TextEncoder();
+      const text = JSON.stringify(cmdObj) + '\r\n';
+      this._writer.write(encoder.encode(text)).catch(reject);
+    });
+  }
+}
+
+// ─── App State ──────────────────────────────────────────────────────────────
+
+const conn = new SerialConnection();
+let params = [];           // current param descriptors
+let dumpPollTimer = null;
+let dumpLastStatus = null;
+let dumpLastBytes = -1;
+let autoReloadTimer = null;
+let activeTab = 'config';
+
+// ─── Toast ──────────────────────────────────────────────────────────────────
+
+function showToast(msg, type = '', duration = 3500) {
+  const area = document.getElementById('toast-area');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  area.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, duration);
+}
+
+// ─── Connection UI ───────────────────────────────────────────────────────────
+
+const elConnDot   = document.getElementById('conn-dot');
+const elConnLabel = document.getElementById('conn-label');
+const btnConnect    = document.getElementById('btn-connect');
+const btnDisconnect = document.getElementById('btn-disconnect');
+
+function setConnected(yes) {
+  elConnDot.className = 'conn-dot' + (yes ? ' connected' : '');
+  elConnLabel.textContent = yes ? 'Connected' : 'Disconnected';
+  btnConnect.disabled    =  yes;
+  btnDisconnect.disabled = !yes;
+  document.querySelectorAll('.tab-btn').forEach(b => { b.disabled = !yes; });
+  document.querySelectorAll('#btn-apply,#btn-refresh-params,#btn-capture,#btn-force-trigger,#btn-abort')
+    .forEach(b => { b.disabled = !yes; });
+  // Copy/Save stay disabled until a frame is captured
+  if (!yes) {
+    document.getElementById('btn-copy').disabled = true;
+    document.getElementById('btn-save').disabled = true;
+  }
+}
+
+if (!('serial' in navigator)) {
+  document.body.innerHTML = `<div style="padding:40px;color:var(--red);font-family:system-ui">
+    Web Serial API is not supported in this browser.<br>
+    Please use Chrome or Edge (desktop).
+  </div>`;
+}
+
+btnConnect.addEventListener('click', async () => {
+  try {
+    btnConnect.disabled = true;
+    await conn.connect();
+    // Handshake
+    const resp = await conn.sendCommand({ command: 'hello' }, 5000);
+    const obj = JSON.parse(resp);
+    if (obj.response !== 'welcome lcdtap') throw new Error('Unexpected hello response: ' + resp);
+    setConnected(true);
+    showToast('Connected to LcdTap', 'success');
+    // Auto-load config tab
+    await loadParams();
+  } catch (e) {
+    try { await conn.disconnect(); } catch (_) {}
+    setConnected(false);
+    showToast('Connection failed: ' + e.message, 'error');
+    btnConnect.disabled = false;
+  }
+});
+
+btnDisconnect.addEventListener('click', async () => {
+  stopDumpPolling();
+  stopAutoReload();
+  await conn.disconnect();
+  setConnected(false);
+  showToast('Disconnected');
+});
+
+// ─── Tab switching ───────────────────────────────────────────────────────────
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return;
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+    const prev = activeTab;
+    activeTab = tab;
+    if (tab === 'dump') {
+      startDumpPolling();
+    } else {
+      if (prev === 'dump') stopDumpPolling();
+    }
+  });
+});
+
+// ─── Config Tab ─────────────────────────────────────────────────────────────
+
+async function loadParams() {
+  try {
+    const resp = await conn.sendCommand({ command: 'getparams' }, 8000);
+    const obj = JSON.parse(resp);
+    params = obj.params;
+    buildParamUI(params);
+  } catch (e) {
+    showToast('getparams failed: ' + e.message, 'error');
+  }
+}
+
+function buildParamUI(params) {
+  const list = document.getElementById('param-list');
+  list.innerHTML = '';
+
+  for (const p of params) {
+    const row = document.createElement('div');
+    row.className = 'param-row';
+
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'param-label';
+    labelDiv.innerHTML = `${escHtml(p.name)}<small>${escHtml(p.id)}</small>`;
+
+    const ctrlDiv = document.createElement('div');
+    ctrlDiv.className = 'param-ctrl';
+
+    if (p.type === 'INTEGER') {
+      ctrlDiv.appendChild(buildIntCtrl(p));
+    } else if (p.type === 'BOOLEAN') {
+      ctrlDiv.appendChild(buildBoolCtrl(p));
+    } else if (p.type === 'ENUM') {
+      ctrlDiv.appendChild(buildEnumCtrl(p));
+    }
+
+    row.appendChild(labelDiv);
+    row.appendChild(ctrlDiv);
+    list.appendChild(row);
+  }
+}
+
+function buildIntCtrl(p) {
+  const wrap = document.createElement('div');
+  wrap.className = 'int-ctrl';
+
+  const btnMinus = document.createElement('button');
+  btnMinus.textContent = '−';
+  btnMinus.title = 'Decrease';
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = p.min;
+  input.max = p.max;
+  input.step = p.step;
+  input.value = p.value;
+  input.dataset.paramId = p.id;
+  input.dataset.paramType = 'INTEGER';
+
+  const btnPlus = document.createElement('button');
+  btnPlus.textContent = '+';
+  btnPlus.title = 'Increase';
+
+  btnMinus.addEventListener('click', () => {
+    let v = parseInt(input.value, 10) - p.step;
+    if (v < p.min) v = p.min;
+    input.value = v;
+  });
+  btnPlus.addEventListener('click', () => {
+    let v = parseInt(input.value, 10) + p.step;
+    if (v > p.max) v = p.max;
+    input.value = v;
+  });
+
+  wrap.appendChild(btnMinus);
+  wrap.appendChild(input);
+  wrap.appendChild(btnPlus);
+
+  if (p.unit) {
+    const unit = document.createElement('span');
+    unit.className = 'unit-label';
+    unit.textContent = p.unit;
+    wrap.appendChild(unit);
+  }
+  return wrap;
+}
+
+function buildBoolCtrl(p) {
+  const label = document.createElement('label');
+  label.className = 'toggle';
+
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = !!p.value;
+  input.dataset.paramId = p.id;
+  input.dataset.paramType = 'BOOLEAN';
+
+  const track = document.createElement('div');
+  track.className = 'toggle-track';
+
+  label.appendChild(input);
+  label.appendChild(track);
+  return label;
+}
+
+function buildEnumCtrl(p) {
+  const select = document.createElement('select');
+  select.dataset.paramId = p.id;
+  select.dataset.paramType = 'ENUM';
+
+  for (const [label, val] of Object.entries(p.options)) {
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = label;
+    if (val === p.value) opt.selected = true;
+    select.appendChild(opt);
+  }
+  return select;
+}
+
+document.getElementById('btn-apply').addEventListener('click', async () => {
+  const paramMap = {};
+  document.querySelectorAll('[data-param-id]').forEach(el => {
+    const id = el.dataset.paramId;
+    const type = el.dataset.paramType;
+    if (type === 'BOOLEAN') {
+      paramMap[id] = el.checked;
+    } else {
+      paramMap[id] = parseInt(el.value, 10);
+    }
+  });
+
+  try {
+    document.getElementById('btn-apply').disabled = true;
+    const resp = await conn.sendCommand({ command: 'setparams', params: paramMap }, 8000);
+    const obj = JSON.parse(resp);
+    if (obj.response === 'ok') {
+      showToast('Parameters applied', 'success');
+      // Switch to Frame Buffer tab
+      document.querySelector('.tab-btn[data-tab="framebuffer"]').click();
+    } else {
+      const detail = obj.state ? ` (state: ${obj.state})` : '';
+      showToast('setparams error: ' + (obj.error || JSON.stringify(obj)) + detail, 'error');
+    }
+  } catch (e) {
+    showToast('setparams failed: ' + e.message, 'error');
+  } finally {
+    document.getElementById('btn-apply').disabled = false;
+  }
+});
+
+document.getElementById('btn-refresh-params').addEventListener('click', loadParams);
+
+// ─── Frame Buffer Tab ────────────────────────────────────────────────────────
+
+const canvas = document.getElementById('fb-canvas');
+const ctx = canvas.getContext('2d');
+
+async function captureFramebuffer() {
+  const btnCapture = document.getElementById('btn-capture');
+  btnCapture.disabled = true;
+  try {
+    const resp = await conn.sendCommand({ command: 'getframebuffer' }, 60000);
+    const obj = JSON.parse(resp);
+    const { width, height, data: b64 } = obj;
+
+    const raw = base64Decode(b64);
+    const expectedBytes = width * height * 2;
+    console.log(`[FB] width=${width} height=${height} expected=${expectedBytes} decoded=${raw.length} b64_prefix="${b64.slice(0,16)}..."`);
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const imgData = ctx.createImageData(width, height);
+    const px = imgData.data;
+    for (let i = 0, p = 0; i < raw.length - 1; i += 2, p += 4) {
+      const word = raw[i] | (raw[i + 1] << 8);
+      const r5 = (word >> 11) & 0x1F;
+      const g6 = (word >> 5) & 0x3F;
+      const b5 = word & 0x1F;
+      px[p    ] = (r5 << 3) | (r5 >> 2);
+      px[p + 1] = (g6 << 2) | (g6 >> 4);
+      px[p + 2] = (b5 << 3) | (b5 >> 2);
+      px[p + 3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    // Scale canvas display size (max 640px wide, nearest-neighbor)
+    const scale = Math.max(1, Math.floor(Math.min(640 / width, 480 / height)));
+    canvas.style.width  = (width  * scale) + 'px';
+    canvas.style.height = (height * scale) + 'px';
+
+    const bytesMismatch = raw.length !== expectedBytes ? ` ⚠ decoded ${raw.length} (expected ${expectedBytes})` : '';
+    document.getElementById('fb-info').textContent = `${width} × ${height} px · scale ×${scale} · decoded ${raw.length} bytes${bytesMismatch}`;
+    document.getElementById('btn-copy').disabled = false;
+    document.getElementById('btn-save').disabled = false;
+  } catch (e) {
+    showToast('Capture failed: ' + e.message, 'error');
+  } finally {
+    btnCapture.disabled = !conn.connected;
+  }
+}
+
+document.getElementById('btn-capture').addEventListener('click', captureFramebuffer);
+
+document.getElementById('btn-copy').addEventListener('click', () => {
+  canvas.toBlob(async blob => {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      showToast('Image copied to clipboard', 'success');
+    } catch (e) {
+      showToast('Copy failed: ' + e.message, 'error');
+    }
+  });
+});
+
+document.getElementById('btn-save').addEventListener('click', () => {
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lcdtap_' + Date.now() + '.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+});
+
+const autoReloadCheck = document.getElementById('auto-reload');
+
+function stopAutoReload() {
+  if (autoReloadTimer) { clearInterval(autoReloadTimer); autoReloadTimer = null; }
+  autoReloadCheck.checked = false;
+}
+
+autoReloadCheck.addEventListener('change', () => {
+  if (autoReloadCheck.checked) {
+    autoReloadTimer = setInterval(captureFramebuffer, 5000);
+  } else {
+    stopAutoReload();
+  }
+});
+
+// ─── Command Dump Tab ────────────────────────────────────────────────────────
+
+document.getElementById('btn-force-trigger').addEventListener('click', async () => {
+  try {
+    await conn.sendCommand({ command: 'cmddump_start' }, 5000);
+    await conn.sendCommand({ command: 'cmddump_forcetrigger' }, 5000);
+    dumpLastStatus = null;
+    dumpLastBytes = -1;
+    showToast('Dump triggered', 'success');
+  } catch (e) {
+    showToast('Force trigger failed: ' + e.message, 'error');
+  }
+});
+
+document.getElementById('btn-abort').addEventListener('click', async () => {
+  try {
+    await conn.sendCommand({ command: 'cmddump_abort' }, 5000);
+    showToast('Dump aborted');
+  } catch (e) {
+    showToast('Abort failed: ' + e.message, 'error');
+  }
+});
+
+function startDumpPolling() {
+  if (dumpPollTimer) return;
+  dumpPollTimer = setInterval(pollDumpStatus, 500);
+}
+
+function stopDumpPolling() {
+  if (dumpPollTimer) { clearInterval(dumpPollTimer); dumpPollTimer = null; }
+}
+
+async function pollDumpStatus() {
+  if (!conn.connected) return;
+  try {
+    const resp = await conn.sendCommand({ command: 'cmddump_getstatus' }, 3000);
+    const obj = JSON.parse(resp);
+    const { status, bytes } = obj;
+
+    // Update status badge
+    const badge = document.getElementById('dump-status-badge');
+    badge.textContent = status;
+    badge.className = 'status-badge ' + status;
+    document.getElementById('dump-byte-count').textContent = bytes + ' bytes';
+
+    if (status !== dumpLastStatus || bytes !== dumpLastBytes) {
+      dumpLastStatus = status;
+      dumpLastBytes = bytes;
+      await fetchAndRenderDump();
+    }
+  } catch (e) {
+    // Ignore timeout during polling; might be busy sending framebuffer
+  }
+}
+
+async function fetchAndRenderDump() {
+  try {
+    const resp = await conn.sendCommand({ command: 'cmddump_read' }, 8000);
+    const obj = JSON.parse(resp);
+    const raw = base64Decode(obj.data);
+    console.log(`[DUMP] length=${obj.length} words, decoded=${raw.length} bytes (expected=${obj.length * 2})`);
+    const el = document.getElementById('dump-byte-count');
+    const mismatch = raw.length !== obj.length * 2 ? ` ⚠ decoded ${raw.length}` : '';
+    el.textContent = (dumpLastBytes >= 0 ? dumpLastBytes : raw.length) + ' bytes' + mismatch;
+    renderDump(raw);
+  } catch (e) {
+    console.warn('cmddump_read failed:', e.message);
+  }
+}
+
+const DUMP_COLS = 16;
+
+function renderDump(raw) {
+  const view = document.getElementById('dump-view');
+
+  if (!raw || raw.length < 2) {
+    view.innerHTML = '<span style="color:var(--text-muted)">No data.</span>';
+    return;
+  }
+
+  // Decode uint16_t words (little-endian)
+  const words = [];
+  for (let i = 0; i + 1 < raw.length; i += 2) {
+    words.push(raw[i] | (raw[i + 1] << 8));
+  }
+
+  const frag = document.createDocumentFragment();
+  let colParity = 0;  // alternates for data byte background
+
+  for (let i = 0; i < words.length; i += DUMP_COLS) {
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'dump-row';
+
+    const addr = document.createElement('span');
+    addr.className = 'dump-row-addr';
+    addr.textContent = i.toString(16).padStart(3, '0') + ':';
+    rowDiv.appendChild(addr);
+
+    colParity = 0;
+    for (let j = 0; j < DUMP_COLS && i + j < words.length; j++) {
+      const word = words[i + j];
+      const cell = document.createElement('span');
+      cell.className = 'dump-cell';
+
+      if (word & 0x8000) {
+        // Special event
+        if (word === 0x8001) {
+          cell.classList.add('evt-rst');
+          cell.textContent = 'RST';
+        } else {
+          cell.classList.add('evt-unk');
+          cell.textContent = '??';
+        }
+      } else if (word & 0x100) {
+        // Data byte
+        cell.classList.add(colParity ? 'dat1' : 'dat0');
+        cell.textContent = (word & 0xFF).toString(16).padStart(2, '0').toUpperCase();
+        colParity ^= 1;
+      } else {
+        // Command byte
+        cell.classList.add('cmd');
+        cell.textContent = (word & 0xFF).toString(16).padStart(2, '0').toUpperCase();
+        colParity = 0;
+      }
+
+      rowDiv.appendChild(cell);
+    }
+    frag.appendChild(rowDiv);
+  }
+
+  view.innerHTML = '';
+  view.appendChild(frag);
+}
+
+// ─── Base64 decode ───────────────────────────────────────────────────────────
+
+function base64Decode(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+// ─── Utility ─────────────────────────────────────────────────────────────────
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

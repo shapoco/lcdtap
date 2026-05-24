@@ -8,6 +8,7 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 - Runtime configuration via OSD menu: interface, controller type, pixel format, LCD size, inversion, R/B swap, rotation, scale mode
 - Settings (including selected interface) saved to flash on Apply and restored at next boot
 - DVI output: 640×480@60Hz or 1280×720@30Hz selectable via GPIO21 at boot
+- USB CDC serial interface for remote configuration and framebuffer readout from a PC or smartphone
 
 > [!WARNING]
 > Parallel Mode has not been tested yet. Please let me know if it works!
@@ -62,6 +63,67 @@ Each row displays 16 entries. Colors indicate the type of each entry:
 | White on black / dark-gray (alternating) | Data byte |
 | Black on yellow (`HR`) | Hardware reset event |
 | `..` in dark gray | Empty (not yet captured) |
+
+## USB Serial Interface
+
+LcdTap-Pico2 Universal exposes a USB CDC (virtual COM port) that accepts JSON commands terminated with CRLF (`\r\n`).
+
+### Quick start
+
+Connect via any serial terminal at any baud rate (USB CDC ignores baud):
+
+```
+{"command":"hello"}
+```
+
+Response:
+
+```
+{"response":"welcome lcdtap"}
+```
+
+### Supported commands
+
+| Command | Description |
+|---------|-------------|
+| `hello` | Verify the connection |
+| `getparams` | Get all configuration parameters as JSON |
+| `setparams` | Update one or more parameters and save to flash |
+| `getframebuffer` | Read the current framebuffer as Base64-encoded RGB565 |
+| `cmddump_start` | Start capturing the LCD command stream |
+| `cmddump_abort` | Abort an in-progress capture |
+| `cmddump_forcetrigger` | Force the capture to the active state immediately |
+| `cmddump_getstatus` | Get the capture state (`WAIT`, `ACTIVE`, or `COMPLETE`) |
+| `cmddump_read` | Read the captured command data as Base64 |
+
+See [UART_PROTOCOL.md](UART_PROTOCOL.md) for the full protocol specification.
+
+### Example: read framebuffer with Python
+
+```python
+import serial, base64, struct
+from PIL import Image
+
+port = serial.Serial('/dev/ttyACM0', timeout=5)
+port.write(b'{"command":"getframebuffer"}\r\n')
+resp = port.readline()
+
+import json
+j = json.loads(resp)
+w, h = j['width'], j['height']
+raw = base64.b64decode(j['data'])
+pixels = struct.unpack(f'<{w*h}H', raw)
+
+img = Image.new('RGB', (w, h))
+img.putdata([(((p>>11)&0x1F)<<3, ((p>>5)&0x3F)<<2, (p&0x1F)<<3) for p in pixels])
+img.save('framebuffer.png')
+```
+
+### Example: change LCD resolution
+
+```
+{"command":"setparams","params":{"lcdWidth":128,"lcdHeight":64}}
+```
 
 ## GPIO Assignments
 

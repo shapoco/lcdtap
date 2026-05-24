@@ -27,6 +27,7 @@ class ControllerBase {
   bool sleeping;
   bool displayOn;
   bool inverted;
+  bool writeProtected = false;
   InterfaceFormat interfaceFormat;
 
   // Command state machine
