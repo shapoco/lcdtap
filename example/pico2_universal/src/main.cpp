@@ -136,7 +136,7 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   lcdtap::OsdMenuItem p = {};
   p.type = lcdtap::OsdMenuType::ACTION;
   p.unit = "";
-  p.values = nullptr;
+  p.options = nullptr;
   p.value = 0;
 
   p.id = OSD_USER_ITEM_ID_PRESET_ST7789;
@@ -157,7 +157,7 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   item.type = lcdtap::OsdMenuType::ENUM;
   item.name = "Interface";
   item.unit = "";
-  item.values = kInterfaceNames;
+  item.options = kInterfaceNames;
   item.min = 0;
   item.max = 3;
   item.step = 1;

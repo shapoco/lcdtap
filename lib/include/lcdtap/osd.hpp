@@ -62,7 +62,7 @@ struct OsdMenuItem {
   OsdMenuType type;
   const char* name;     // Item label
   const char* unit;     // Unit string shown after the value (e.g. "px", "deg")
-  const char** values;  // Display strings for ENUM type (nullptr otherwise)
+  const char** options; // Display strings for ENUM type (nullptr otherwise)
   int16_t min;          // Minimum value (INTEGER / ENUM index)
   int16_t max;          // Maximum value (INTEGER / ENUM index)
   int16_t step;         // Increment per key press (INTEGER / ENUM)

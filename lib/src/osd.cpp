@@ -280,7 +280,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::ENUM;
     it.name = "Controller Type";
     it.unit = "";
-    it.values = kControllerNames;
+    it.options = kControllerNames;
     it.min = 0;
     it.max = static_cast<int16_t>(kNumControllers - 1);
     it.step = 1;
@@ -293,7 +293,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::INTEGER;
     it.name = "LCD Width";
     it.unit = "px";
-    it.values = nullptr;
+    it.options = nullptr;
     it.min = 32;
     it.max = 480;
     it.step = 8;
@@ -306,7 +306,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::INTEGER;
     it.name = "LCD Height";
     it.unit = "px";
-    it.values = nullptr;
+    it.options = nullptr;
     it.min = 32;
     it.max = 480;
     it.step = 8;
@@ -319,7 +319,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::BOOL;
     it.name = "Inversion";
     it.unit = "";
-    it.values = kOnOffNames;
+    it.options = kOnOffNames;
     it.min = 0;
     it.max = 1;
     it.step = 1;
@@ -332,7 +332,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::BOOL;
     it.name = "Swap Red/Blue";
     it.unit = "";
-    it.values = kOnOffNames;
+    it.options = kOnOffNames;
     it.min = 0;
     it.max = 1;
     it.step = 1;
@@ -345,7 +345,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::BOOL;
     it.name = "Force Power On";
     it.unit = "";
-    it.values = kOnOffNames;
+    it.options = kOnOffNames;
     it.min = 0;
     it.max = 1;
     it.step = 1;
@@ -358,7 +358,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::ENUM;
     it.name = "Output Rotation";
     it.unit = "deg";
-    it.values = kRotationNames;
+    it.options = kRotationNames;
     it.min = 0;
     it.max = 3;
     it.step = 1;
@@ -371,7 +371,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::ENUM;
     it.name = "Output Scaling";
     it.unit = "";
-    it.values = kScaleModeNames;
+    it.options = kScaleModeNames;
     it.min = 0;
     it.max = static_cast<int16_t>(kNumScaleModes - 1);
     it.step = 1;
@@ -384,7 +384,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::ACTION;
     it.name = "Command Dump";
     it.unit = "";
-    it.values = nullptr;
+    it.options = nullptr;
     it.min = 0;
     it.max = 0;
     it.step = 0;
@@ -397,7 +397,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::ACTION;
     it.name = "Apply";
     it.unit = "";
-    it.values = nullptr;
+    it.options = nullptr;
     it.min = 0;
     it.max = 0;
     it.step = 0;
@@ -410,7 +410,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.type = OsdMenuType::ACTION;
     it.name = "Cancel";
     it.unit = "";
-    it.values = nullptr;
+    it.options = nullptr;
     it.min = 0;
     it.max = 0;
     it.step = 0;
@@ -585,9 +585,9 @@ void Osd::formatValue(char* buf, int bufLen, const OsdMenuItem& item) const {
   switch (item.type) {
     case OsdMenuType::BOOL:
     case OsdMenuType::ENUM:
-      if (item.values && item.value >= item.min && item.value <= item.max) {
+      if (item.options && item.value >= item.min && item.value <= item.max) {
         snprintf(buf, static_cast<size_t>(bufLen), "%s",
-                 item.values[item.value - item.min]);
+                 item.options[item.value - item.min]);
       } else {
         snprintf(buf, static_cast<size_t>(bufLen), "---");
       }
