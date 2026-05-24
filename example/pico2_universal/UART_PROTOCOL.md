@@ -1,123 +1,144 @@
 # UART Protocol
 
-- ホストから「コマンド」を投げ、それに対して LcdTap が「レスポンス」を返す形で通信する。
-- コマンドもレスポンスも行頭から始まり、コンテンツは JSON 文字列で構成され、改行(CRLF)で終わる。
-- コマンドは次の形式。実際には改行やインデントは含まれない。
+- The host sends a "command" and LcdTap returns a "response".
+- Both commands and responses start at the beginning of a line, with content in JSON format, terminated by a newline (CRLF).
+- Commands have the following structure. In practice, no newlines or indentation are included.
     
     ```json
     {
-        "command": コマンド名(文字列),
+        "command": command name (string),
         "params": {
-            "パラメータ名1": パラメータ値1,
-            "パラメータ名2": パラメータ値2,
-            "パラメータ名3": パラメータ値3,
+            "paramName1": paramValue1,
+            "paramName2": paramValue2,
+            "paramName3": paramValue3,
             ...
         }
     }
     ```
     
-    - LcdTap 側の字句解析の簡単のため、コマンドについては各トークンは ASCII 文字のみで構成され、最長 64 文字とする。
+    - To simplify lexical analysis on the LcdTap side, each token in a command must consist only of ASCII characters and must be at most 64 characters long.
     
-- レスポンスはコマンドに応じた JSON 文字列。
+- The response is a JSON string corresponding to the command.
 
-## コマンドリファレンス
+## Command Reference
 
 ### hello
 
-ホストから見てシリアルポートの先に LcdTap が繋がっていることを確認する
+Verify that LcdTap is connected to the serial port from the host side.
 
-- コマンド:
+- Command:
 
     ```json
     {"command": "hello"}
     ```
 
-- レスポンス:
+- Response:
     
     ```json
     {"response": "welcome lcdtap"}
     ```
 
-### getparams
+### getpresets
 
-LcdTap が持つ設定項目の一覧を JSON で取得する
+Get the list of presets held by LcdTap as JSON.
 
-- コマンド:
+- Command:
     
     ```json
-    {"command": "getparams"}
+    {"command": "getpresets"}
     ```
 
-- レスポンス:
+- Response:
 
     ```json
-    {"params":[パラメータリスト]}
+    {"presets": ["ST7789", "SSD1306", ...]}
     ```
 
-パラメータリストの要素のタイプ:
+### getparams
 
-- 整数:
+Get the list of configuration parameters held by LcdTap as JSON.
 
+- Command:
+    
     ```json
     {
-        "id":メニューID(文字列),
-        "type":"INTEGER",
-        "name":アイテムラベル(文字列),
-        "unit":単位(文字列) または null,
-        "min":最小値(整数),
-        "max":最大値(整数),
-        "step":数値の変化量(整数),
-        "value":現在の値(整数)
+        "command": "getparams",
+        "preset": "preset name obtained from getpresets (string, optional)"
     }
     ```
 
-- 真偽値:
+    - If `preset` is specified, returns the values for that preset; otherwise returns the current values.
+
+- Response:
+
+    ```json
+    {"params":[parameter list]}
+    ```
+
+Parameter list element types:
+
+- Integer:
 
     ```json
     {
-        "id":メニューID(文字列),
-        "type":"BOOLEAN",
-        "name":アイテムラベル(文字列),
-        "value":現在の値(真偽値)
+        "id": menu ID (string),
+        "type": "INTEGER",
+        "name": item label (string),
+        "unit": unit (string) or null,
+        "min": minimum value (integer),
+        "max": maximum value (integer),
+        "step": step size (integer),
+        "value": current value (integer)
     }
     ```
 
-- 列挙値:
+- Boolean:
 
     ```json
     {
-        "id":メニューID(文字列),
-        "type":"ENUM",
-        "name":アイテムラベル(文字列),
-        "unit":単位(文字列) または null,
-        "options":{
-            "選択肢1": 値1(整数),
-            "選択肢2": 値2(整数),
-            "選択肢3": 値3(整数),
+        "id": menu ID (string),
+        "type": "BOOLEAN",
+        "name": item label (string),
+        "value": current value (boolean)
+    }
+    ```
+
+- Enum:
+
+    ```json
+    {
+        "id": menu ID (string),
+        "type": "ENUM",
+        "name": item label (string),
+        "unit": unit (string) or null,
+        "options": {
+            "option1": value1 (integer),
+            "option2": value2 (integer),
+            "option3": value3 (integer),
             ...
         },
-        "value":現在の値(整数)
+        "value": current value (integer)
     }
     ```
 
 ### setparams
 
-ホストから LcdTap の設定を一括設定する
+Set LcdTap configuration parameters in bulk from the host.
 
-- コマンド:
+- Command:
 
     ```json
     {
         "command": "setparams",
         "params": {
-            "メニューID1": 値1(整数/真偽値),
-            "メニューID2": 値2(整数/真偽値),
+            "menuId1": value1 (integer/boolean),
+            "menuId2": value2 (integer/boolean),
             ...
         }
     }
     ```
 
-- レスポンス:
+- Response:
 
     ```json
     {"response": "ok"}
@@ -125,38 +146,41 @@ LcdTap が持つ設定項目の一覧を JSON で取得する
 
 ### getframebuffer
 
-フレームバッファの内容を取得する
+Get the contents of the frame buffer.
 
-- コマンド:
-
-    ```json
-    {"command": "getframebuffer"}
-    ```
-
-- レスポンス:
+- Command:
 
     ```json
     {
-        "width": フレームバッファの幅(整数),
-        "height": フレームバッファの高さ(整数),
-        "format": "RGB565",
-        "data": RGB565画像をリトルエンディアンでBase64エンコードしたもの(文字列)
+        "command": "getframebuffer",
+        "writeProtected": whether to suppress writes while reading the frame buffer (boolean)
     }
     ```
 
-    - スケーリングはしないが、回転、明暗の反転、R/Bの入れ替えは DVI 出力と同じ見た目になるようにする。
+- Response:
+
+    ```json
+    {
+        "width": frame buffer width (integer),
+        "height": frame buffer height (integer),
+        "format": "RGB565",
+        "data": RGB565 image encoded as Base64 in little-endian byte order (string)
+    }
+    ```
+
+    - No scaling is applied, but rotation, brightness inversion, and R/B swapping are applied to match the appearance of the DVI output.
 
 ### dump_start
 
-コマンドダンプのキャプチャを開始する
+Start capturing a command dump.
 
-- コマンド:
+- Command:
 
     ```json
     {"command": "cmddump_start"}
     ```
 
-- レスポンス:
+- Response:
 
     ```json
     {"response": "ok"}
@@ -164,15 +188,15 @@ LcdTap が持つ設定項目の一覧を JSON で取得する
 
 ### dump_abort
 
-コマンドダンプのキャプチャを中止する
+Abort a command dump capture.
 
-- コマンド:
+- Command:
 
     ```json
     {"command": "cmddump_abort"}
     ```
 
-- レスポンス:
+- Response:
 
     ```json
     {"response": "ok"}
@@ -180,15 +204,15 @@ LcdTap が持つ設定項目の一覧を JSON で取得する
 
 ### dump_forcetrigger
 
-コマンドダンプのキャプチャを強制的に開始する
+Force-trigger a command dump capture.
 
-- コマンド:
+- Command:
 
     ```json
     {"command": "cmddump_forcetrigger"}
     ```
 
-- レスポンス:
+- Response:
 
     ```json
     {"response": "ok"}
@@ -196,35 +220,35 @@ LcdTap が持つ設定項目の一覧を JSON で取得する
 
 ### dump_getstatus
 
-コマンドダンプの状態を取得する
+Get the current status of the command dump.
 
-- コマンド:
+- Command:
 
     ```json
     {"command": "cmddump_getstatus"}
     ```
 
-- レスポンス:
+- Response:
 
     ```json
-    {"status": "WAIT"、"ACTIVE"、"COMPLETE" のいずれか, "bytes": バッファの格納バイト数(整数)}
+    {"status": one of "WAIT", "ACTIVE", or "COMPLETE", "bytes": number of bytes stored in the buffer (integer)}
     ```
 
 ### dump_read
 
-コマンドダンプの内容を取得する
+Get the contents of the command dump.
 
-- コマンド:
+- Command:
 
     ```json
     {"command": "cmddump_read"}
     ```
 
-- レスポンス:
+- Response:
 
     ```json
     {
-        "length": キャプチャされたデータの長さ(整数),
-        "data": キャプチャされたコマンドデータをBase64エンコードしたもの(文字列)
+        "length": length of captured data (integer),
+        "data": captured command data encoded as Base64 (string)
     }
     ```

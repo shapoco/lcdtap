@@ -252,6 +252,10 @@ enum class ParseState {
   EXPECT_PARAM_VALUE,
   EXPECT_AFTER_PARAM,
   EXPECT_AFTER_TOP_KV,
+  EXPECT_PRESET_COLON,
+  EXPECT_PRESET_VALUE,
+  EXPECT_WP_COLON,
+  EXPECT_WP_VALUE,
   CMD_READY,
   ERROR,
 };
@@ -269,12 +273,16 @@ struct Parser {
   Param params[MAX_PARAMS] = {};
   int numParams = 0;
   bool hasParams = false;
+  char preset[TOK_MAX_LEN + 1] = {};
+  bool writeProtected = false;
 
   void reset() {
     state = ParseState::EXPECT_OBJ_OPEN;
     command[0] = '\0';
     numParams = 0;
     hasParams = false;
+    preset[0] = '\0';
+    writeProtected = false;
   }
 };
 
@@ -299,6 +307,10 @@ static bool parserFeed(Parser& p, const Token& tok) {
           p.state = ParseState::EXPECT_CMD_COLON;
         } else if (strcmp(tok.buf, "params") == 0) {
           p.state = ParseState::EXPECT_PARAMS_COLON;
+        } else if (strcmp(tok.buf, "preset") == 0) {
+          p.state = ParseState::EXPECT_PRESET_COLON;
+        } else if (strcmp(tok.buf, "writeProtected") == 0) {
+          p.state = ParseState::EXPECT_WP_COLON;
         } else {
           p.state = ParseState::ERROR;
           return true;
@@ -408,6 +420,48 @@ static bool parserFeed(Parser& p, const Token& tok) {
       }
       break;
 
+    case ParseState::EXPECT_PRESET_COLON:
+      if (tok.type == TokType::COLON) {
+        p.state = ParseState::EXPECT_PRESET_VALUE;
+      } else {
+        p.state = ParseState::ERROR;
+        return true;
+      }
+      break;
+
+    case ParseState::EXPECT_PRESET_VALUE:
+      if (tok.type == TokType::STRING) {
+        strncpy(p.preset, tok.buf, TOK_MAX_LEN);
+        p.preset[TOK_MAX_LEN] = '\0';
+        p.state = ParseState::EXPECT_AFTER_TOP_KV;
+      } else {
+        p.state = ParseState::ERROR;
+        return true;
+      }
+      break;
+
+    case ParseState::EXPECT_WP_COLON:
+      if (tok.type == TokType::COLON) {
+        p.state = ParseState::EXPECT_WP_VALUE;
+      } else {
+        p.state = ParseState::ERROR;
+        return true;
+      }
+      break;
+
+    case ParseState::EXPECT_WP_VALUE:
+      if (tok.type == TokType::BOOL_TRUE) {
+        p.writeProtected = true;
+        p.state = ParseState::EXPECT_AFTER_TOP_KV;
+      } else if (tok.type == TokType::BOOL_FALSE) {
+        p.writeProtected = false;
+        p.state = ParseState::EXPECT_AFTER_TOP_KV;
+      } else {
+        p.state = ParseState::ERROR;
+        return true;
+      }
+      break;
+
     case ParseState::EXPECT_AFTER_TOP_KV:
       if (tok.type == TokType::COMMA) {
         p.state = ParseState::EXPECT_TOP_KEY_OR_CLOSE;
@@ -474,6 +528,14 @@ struct RespGen {
   uint16_t dumpLen = 0;
   uint16_t dumpPos = 0;
   bool dumpHighByte = false;  // true = next byte to send is high byte
+
+  // getframebuffer: whether write protection was engaged
+  bool fbWriteProtected = false;
+
+  // getparams: preset config (used when paramUsePreset is true)
+  bool paramUsePreset = false;
+  lcdtap::LcdTapConfig paramPresetCfg;
+  InterfaceType paramPresetIface = InterfaceType::SPI_4LINE;
 
   // Per-call chunk buffer for formatted segments
   char chunkBuf[192] = {};
@@ -617,6 +679,29 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
 }
 
 // =============================================================================
+// Preset config helper
+// =============================================================================
+
+static bool makePresetConfig(const char* name, lcdtap::LcdTapConfig* cfgOut,
+                             InterfaceType* ifaceOut) {
+  lcdtap::ControllerType ct;
+  if (strcmp(name, "ST7789") == 0) {
+    ct = lcdtap::ControllerType::ST7789;
+    *ifaceOut = InterfaceType::SPI_4LINE;
+  } else if (strcmp(name, "SSD1306") == 0) {
+    ct = lcdtap::ControllerType::SSD1306;
+    *ifaceOut = InterfaceType::I2C;
+  } else if (strcmp(name, "SSD1331") == 0) {
+    ct = lcdtap::ControllerType::SSD1331;
+    *ifaceOut = InterfaceType::SPI_4LINE;
+  } else {
+    return false;
+  }
+  lcdtap::getDefaultConfig(ct, cfgOut);
+  return true;
+}
+
+// =============================================================================
 // Command execution
 // =============================================================================
 
@@ -634,12 +719,24 @@ static void execCommand(const Parser& p) {
     return;
   }
 
+  // ----- getpresets -----
+  if (strcmp(cmd, "getpresets") == 0) {
+    respSetShort("{\"presets\":[\"ST7789\",\"SSD1306\",\"SSD1331\"]}\r\n");
+    return;
+  }
+
   // ----- getparams -----
   if (strcmp(cmd, "getparams") == 0) {
     gResp.phase = RespPhase::PARAMS;
     gResp.paramIdx = 0;
     gResp.chunkLen = 0;
     gResp.chunkPos = 0;
+    if (p.preset[0] != '\0') {
+      gResp.paramUsePreset = makePresetConfig(p.preset, &gResp.paramPresetCfg,
+                                              &gResp.paramPresetIface);
+    } else {
+      gResp.paramUsePreset = false;
+    }
     return;
   }
 
@@ -691,7 +788,8 @@ static void execCommand(const Parser& p) {
 
   // ----- getframebuffer -----
   if (strcmp(cmd, "getframebuffer") == 0) {
-    gLcdTap->setWriteProtected(true);
+    gResp.fbWriteProtected = p.writeProtected;
+    if (p.writeProtected) gLcdTap->setWriteProtected(true);
 
     lcdtap::LcdTapConfig cfg = gLcdTap->getConfig();
     uint16_t physW = cfg.lcdWidth;
@@ -848,8 +946,16 @@ static void respFlush() {
 
     case RespPhase::PARAMS: {
       if (!drainChunk()) break;
-      lcdtap::LcdTapConfig cfg = gLcdTap->getConfig();
-      if (!buildParamChunk(gResp.paramIdx, cfg, *gCurrentIface)) {
+      lcdtap::LcdTapConfig cfg;
+      InterfaceType iface;
+      if (gResp.paramUsePreset) {
+        cfg = gResp.paramPresetCfg;
+        iface = gResp.paramPresetIface;
+      } else {
+        cfg = gLcdTap->getConfig();
+        iface = *gCurrentIface;
+      }
+      if (!buildParamChunk(gResp.paramIdx, cfg, iface)) {
         gResp.phase = RespPhase::IDLE;
         break;
       }
@@ -871,7 +977,7 @@ static void respFlush() {
         if (!b64FlushPad()) break;
         chunkFromStr("\"}\r\n");
         gResp.phase = RespPhase::FB_FOOTER;
-        gLcdTap->setWriteProtected(false);
+        if (gResp.fbWriteProtected) gLcdTap->setWriteProtected(false);
         break;
       }
 

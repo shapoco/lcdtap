@@ -252,6 +252,26 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
 
 .config-actions { margin-top: 20px; display: flex; gap: 10px; }
 
+/* Preset controls */
+.preset-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.preset-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 5px 30px 5px 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b949e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+  min-width: 160px;
+}
+.preset-select:focus { outline: none; border-color: var(--accent); }
+
 /* ── Frame Buffer tab ────────────────────────────────────── */
 .fb-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 
@@ -397,7 +417,14 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
 
 <!-- ── Config tab ──────────────────────────────────────── -->
 <div class="tab-pane active" id="tab-config">
-  <div class="section-title">Parameters</div>
+  <div class="section-title">Presets</div>
+  <div class="preset-controls">
+    <select id="preset-select" class="preset-select">
+      <option value="">-- Select a preset --</option>
+    </select>
+    <button id="btn-load-preset" disabled>Load</button>
+  </div>
+  <div class="section-title" style="margin-top: 20px;">Parameters</div>
   <div class="param-list" id="param-list">
     <div style="color:var(--text-muted)">Connect to a device to load parameters.</div>
   </div>
@@ -420,6 +447,15 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
           <div class="toggle-track"></div>
         </div>
         Auto Reload (5s)
+      </label>
+    </div>
+    <div class="auto-reload-ctrl">
+      <label>
+        <div class="toggle">
+          <input type="checkbox" id="write-protected">
+          <div class="toggle-track"></div>
+        </div>
+        Write Protected
       </label>
     </div>
   </div>
@@ -572,7 +608,7 @@ function setConnected(yes) {
   btnConnect.disabled    =  yes;
   btnDisconnect.disabled = !yes;
   document.querySelectorAll('.tab-btn').forEach(b => { b.disabled = !yes; });
-  document.querySelectorAll('#btn-apply,#btn-refresh-params,#btn-capture,#btn-force-trigger,#btn-abort')
+  document.querySelectorAll('#btn-apply,#btn-refresh-params,#btn-load-preset,#btn-capture,#btn-force-trigger,#btn-abort')
     .forEach(b => { b.disabled = !yes; });
   // Copy/Save stay disabled until a frame is captured
   if (!yes) {
@@ -599,6 +635,7 @@ btnConnect.addEventListener('click', async () => {
     setConnected(true);
     showToast('Connected to LcdTap', 'success');
     // Auto-load config tab
+    await loadPresets();
     await loadParams();
   } catch (e) {
     try { await conn.disconnect(); } catch (_) {}
@@ -635,6 +672,23 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 // ─── Config Tab ─────────────────────────────────────────────────────────────
+
+async function loadPresets() {
+  try {
+    const resp = await conn.sendCommand({ command: 'getpresets' }, 5000);
+    const obj = JSON.parse(resp);
+    const select = document.getElementById('preset-select');
+    select.innerHTML = '<option value="">-- Select a preset --</option>';
+    for (const name of obj.presets) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    }
+  } catch (e) {
+    showToast('getpresets failed: ' + e.message, 'error');
+  }
+}
 
 async function loadParams() {
   try {
@@ -787,6 +841,24 @@ document.getElementById('btn-apply').addEventListener('click', async () => {
 
 document.getElementById('btn-refresh-params').addEventListener('click', loadParams);
 
+document.getElementById('btn-load-preset').addEventListener('click', async () => {
+  const presetName = document.getElementById('preset-select').value;
+  if (!presetName) return;
+  const btn = document.getElementById('btn-load-preset');
+  btn.disabled = true;
+  try {
+    const resp = await conn.sendCommand({ command: 'getparams', preset: presetName }, 8000);
+    const obj = JSON.parse(resp);
+    params = obj.params;
+    buildParamUI(params);
+    showToast(`Preset "${presetName}" loaded`, 'success');
+  } catch (e) {
+    showToast('Load preset failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = !conn.connected;
+  }
+});
+
 // ─── Frame Buffer Tab ────────────────────────────────────────────────────────
 
 const canvas = document.getElementById('fb-canvas');
@@ -796,7 +868,8 @@ async function captureFramebuffer() {
   const btnCapture = document.getElementById('btn-capture');
   btnCapture.disabled = true;
   try {
-    const resp = await conn.sendCommand({ command: 'getframebuffer' }, 60000);
+    const writeProtected = document.getElementById('write-protected').checked;
+    const resp = await conn.sendCommand({ command: 'getframebuffer', writeProtected }, 60000);
     const obj = JSON.parse(resp);
     const { width, height, data: b64 } = obj;
 
