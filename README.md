@@ -14,6 +14,7 @@ and outputs the framebuffer as a DVI-D signal.
 - Programmable screen sizes (up to 480x320 supported on Pico2)
 - Command Dump: Captures and displays LCD control commands
 - OSD Menu: Configure settings at runtime via on-screen display
+- Serial Interface: Remote configuration and framebuffer readout over USB CDC
 - Supported Controllers: ST7789, ILI9341, ILI9488, SSD1306, SSD1309, SSD1331, and some variants
 - Supported Interfaces: SPI (4-line, 3-line), I2C, Parallel
 - Supported Pixel Formats: Monochrome, RGB111, RGB332, RGB444, RGB565, RGB666
