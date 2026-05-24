@@ -165,6 +165,15 @@ img.save('framebuffer.png')
 | 3–10 | IN | D[0..7] | | | parallel data |
 | 11 | IN | DC | | | D/C# signal |
 
+## UART/Web App
+
+LcdTap-Pico2 Universal accepts JSON commands over the USB CDC serial interface.
+This allows remote configuration and framebuffer readout from a PC.
+
+Available here: https://shapoco.github.io/lcdtap/monitor
+
+![](./image/web_app.png)
+
 ## Build
 
 ```bash
