@@ -104,12 +104,9 @@ class ControllerBase {
   void resetCommon();
 
   // Write one RGB565 pixel to the framebuffer (respects MADCTL BGR)
-  LCDTAP_INLINE void writePixelRgb565(uint16_t px) {
+  LCDTAP_INLINE void writePixelRgb565(uint_fast16_t px) {
     if (cachedBGR) {  // BGR: swap R[15:11] and B[4:0]
-      uint16_t r = (px >> 11) & 0x1Fu;
-      uint16_t g = (px >> 5) & 0x3Fu;
-      uint16_t b = px & 0x1Fu;
-      px = static_cast<uint16_t>((b << 11) | (g << 5) | r);
+      px = ((px << 11) & 0xF800u) | (px & 0x07E0u) | ((px >> 11) & 0x1Fu);
     }
     *writePtr = px;
     writePtr += cachedHStep;
