@@ -21,19 +21,15 @@ add_subdirectory(
     libdvi
 )
 
+# Shared pico2 peripheral drivers (SPI/I2C/DVI)
+add_subdirectory(../../example/pico2_common pico2_common)
+
 add_executable(lcdtap_pico2_ssd1306
     src/main.cpp
 )
 
-# Generate the PIO header from spi_4line_mode0.pio (SPI mode)
-pico_generate_pio_header(lcdtap_pico2_ssd1306
-    ${CMAKE_CURRENT_LIST_DIR}/src/spi_4line_mode0.pio
-)
-
 target_include_directories(lcdtap_pico2_ssd1306 PRIVATE
     include
-    # PicoDVI pin-config header lives here
-    ../../submodule/PicoDVI/software/include
 )
 
 # DVI_DEFAULT_PIO_INST must be pio0 so libdvi and pico_sock_cfg agree.
@@ -50,16 +46,10 @@ foreach(VAR LCDTAP_LCD_SIZE1_W LCDTAP_LCD_SIZE1_H LCDTAP_LCD_SIZE2_W LCDTAP_LCD_
 endforeach()
 
 target_link_libraries(lcdtap_pico2_ssd1306
-    lcdtap
-    libdvi
+    pico2_common      # pulls in lcdtap, libdvi, hardware_dma/gpio/i2c/irq/pio
     pico_stdlib
     pico_multicore
     hardware_clocks
-    hardware_dma
-    hardware_gpio
-    hardware_i2c
-    hardware_irq
-    hardware_pio
     hardware_vreg
 )
 

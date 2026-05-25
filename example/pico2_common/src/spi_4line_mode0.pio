@@ -37,6 +37,11 @@
 ;   next falling edge.  SSD1306 max SPI clock is ~10 MHz, so there is ample
 ;   margin in practice.
 ;
+; Startup sync:
+;   CS is HIGH when idle.  The SM waits for CS LOW before entering the main
+;   loop, so a CS that is already LOW on power-up does not cause a spurious
+;   transaction to be sampled.
+;
 ; CS de-assertion (rising edge) handling:
 ;   A GPIO IRQ on PIN_SPI_CS calls a CPU handler that: disables the SM, clears
 ;   FIFOs, calls pio_sm_restart() to reset ISR/shift counters, executes a JMP

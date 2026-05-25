@@ -3,30 +3,21 @@
 #include <cstring>
 #include <initializer_list>
 
-#include "hardware/clocks.h"
-#include "hardware/dma.h"
-#include "hardware/gpio.h"
-#include "hardware/i2c.h"
-#include "hardware/irq.h"
-#include "hardware/pio.h"
-#include "hardware/regs/i2c.h"
-#include "hardware/structs/i2c.h"
-#include "hardware/vreg.h"
-#include "pico/multicore.h"
-#include "pico/stdlib.h"
+#include <hardware/clocks.h>
+#include <hardware/gpio.h>
+#include <hardware/vreg.h>
+#include <pico/stdlib.h>
 
 #include "common_dvi_pin_configs.h"  // pico_sock_cfg
 #include "dvi.h"
 #include "dvi_timing.h"
-// tmds_encode.h lacks extern "C" guards, so wrap it here.
-extern "C" {
-#include "tmds_encode.h"
-}
 
 #include "lcdtap/lcdtap.hpp"
+#include "lcdtap/pico2/dvi_out.hpp"
+#include "lcdtap/pico2/i2c_slave.hpp"
+#include "lcdtap/pico2/spi_slave.hpp"
 
 #include "config.h"
-#include "spi_4line_mode0.pio.h"
 
 static_assert(PIN_SPI_CS == SPI_CS_PIN,
               "PIN_SPI_CS mismatch with spi_4line_mode0.pio");
@@ -51,64 +42,32 @@ static void *poolAlloc(size_t size) {
 static void poolFree(void *ptr) { (void)ptr; }
 
 // =============================================================================
-// SPI ring buffer (SPI mode)
-// word = [bit8: DC, bits7:0: data byte]
+// SPI ring buffer  (word = [bit8: DC, bits7:0: data byte])
+// DMA alignment constraint: must be aligned to its own byte size.
 // =============================================================================
 static uint32_t
     __attribute__((aligned(SPI_RING_BUF_BYTES))) spiRingBuf[SPI_RING_BUF_WORDS];
 
-static int spiDmaCh = -1;
-static uint32_t spiReadIdx = 0;
-
 // =============================================================================
-// I2C ring buffer (I2C mode)
-// Filled by IRQ handler; drained by main loop.
-// Same word format: bit[8]=DCX, bits[7:0]=data byte.
+// I2C ring buffer  (same word format as SPI ring buffer)
 // =============================================================================
 static uint32_t i2cRingBuf[I2C_RING_BUF_WORDS];
-static volatile uint32_t i2cWriteIdx = 0;  // bounded: 0..I2C_RING_BUF_WORDS-1
-static uint32_t i2cReadIdx = 0;
-
-// I2C control-byte state machine
-enum class I2cRxState { WAIT_CTRL, STREAM_CMD, STREAM_DATA };
-static volatile I2cRxState i2cRxState = I2cRxState::WAIT_CTRL;
 
 // =============================================================================
 // DVI
 // =============================================================================
 static struct dvi_inst dvi0;
-// Static RGB565 scanline buffers, recycled via q_colour_free.
-// Sized to DVI_MAX_W so they fit any supported DVI timing without allocation.
+
 static uint16_t
     __attribute__((aligned(4))) scanlineBufs[N_SCANLINE_BUFS][DVI_MAX_W];
 
 // =============================================================================
-// LcdTap instance
+// Module state
 // =============================================================================
 static lcdtap::LcdTap *gInst = nullptr;
-
-// PIO program offset — stored so resetPioSm can jump back to the start
-// (pio_sm_restart does not reset the PC).
-static uint gSpiProgOffset = 0u;
-
-// =============================================================================
-// DVI — scan state shared between Core 0 (reader) and Core 1 (writer).
-// gDviH is written once by Core 0 before launching Core 1, then read-only.
-// gNewFrame is written by Core 1 at each frame boundary, read by Core 0.
-// =============================================================================
-static uint32_t gDviH = 0;
-static volatile bool gNewFrame = false;
-
-// =============================================================================
-// Reset PIO State Machine
-// =============================================================================
-static LCDTAP_INLINE void resetPioSm() {
-  pio_sm_set_enabled(SPI_PIO, SPI_SM, false);
-  pio_sm_clear_fifos(SPI_PIO, SPI_SM);
-  pio_sm_restart(SPI_PIO, SPI_SM);
-  pio_sm_exec(SPI_PIO, SPI_SM, pio_encode_jmp(gSpiProgOffset));
-  pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
-}
+static lcdtap::pico2::SpiSlaveState gSpi;
+static lcdtap::pico2::I2cSlaveState gI2c;
+static lcdtap::pico2::DviOutState gDvi;
 
 // =============================================================================
 // GPIO interrupt handler (RST and CS pins, SPI mode)
@@ -116,291 +75,14 @@ static LCDTAP_INLINE void resetPioSm() {
 static void __not_in_flash_func(gpioIrqHandler)(uint gpio, uint32_t events) {
   if (gpio == PIN_SPI_CS) {
     if (events & GPIO_IRQ_EDGE_RISE) {
-      resetPioSm();
+      lcdtap::pico2::spiSlaveResetSm(&gSpi);
     }
   } else if (gpio == PIN_RST && gInst) {
     if (events & GPIO_IRQ_EDGE_FALL) {
       gInst->inputReset(true);
-      resetPioSm();
+      lcdtap::pico2::spiSlaveResetSm(&gSpi);
     }
     gInst->inputReset(!gpio_get(PIN_RST));
-  }
-}
-
-// =============================================================================
-// Core 1: fillScanline + TMDS encode + serialise (never returns).
-//
-// Each iteration:
-//   1. Pull a free RGB565 buffer from q_colour_free.
-//   2. Fill it with LCD framebuffer pixels via fillScanline.
-//   3. Pull a free TMDS buffer from q_tmds_free (paced by the DMA IRQ).
-//   4. SIO-TMDS-encode the RGB565 scanline into the TMDS buffer.
-//   5. Submit the TMDS buffer to q_tmds_valid for DMA output.
-//   6. Return the RGB565 buffer to q_colour_free immediately.
-//
-// q_colour_valid is bypassed entirely; Core 0 can dedicate itself to
-// processSpiRingBuf/processI2cRingBuf without timer preemption.
-//
-// Framebuffer concurrency: Core 0 writes framebuf (via processRamwrData)
-// while Core 1 reads it here. Aligned uint16_t accesses are atomic on ARM,
-// so the worst-case outcome is a torn scanline (visual tearing), not a crash.
-// =============================================================================
-static void __not_in_flash_func(core1Main)() {
-  dvi_register_irqs_this_core(&dvi0, DMA_IRQ_0);
-
-  // Pre-encode one black scanline so dvi_start() has a TMDS buffer ready.
-  // scanlineBufs[0] is zero-initialised (static storage) → black frame.
-  {
-    const uint pixwidth = dvi0.timing->h_active_pixels;
-    const uint wpc = pixwidth / DVI_SYMBOLS_PER_WORD;
-    uint32_t *tmdsbuf;
-    queue_remove_blocking_u32(&dvi0.q_tmds_free, &tmdsbuf);
-    tmds_encode_data_channel_16bpp((uint32_t *)scanlineBufs[0],
-                                   tmdsbuf + 0 * wpc, pixwidth / 2,
-                                   DVI_16BPP_BLUE_MSB, DVI_16BPP_BLUE_LSB);
-    tmds_encode_data_channel_16bpp((uint32_t *)scanlineBufs[0],
-                                   tmdsbuf + 1 * wpc, pixwidth / 2,
-                                   DVI_16BPP_GREEN_MSB, DVI_16BPP_GREEN_LSB);
-    tmds_encode_data_channel_16bpp((uint32_t *)scanlineBufs[0],
-                                   tmdsbuf + 2 * wpc, pixwidth / 2,
-                                   DVI_16BPP_RED_MSB, DVI_16BPP_RED_LSB);
-    queue_add_blocking_u32(&dvi0.q_tmds_valid, &tmdsbuf);
-  }
-
-  dvi_start(&dvi0);
-
-  const uint pixwidth = dvi0.timing->h_active_pixels;
-  const uint wpc = pixwidth / DVI_SYMBOLS_PER_WORD;
-  uint32_t scanY = 0;
-  uint32_t frame = 0;
-  bool led = false;
-
-  while (true) {
-    uint16_t *scanbuf;
-    queue_remove_blocking_u32(&dvi0.q_colour_free, &scanbuf);
-
-    if (gInst) gInst->fillScanline(static_cast<uint16_t>(scanY), scanbuf);
-
-    uint32_t *tmdsbuf;
-    queue_remove_blocking_u32(&dvi0.q_tmds_free, &tmdsbuf);
-
-    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 0 * wpc,
-                                   pixwidth / 2, DVI_16BPP_BLUE_MSB,
-                                   DVI_16BPP_BLUE_LSB);
-    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 1 * wpc,
-                                   pixwidth / 2, DVI_16BPP_GREEN_MSB,
-                                   DVI_16BPP_GREEN_LSB);
-    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 2 * wpc,
-                                   pixwidth / 2, DVI_16BPP_RED_MSB,
-                                   DVI_16BPP_RED_LSB);
-
-    queue_add_blocking_u32(&dvi0.q_tmds_valid, &tmdsbuf);
-    queue_add_blocking_u32(&dvi0.q_colour_free, &scanbuf);
-
-    if (++scanY >= gDviH) {
-      scanY = 0;
-      __dmb();
-      gNewFrame = true;
-      if (++frame % LED_TOGGLE_FRAMES == 0u) {
-        led = !led;
-        gpio_put(PIN_LED, led ? 1 : 0);
-      }
-    }
-  }
-}
-
-// =============================================================================
-// SPI slave init (SPI mode, PIO1 SM0)
-// =============================================================================
-static void spiSlaveInit(uint prog_offset) {
-  for (uint pin : {PIN_SPI_SCLK, PIN_SPI_MOSI, PIN_SPI_DC}) {
-    gpio_init(pin);
-    gpio_set_dir(pin, GPIO_IN);
-  }
-  gpio_init(PIN_SPI_CS);
-  gpio_set_dir(PIN_SPI_CS, GPIO_IN);
-  gpio_pull_up(PIN_SPI_CS);
-
-  pio_sm_config c = spi_4line_mode0_program_get_default_config(prog_offset);
-  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO3; DC is IN_BASE+1
-  sm_config_set_in_shift(&c, false, false, 32);
-  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
-  sm_config_set_jmp_pin(&c, PIN_SPI_CS);
-
-  pio_sm_init(SPI_PIO, SPI_SM, prog_offset, &c);
-  pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
-}
-
-// =============================================================================
-// DMA init (SPI mode, call AFTER dvi_init)
-// =============================================================================
-static void spiDmaInit() {
-  spiDmaCh = dma_claim_unused_channel(true);
-
-  dma_channel_config cfg = dma_channel_get_default_config((uint)spiDmaCh);
-  channel_config_set_read_increment(&cfg, false);
-  channel_config_set_write_increment(&cfg, true);
-  channel_config_set_dreq(&cfg, pio_get_dreq(SPI_PIO, SPI_SM, false));
-  channel_config_set_transfer_data_size(&cfg, DMA_SIZE_32);
-  channel_config_set_ring(&cfg, true, SPI_RING_BUF_LOG2);
-
-  dma_channel_configure((uint)spiDmaCh, &cfg, spiRingBuf, &SPI_PIO->rxf[SPI_SM],
-                        0xFFFFFFFFu, true);
-}
-
-// =============================================================================
-// I2C slave init (I2C mode)
-// =============================================================================
-
-static void i2cSlaveIrqHandler() {
-  i2c_hw_t *hw = i2c_get_hw(i2c0);
-  uint32_t intr = hw->intr_stat;
-
-  if (intr & I2C_IC_INTR_STAT_R_RX_FULL_BITS) {
-    uint32_t raw = hw->data_cmd;
-    bool firstByte = (raw & I2C_IC_DATA_CMD_FIRST_DATA_BYTE_BITS) != 0u;
-    uint8_t byte = static_cast<uint8_t>(raw & 0xFFu);
-
-    if (firstByte) {
-      // First byte after address phase is always the SSD1306 control byte.
-      i2cRxState = I2cRxState::WAIT_CTRL;
-    }
-
-    if (i2cRxState == I2cRxState::WAIT_CTRL) {
-      // Decode SSD1306 control byte: bit6=D/C#, bit7=Co (Co=1 not supported)
-      bool dc = (byte >> 6u) & 1u;
-      i2cRxState = dc ? I2cRxState::STREAM_DATA : I2cRxState::STREAM_CMD;
-    } else {
-      // Command or GDDRAM data — push to ring buffer
-      uint32_t word = (i2cRxState == I2cRxState::STREAM_DATA)
-                          ? (0x100u | byte)
-                          : static_cast<uint32_t>(byte);
-      i2cRingBuf[i2cWriteIdx] = word;
-      i2cWriteIdx = (i2cWriteIdx + 1u) & (I2C_RING_BUF_WORDS - 1u);
-    }
-  }
-
-  if (intr & I2C_IC_INTR_STAT_R_STOP_DET_BITS) {
-    i2cRxState = I2cRxState::WAIT_CTRL;
-    (void)hw->clr_stop_det;
-  }
-
-  // Respond to read requests with a dummy byte (read-back not supported)
-  if (intr & I2C_IC_INTR_STAT_R_RD_REQ_BITS) {
-    hw->data_cmd = 0xFFu;
-    (void)hw->clr_rd_req;
-  }
-
-  if (intr & I2C_IC_INTR_STAT_R_TX_ABRT_BITS) {
-    (void)hw->clr_tx_abrt;
-  }
-}
-
-static void i2cSlaveInit() {
-  i2c_init(i2c0, 400u * 1000u);  // baudrate irrelevant in slave mode
-  gpio_set_function(PIN_I2C_SDA, GPIO_FUNC_I2C);
-  gpio_set_function(PIN_I2C_SCL, GPIO_FUNC_I2C);
-  gpio_pull_up(PIN_I2C_SDA);
-  gpio_pull_up(PIN_I2C_SCL);
-
-  i2c_set_slave_mode(i2c0, true, I2C_SLAVE_ADDR);
-
-  // Enable RX_FULL, STOP_DET, RD_REQ, TX_ABRT interrupts
-  i2c_get_hw(i2c0)->intr_mask =
-      I2C_IC_INTR_MASK_M_RX_FULL_BITS | I2C_IC_INTR_MASK_M_STOP_DET_BITS |
-      I2C_IC_INTR_MASK_M_RD_REQ_BITS | I2C_IC_INTR_MASK_M_TX_ABRT_BITS;
-
-  irq_set_exclusive_handler(I2C0_IRQ, i2cSlaveIrqHandler);
-  // Elevate I2C IRQ above default priority so it can preempt other IRQs.
-  // Without this, equal-priority IRQs cannot preempt each other on
-  // Cortex-M33, which can delay I2C draining, fill the 16-entry FIFO, and
-  // cause clock stretching → master timeout → transaction abort → desync.
-  irq_set_priority(I2C0_IRQ, PICO_DEFAULT_IRQ_PRIORITY >> 1);
-  irq_set_enabled(I2C0_IRQ, true);
-}
-
-// =============================================================================
-// Drain the SPI ring buffer and feed bytes to LcdTap
-// =============================================================================
-static void processSpiRingBuf() {
-  uint32_t writeAddr = dma_channel_hw_addr((uint)spiDmaCh)->write_addr;
-  uint32_t writeIdx =
-      (writeAddr - reinterpret_cast<uint32_t>(spiRingBuf)) / sizeof(uint32_t);
-  writeIdx &= (SPI_RING_BUF_WORDS - 1u);
-
-  if (!gInst) {
-    spiReadIdx = writeIdx;
-    return;
-  }
-
-  uint32_t dataStart = spiReadIdx;
-  while (spiReadIdx != writeIdx) {
-    uint32_t lastReadIdx = spiReadIdx;
-    uint32_t word = spiRingBuf[spiReadIdx];
-    spiReadIdx = (spiReadIdx + 1u) & (SPI_RING_BUF_WORDS - 1u);
-
-    if (word & 0x100u) {
-      if (spiReadIdx == 0) {
-        gInst->inputData((uint8_t *)&spiRingBuf[dataStart],
-                         (SPI_RING_BUF_WORDS - dataStart), sizeof(uint32_t));
-        dataStart = 0;
-      }
-    } else {
-      uint32_t dataLen = lastReadIdx - dataStart;
-      if (dataLen != 0) {
-        gInst->inputData((uint8_t *)&spiRingBuf[dataStart], dataLen,
-                         sizeof(uint32_t));
-      }
-      gInst->inputCommand(static_cast<uint8_t>(word));
-      dataStart = spiReadIdx;
-    }
-  }
-
-  uint32_t dataLen = spiReadIdx - dataStart;
-  if (dataLen != 0) {
-    gInst->inputData((uint8_t *)&spiRingBuf[dataStart], dataLen,
-                     sizeof(uint32_t));
-  }
-}
-
-// =============================================================================
-// Drain the I2C ring buffer and feed bytes to LcdTap
-// =============================================================================
-static void processI2cRingBuf() {
-  uint32_t writeIdx = i2cWriteIdx;  // snapshot of volatile
-
-  if (!gInst) {
-    i2cReadIdx = writeIdx;
-    return;
-  }
-
-  uint32_t dataStart = i2cReadIdx;
-  while (i2cReadIdx != writeIdx) {
-    uint32_t lastReadIdx = i2cReadIdx;
-    uint32_t word = i2cRingBuf[i2cReadIdx];
-    i2cReadIdx = (i2cReadIdx + 1u) & (I2C_RING_BUF_WORDS - 1u);
-
-    if (word & 0x100u) {
-      if (i2cReadIdx == 0) {
-        gInst->inputData((uint8_t *)&i2cRingBuf[dataStart],
-                         (I2C_RING_BUF_WORDS - dataStart), sizeof(uint32_t));
-        dataStart = 0;
-      }
-    } else {
-      uint32_t dataLen = lastReadIdx - dataStart;
-      if (dataLen != 0) {
-        gInst->inputData((uint8_t *)&i2cRingBuf[dataStart], dataLen,
-                         sizeof(uint32_t));
-      }
-      gInst->inputCommand(static_cast<uint8_t>(word));
-      dataStart = i2cReadIdx;
-    }
-  }
-
-  uint32_t dataLen = i2cReadIdx - dataStart;
-  if (dataLen != 0) {
-    gInst->inputData((uint8_t *)&i2cRingBuf[dataStart], dataLen,
-                     sizeof(uint32_t));
   }
 }
 
@@ -438,7 +120,7 @@ int main() {
   // -------------------------------------------------------------------------
   vreg_set_voltage(VREG_VOLTAGE_1_20);
   sleep_ms(10);
-  set_sys_clock_khz(timing->bit_clk_khz, true);
+  set_sys_clock_khz(timing->bit_clk_khz, /*required=*/true);
 
   // -------------------------------------------------------------------------
   // 3. LED
@@ -456,11 +138,6 @@ int main() {
 
   const uint32_t dviW = timing->h_active_pixels / 2;
   const uint32_t dviH = timing->v_active_lines / DVI_VERTICAL_REPEAT;
-
-  for (int i = 0; i < N_SCANLINE_BUFS; ++i) {
-    uint16_t *p = scanlineBufs[i];
-    queue_add_blocking_u32(&dvi0.q_colour_free, &p);
-  }
 
   // -------------------------------------------------------------------------
   // 5. LcdTap init (SSD1306)
@@ -487,14 +164,16 @@ int main() {
   if (inst.getStatus() != lcdtap::Status::OK) panic("LcdTap init failed");
 
   gInst = &inst;
-
-  inst.setOutputRotation(rot);  // apply boot-time rotation setting
+  inst.setOutputRotation(rot);
 
   // -------------------------------------------------------------------------
   // 6. Input peripheral init
   // -------------------------------------------------------------------------
   if (useI2C) {
-    i2cSlaveInit();
+    lcdtap::pico2::I2cSlaveConfig i2cCfg = {i2c0, PIN_I2C_SDA, PIN_I2C_SCL,
+                                    I2C_SLAVE_ADDR};
+    lcdtap::pico2::i2cSlaveInit(&gI2c, i2cCfg, i2cRingBuf, I2C_RING_BUF_WORDS);
+    gI2c.inst = &inst;
   } else {
     // RST: interrupt on both edges (reset assert / release)
     gpio_init(PIN_RST);
@@ -502,38 +181,42 @@ int main() {
     gpio_pull_up(PIN_RST);
     gpio_set_irq_enabled_with_callback(PIN_RST,
                                        GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
-                                       true, &gpioIrqHandler);
+                                       /*enabled=*/true, &gpioIrqHandler);
     irq_set_priority(IO_IRQ_BANK0, 0x00);
 
     // SPI slave PIO + DMA (after dvi_init so DVI claims its channels first)
-    gSpiProgOffset = pio_add_program(SPI_PIO, &spi_4line_mode0_program);
-    spiSlaveInit(gSpiProgOffset);
-    spiDmaInit();
-    gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
+    lcdtap::pico2::SpiSlaveConfig spiCfg = {SPI_PIO,          SPI_SM,       PIN_SPI_CS,
+                                    PIN_SPI_SCLK,     PIN_SPI_MOSI, PIN_SPI_DC,
+                                    SPI_RING_BUF_LOG2};
+    lcdtap::pico2::spiSlaveInit(&gSpi, spiCfg, spiRingBuf, SPI_RING_BUF_WORDS);
+    gSpi.inst = &inst;
+    lcdtap::pico2::spiSlaveRegisterIrq(&gSpi);
   }
 
   // -------------------------------------------------------------------------
   // 7. Launch Core 1 (fillScanline + TMDS encode + serialise)
   // -------------------------------------------------------------------------
-  // gDviH must be set before launch so Core 1 can read it immediately.
-  gDviH = dviH;
-  multicore_launch_core1(core1Main);
+  lcdtap::pico2::DviOutConfig dviCfg = {PIN_LED, LED_TOGGLE_FRAMES};
+  lcdtap::pico2::dviOutPrepare(&gDvi, &dvi0, scanlineBufs[0], sizeof(scanlineBufs[0]),
+                       N_SCANLINE_BUFS, &inst, nullptr, nullptr, dviCfg);
+  gDvi.dviH = dviH;
+  lcdtap::pico2::dviOutLaunchCore1(&gDvi);
 
   // -------------------------------------------------------------------------
   // 8. Main loop (Core 0)
   //    Core 1 handles fillScanline + TMDS encode; Core 0 is free to drain
   //    the SPI/I2C ring buffers continuously without timer preemption.
-  //    gNewFrame is set by Core 1 at each frame boundary.
+  //    dviOutConsumeNewFrame returns true once per frame boundary.
   // -------------------------------------------------------------------------
   int currentRot = rot;
 
   while (true) {
     if (useI2C)
-      processI2cRingBuf();
+      lcdtap::pico2::i2cSlaveProcess(&gI2c);
     else
-      processSpiRingBuf();
-    if (gNewFrame) {
-      gNewFrame = false;
+      lcdtap::pico2::spiSlaveProcess(&gSpi);
+
+    if (lcdtap::pico2::dviOutConsumeNewFrame(&gDvi)) {
       int newRot = static_cast<int>((!gpio_get(PIN_CFG_ROT1) ? 2u : 0u) |
                                     (!gpio_get(PIN_CFG_ROT0) ? 1u : 0u));
       if (newRot != currentRot) {

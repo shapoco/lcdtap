@@ -21,16 +21,16 @@ add_subdirectory(
     libdvi
 )
 
+# Shared pico2 peripheral drivers (SPI/I2C/DVI)
+add_subdirectory(../../example/pico2_common pico2_common)
+
 add_executable(lcdtap_pico2_universal
     src/main.cpp
     src/flash_config.cpp
     src/uart_if.cpp
 )
 
-# Generate PIO headers
-pico_generate_pio_header(lcdtap_pico2_universal
-    ${CMAKE_CURRENT_LIST_DIR}/src/spi_4line_mode0.pio
-)
+# Generate PIO headers for universal-only interface modes
 pico_generate_pio_header(lcdtap_pico2_universal
     ${CMAKE_CURRENT_LIST_DIR}/src/spi_3line_mode0.pio
 )
@@ -40,8 +40,6 @@ pico_generate_pio_header(lcdtap_pico2_universal
 
 target_include_directories(lcdtap_pico2_universal PRIVATE
     include
-    # PicoDVI pin-config header lives here
-    ../../submodule/PicoDVI/software/include
 )
 
 # DVI_DEFAULT_PIO_INST must be pio0 so libdvi and pico_sock_cfg agree.
@@ -58,17 +56,11 @@ foreach(VAR
 endforeach()
 
 target_link_libraries(lcdtap_pico2_universal
-    lcdtap
-    libdvi
+    pico2_common      # pulls in lcdtap, libdvi, hardware_dma/gpio/i2c/irq/pio
     pico_stdlib
     pico_multicore
     hardware_clocks
-    hardware_dma
     hardware_flash
-    hardware_gpio
-    hardware_i2c
-    hardware_irq
-    hardware_pio
     hardware_sync
     hardware_vreg
     hardware_watchdog
