@@ -2,8 +2,8 @@
 
 #include <cstring>
 
-#include "hardware/flash.h"
-#include "hardware/sync.h"
+#include <hardware/flash.h>
+#include <hardware/sync.h>
 
 static_assert(sizeof(ConfigFile) + sizeof(uint32_t) <= FLASH_PAGE_SIZE,
               "ConfigFile too large for one flash page");
@@ -41,10 +41,10 @@ void saveConfig(const ConfigFile &cfg) {
   uint32_t crc = crc32(buf, sizeof(cfg));
   memcpy(buf + sizeof(cfg), &crc, sizeof(uint32_t));
 
-  // Core 1 runs only SRAM-resident code (PicoDVI and Pico SDK queue/semaphore
-  // functions are all __not_in_flash_func / __time_critical_func), so no
-  // lockout is needed. Disable Core 0 interrupts only to prevent any ISR from
-  // fetching code via XIP during the flash operation.
+  // Caller must have paused Core 1 via dviOutFlashAcquire() before calling
+  // here, so Core 1 is spinning in SRAM and cannot access flash. Disable Core
+  // 0 interrupts to block any ISR that might fetch flash-resident code during
+  // the erase/program window.
   uint32_t ints = save_and_disable_interrupts();
 
   flash_range_erase(kFlashOffset, FLASH_SECTOR_SIZE);

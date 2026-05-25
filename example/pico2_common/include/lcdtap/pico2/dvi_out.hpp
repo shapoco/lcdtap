@@ -28,6 +28,11 @@ struct DviOutState {
 
   volatile uint32_t dviH;  // set by Core 0 before dviOutLaunchCore1
   volatile bool newFrame;  // set by Core 1 at each frame boundary
+
+  // Flash-write cooperative pause (see dviOutFlashAcquire /
+  // dviOutFlashRelease).
+  volatile bool flashPauseReq;  // Core 0 sets to request pause
+  volatile bool flashPauseAck;  // Core 1 sets when paused at safe boundary
 };
 
 // Store state and enqueue all scanline buffers into q_colour_free.
@@ -47,4 +52,13 @@ void dviOutLaunchCore1(DviOutState *s);
 // Consume the new-frame flag. Returns true once per frame boundary.
 bool dviOutConsumeNewFrame(DviOutState *s);
 
-}  // namespace pico2
+// Pause Core 1 at a safe SRAM-resident boundary so Core 0 can call
+// flash_range_erase / flash_range_program without XIP conflicts.
+// Core 1 yields between scanlines (DMA_IRQ_0 remains active during the pause).
+// Must be followed by dviOutFlashRelease() after the flash operation.
+void dviOutFlashAcquire(DviOutState *s);
+
+// Resume Core 1 after a flash write initiated by dviOutFlashAcquire().
+void dviOutFlashRelease(DviOutState *s);
+
+}  // namespace lcdtap::pico2

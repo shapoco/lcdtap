@@ -296,6 +296,17 @@ static void switchInterface(InterfaceType newIface) {
 }
 
 // =============================================================================
+// Flash-safe saveConfig wrapper
+// Pauses Core 1 at a safe boundary before the flash write so that Core 1
+// cannot access flash-resident code (fillScanline, OSD) during erase/program.
+// =============================================================================
+static void saveConfigSafe(const ConfigFile &cfg) {
+  lcdtap::pico2::dviOutFlashAcquire(&gDvi);
+  saveConfig(cfg);
+  lcdtap::pico2::dviOutFlashRelease(&gDvi);
+}
+
+// =============================================================================
 // Dispatch to the active ring buffer processor
 // =============================================================================
 static void processInputBuf() {
@@ -468,7 +479,7 @@ int main() {
   // -------------------------------------------------------------------------
   // 11. USB CDC serial interface
   // -------------------------------------------------------------------------
-  uartIfInit(&inst, &gCurrentIface, switchInterface, saveConfig);
+  uartIfInit(&inst, &gCurrentIface, switchInterface, saveConfigSafe);
 
   // -------------------------------------------------------------------------
   // 12. Main loop (Core 0)
@@ -493,7 +504,7 @@ int main() {
         ConfigFile toSave;
         toSave.libConfig = gInst->getConfig();
         toSave.interfaceType = newIface;
-        saveConfig(toSave);
+        saveConfigSafe(toSave);
 
         if (newIface != gCurrentIface) {
           switchInterface(newIface);

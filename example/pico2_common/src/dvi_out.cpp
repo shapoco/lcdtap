@@ -46,6 +46,21 @@ static void __not_in_flash_func(core1Main)() {
     uint16_t *scanbuf;
     queue_remove_blocking_u32(&s->dvi->q_colour_free, &scanbuf);
 
+    // Cooperative pause for flash writes. Core 1 yields here (before any
+    // flash-resident call) so Core 0 can safely run flash_range_erase /
+    // flash_range_program. DMA_IRQ_0 remains active during the WFE spin,
+    // keeping the PicoDVI DMA pipeline from losing queue coherence.
+    if (s->flashPauseReq) {
+      queue_add_blocking_u32(&s->dvi->q_colour_free, &scanbuf);
+      s->flashPauseAck = true;
+      __dmb();
+      __sev();
+      while (s->flashPauseReq) __wfe();
+      __dmb();
+      s->flashPauseAck = false;
+      continue;
+    }
+
     if (s->inst) s->inst->fillScanline(static_cast<uint16_t>(scanY), scanbuf);
     if (s->fillFn)
       s->fillFn(static_cast<uint16_t>(scanY), scanbuf, s->fillUserData);
@@ -92,6 +107,8 @@ void dviOutPrepare(DviOutState *s, dvi_inst *dvi, uint16_t *scanBuf0,
   s->cfg = cfg;
   s->dviH = 0;
   s->newFrame = false;
+  s->flashPauseReq = false;
+  s->flashPauseAck = false;
 
   for (int i = 0; i < nBufs; ++i) {
     uint16_t *p = (uint16_t *)((uint8_t *)scanBuf0 + i * scanBufStride);
@@ -110,6 +127,19 @@ bool dviOutConsumeNewFrame(DviOutState *s) {
     return true;
   }
   return false;
+}
+
+void dviOutFlashAcquire(DviOutState *s) {
+  s->flashPauseReq = true;
+  __dmb();
+  __sev();  // wake Core 1 if it is in WFE inside a queue wait
+  while (!s->flashPauseAck) __wfe();
+}
+
+void dviOutFlashRelease(DviOutState *s) {
+  s->flashPauseReq = false;
+  __dmb();
+  __sev();  // wake Core 1 from its pause WFE
 }
 
 }  // namespace lcdtap::pico2
