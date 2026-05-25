@@ -87,44 +87,52 @@ void spiSlaveResetSm(SpiSlaveState *s) {
 }
 
 void __not_in_flash_func(spiSlaveProcess)(SpiSlaveState *s) {
-  uint32_t writeAddr = dma_channel_hw_addr((uint)s->dmaCh)->write_addr;
-  uint32_t writeIdx =
-      (writeAddr - reinterpret_cast<uint32_t>(s->ringBuf)) / sizeof(uint32_t);
-  writeIdx &= (s->ringWords - 1u);
+  dma_channel_hw_t *dmaHw = dma_channel_hw_addr((uint)s->dmaCh);
 
-  if (!s->inst) {
-    s->readIdx = writeIdx;
-    return;
-  }
+  for (int i = 0; i < 3; i++) {
+    uint32_t writeAddr = dmaHw->write_addr;
+    uint32_t writeIdx =
+        (writeAddr - reinterpret_cast<uint32_t>(s->ringBuf)) / sizeof(uint32_t);
+    writeIdx &= (s->ringWords - 1u);
 
-  uint32_t dataStart = s->readIdx;
-  while (s->readIdx != writeIdx) {
-    uint32_t lastReadIdx = s->readIdx;
-    uint32_t word = s->ringBuf[s->readIdx];
-    s->readIdx = (s->readIdx + 1u) & (s->ringWords - 1u);
-
-    if (word & 0x100u) {
-      if (s->readIdx == 0) {
-        s->inst->inputData((uint8_t *)&s->ringBuf[dataStart],
-                           (s->ringWords - dataStart), sizeof(uint32_t));
-        dataStart = 0;
-      }
-    } else {
-      uint32_t dataLen = lastReadIdx - dataStart;
-      if (dataLen != 0) {
-        s->inst->inputData((uint8_t *)&s->ringBuf[dataStart], dataLen,
-                           sizeof(uint32_t));
-      }
-      s->inst->inputCommand(static_cast<uint8_t>(word));
-      dataStart = s->readIdx;
+    if (!s->inst) {
+      s->readIdx = writeIdx;
+      return;
     }
-  }
 
-  uint32_t dataLen = s->readIdx - dataStart;
-  if (dataLen != 0) {
-    s->inst->inputData((uint8_t *)&s->ringBuf[dataStart], dataLen,
-                       sizeof(uint32_t));
+    uint32_t readIdx = s->readIdx;
+    uint32_t dataStart = readIdx;
+    while (readIdx != writeIdx) {
+      uint32_t lastReadIdx = readIdx;
+      uint32_t word = s->ringBuf[readIdx];
+      readIdx = (readIdx + 1u) & (s->ringWords - 1u);
+
+      if (word & 0x100u) {
+        if (readIdx == 0) {
+          s->inst->inputData((uint8_t *)&s->ringBuf[dataStart],
+                             (s->ringWords - dataStart), sizeof(uint32_t));
+          dataStart = 0;
+          s->readIdx = readIdx;
+        }
+      } else {
+        uint32_t dataLen = lastReadIdx - dataStart;
+        if (dataLen != 0) {
+          s->inst->inputData((uint8_t *)&s->ringBuf[dataStart], dataLen,
+                             sizeof(uint32_t));
+        }
+        s->inst->inputCommand(static_cast<uint8_t>(word));
+        dataStart = readIdx;
+        s->readIdx = readIdx;
+      }
+    }
+
+    uint32_t dataLen = readIdx - dataStart;
+    if (dataLen != 0) {
+      s->inst->inputData((uint8_t *)&s->ringBuf[dataStart], dataLen,
+                         sizeof(uint32_t));
+    }
+    s->readIdx = readIdx;
   }
 }
 
-}  // namespace pico2
+}  // namespace lcdtap::pico2
