@@ -196,11 +196,11 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
       }
       // Tight loop: 3 bytes → 2 pixels
       while (i + stride * 3 <= length) {
-        uint8_t b0 = data[i];
+        uint_fast16_t b0 = data[i];
         i += stride;
-        uint8_t b1 = data[i];
+        uint_fast16_t b1 = data[i];
         i += stride;
-        uint8_t b2 = data[i];
+        uint_fast16_t b2 = data[i];
         i += stride;
         uint_fast16_t pixel0 = 0;
         pixel0 |= (b0 << 8) & 0xF000;  // R1
