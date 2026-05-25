@@ -8,7 +8,6 @@
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 #include "hardware/pio.h"
-#include "hardware/timer.h"
 #include "hardware/vreg.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -16,6 +15,10 @@
 #include "common_dvi_pin_configs.h"  // pico_sock_cfg
 #include "dvi.h"
 #include "dvi_timing.h"
+// tmds_encode.h lacks extern "C" guards, so wrap it here.
+extern "C" {
+#include "tmds_encode.h"
+}
 
 #include "lcdtap/lcdtap.hpp"
 
@@ -60,7 +63,8 @@ static struct dvi_inst dvi0;
 
 // Static RGB565 scanline buffers, recycled via q_colour_free.
 // Sized to DVI_MAX_W so they fit any supported DVI timing without allocation.
-static uint16_t scanlineBufs[N_SCANLINE_BUFS][DVI_MAX_W];
+static uint16_t
+    __attribute__((aligned(4))) scanlineBufs[N_SCANLINE_BUFS][DVI_MAX_W];
 
 // =============================================================================
 // LcdTap instance (set after init so the RST callback can reach it)
@@ -72,14 +76,12 @@ static lcdtap::LcdTap *gInst = nullptr;
 static uint gSpiProgOffset = 0u;
 
 // =============================================================================
-// DVI timer state — filled from a repeating timer IRQ on Core0
+// DVI — scan state shared between Core 0 (reader) and Core 1 (writer).
+// gDviH is written once by Core 0 before launching Core 1, then read-only.
+// gNewFrame is written by Core 1 at each frame boundary, read by Core 0.
 // =============================================================================
-static uint32_t gScanY = 0;
 static uint32_t gDviH = 0;
-static uint32_t gFrame = 0;
-static bool gLed = false;
 static volatile bool gNewFrame = false;
-static repeating_timer_t gDviTimer;
 
 // =============================================================================
 // Reset PIO State Machine
@@ -110,43 +112,85 @@ static void __not_in_flash_func(gpioIrqHandler)(uint gpio, uint32_t events) {
 }
 
 // =============================================================================
-// DVI timer callback — called from IRQ every 200 µs to fill scanlines.
-// Uses non-blocking queue ops only (queue_add_blocking_u32 uses __wfe, unsafe
-// in IRQ context). Both this callback and the main loop run on Core0, so there
-// is no true concurrency and no mutex is needed.
+// Core 1: fillScanline + TMDS encode + serialise (never returns).
+//
+// Each iteration:
+//   1. Pull a free RGB565 buffer from q_colour_free.
+//   2. Fill it with LCD framebuffer pixels via fillScanline.
+//   3. Pull a free TMDS buffer from q_tmds_free (paced by the DMA IRQ).
+//   4. SIO-TMDS-encode the RGB565 scanline into the TMDS buffer.
+//   5. Submit the TMDS buffer to q_tmds_valid for DMA output.
+//   6. Return the RGB565 buffer to q_colour_free immediately.
+//
+// q_colour_valid is bypassed entirely; Core 0 can dedicate itself to
+// processSpiRingBuf without timer preemption.
+//
+// Framebuffer concurrency: Core 0 writes framebuf (via processRamwrData)
+// while Core 1 reads it here. Aligned uint16_t accesses are atomic on ARM,
+// so the worst-case outcome is a torn scanline (visual tearing), not a crash.
 // =============================================================================
-static bool dviTimerCallback(repeating_timer_t * /*rt*/) {
-  uint16_t *buf;
-  while (queue_try_remove_u32(&dvi0.q_colour_free, &buf)) {
-    if (gInst) gInst->fillScanline(static_cast<uint16_t>(gScanY), buf);
-    if (!queue_try_add_u32(&dvi0.q_colour_valid, &buf)) {
-      queue_try_add_u32(&dvi0.q_colour_free, &buf);
-      break;
-    }
-    if (++gScanY >= gDviH) {
-      gScanY = 0;
+static void __not_in_flash_func(core1Main)() {
+  dvi_register_irqs_this_core(&dvi0, DMA_IRQ_0);
+
+  // Pre-encode one black scanline so dvi_start() has a TMDS buffer ready.
+  // scanlineBufs[0] is zero-initialised (static storage) → black frame.
+  {
+    const uint pixwidth = dvi0.timing->h_active_pixels;
+    const uint wpc = pixwidth / DVI_SYMBOLS_PER_WORD;
+    uint32_t *tmdsbuf;
+    queue_remove_blocking_u32(&dvi0.q_tmds_free, &tmdsbuf);
+    tmds_encode_data_channel_16bpp((uint32_t *)scanlineBufs[0],
+                                   tmdsbuf + 0 * wpc, pixwidth / 2,
+                                   DVI_16BPP_BLUE_MSB, DVI_16BPP_BLUE_LSB);
+    tmds_encode_data_channel_16bpp((uint32_t *)scanlineBufs[0],
+                                   tmdsbuf + 1 * wpc, pixwidth / 2,
+                                   DVI_16BPP_GREEN_MSB, DVI_16BPP_GREEN_LSB);
+    tmds_encode_data_channel_16bpp((uint32_t *)scanlineBufs[0],
+                                   tmdsbuf + 2 * wpc, pixwidth / 2,
+                                   DVI_16BPP_RED_MSB, DVI_16BPP_RED_LSB);
+    queue_add_blocking_u32(&dvi0.q_tmds_valid, &tmdsbuf);
+  }
+
+  dvi_start(&dvi0);
+
+  const uint pixwidth = dvi0.timing->h_active_pixels;
+  const uint wpc = pixwidth / DVI_SYMBOLS_PER_WORD;
+  uint32_t scanY = 0;
+  uint32_t frame = 0;
+  bool led = false;
+
+  while (true) {
+    uint16_t *scanbuf;
+    queue_remove_blocking_u32(&dvi0.q_colour_free, &scanbuf);
+
+    if (gInst) gInst->fillScanline(static_cast<uint16_t>(scanY), scanbuf);
+
+    uint32_t *tmdsbuf;
+    queue_remove_blocking_u32(&dvi0.q_tmds_free, &tmdsbuf);
+
+    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 0 * wpc,
+                                   pixwidth / 2, DVI_16BPP_BLUE_MSB,
+                                   DVI_16BPP_BLUE_LSB);
+    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 1 * wpc,
+                                   pixwidth / 2, DVI_16BPP_GREEN_MSB,
+                                   DVI_16BPP_GREEN_LSB);
+    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 2 * wpc,
+                                   pixwidth / 2, DVI_16BPP_RED_MSB,
+                                   DVI_16BPP_RED_LSB);
+
+    queue_add_blocking_u32(&dvi0.q_tmds_valid, &tmdsbuf);
+    queue_add_blocking_u32(&dvi0.q_colour_free, &scanbuf);
+
+    if (++scanY >= gDviH) {
+      scanY = 0;
+      __dmb();
       gNewFrame = true;
-      if (++gFrame % LED_TOGGLE_FRAMES == 0u) {
-        gLed = !gLed;
-        gpio_put(PIN_LED, gLed ? 1 : 0);
+      if (++frame % LED_TOGGLE_FRAMES == 0u) {
+        led = !led;
+        gpio_put(PIN_LED, led ? 1 : 0);
       }
     }
   }
-  return true;
-}
-
-// =============================================================================
-// Core 1: DVI TMDS encode + serialise (never returns)
-// =============================================================================
-static void core1Main() {
-  // Route DVI DMA IRQ to this core; use DMA_IRQ_0 (highest priority).
-  dvi_register_irqs_this_core(&dvi0, DMA_IRQ_0);
-
-  // Wait until Core 0 has queued the first scanline before starting output.
-  while (queue_is_empty(&dvi0.q_colour_valid)) __wfe();
-
-  dvi_start(&dvi0);
-  dvi_scanbuf_main_16bpp(&dvi0);  // infinite loop
 }
 
 // =============================================================================
@@ -351,17 +395,17 @@ int main() {
   gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, /*enabled=*/true);
 
   // -------------------------------------------------------------------------
-  // 8. Launch Core 1 for DVI TMDS output
+  // 8. Launch Core 1 (fillScanline + TMDS encode + serialise)
   // -------------------------------------------------------------------------
-  multicore_launch_core1(core1Main);
-
+  // gDviH must be set before launch so Core 1 can read it immediately.
   gDviH = dviH;
-  add_repeating_timer_us(-200, dviTimerCallback, nullptr, &gDviTimer);
+  multicore_launch_core1(core1Main);
 
   // -------------------------------------------------------------------------
   // 9. Main loop (Core 0)
-  //    DVI scanline filling is handled by dviTimerCallback (IRQ, 200 µs).
-  //    This loop processes SPI input and handles per-frame rotation checks.
+  //    Core 1 handles fillScanline + TMDS encode; Core 0 is free to drain
+  //    the SPI ring buffer continuously without timer preemption.
+  //    gNewFrame is set by Core 1 at each frame boundary.
   // -------------------------------------------------------------------------
   int currentRot = rot;
 
