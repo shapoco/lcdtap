@@ -500,9 +500,17 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
     case 1: {
       // rot=1: 90° CW  — (lcdRowOut, lcdColOut) → ((physH-1-lcdColOut),
       // lcdRowOut)
+      // Use a running pointer to avoid per-pixel multiply: start at the top of
+      // the source column and step backward by physW as lcdColOut increases.
+      uint32_t prevCol = 0;
+      const uint16_t* cur = fb + (uint32_t)(physH - 1u) * physW + lcdRowOut;
       for (uint16_t x = 0; x < ctrl->displayW; ++x) {
-        uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
-        *d++ = fb[(uint32_t)(physH - 1u - lcdColOut) * physW + lcdRowOut] ^ inv;
+        uint32_t lcdColOut = hAccum >> 16;
+        while (prevCol < lcdColOut) {
+          cur -= physW;
+          ++prevCol;
+        }
+        *d++ = *cur ^ inv;
         hAccum += ctrl->hStep;
       }
       break;
@@ -521,9 +529,17 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
     case 3: {
       // rot=3: 270° CW — (lcdRowOut, lcdColOut) → (lcdColOut,
       // (physW-1-lcdRowOut))
+      // Use a running pointer to avoid per-pixel multiply: start at the bottom
+      // of the source column and step forward by physW as lcdColOut increases.
+      uint32_t prevCol = 0;
+      const uint16_t* cur = fb + (physW - 1u - lcdRowOut);
       for (uint16_t x = 0; x < ctrl->displayW; ++x) {
-        uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
-        *d++ = fb[(uint32_t)lcdColOut * physW + (physW - 1u - lcdRowOut)] ^ inv;
+        uint32_t lcdColOut = hAccum >> 16;
+        while (prevCol < lcdColOut) {
+          cur += physW;
+          ++prevCol;
+        }
+        *d++ = *cur ^ inv;
         hAccum += ctrl->hStep;
       }
       break;
