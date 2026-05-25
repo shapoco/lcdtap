@@ -405,7 +405,7 @@ int main() {
   dvi0.ser_cfg = pico_sock_cfg;
   dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
 
-  const uint32_t dviW = timing->h_active_pixels / 2;
+  const uint32_t dviW = timing->h_active_pixels / DVI_SYMBOLS_PER_WORD;
   const uint32_t dviH = timing->v_active_lines / DVI_VERTICAL_REPEAT;
 
   // -------------------------------------------------------------------------
@@ -477,7 +477,7 @@ int main() {
   // -------------------------------------------------------------------------
   lcdtap::pico2::DviOutConfig dviCfg = {PIN_LED, LED_TOGGLE_FRAMES};
   lcdtap::pico2::dviOutPrepare(&gDvi, &dvi0, scanlineBufs[0],
-                               sizeof(scanlineBufs[0]), N_SCANLINE_BUFS, &inst,
+                               sizeof(scanlineBufs[0]), &inst,
                                universalFillScanline, nullptr, dviCfg);
   gDvi.dviH = dviH;
   lcdtap::pico2::dviOutLaunchCore1(&gDvi);

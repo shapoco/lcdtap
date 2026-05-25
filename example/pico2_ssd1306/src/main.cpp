@@ -136,7 +136,7 @@ int main() {
   dvi0.ser_cfg = pico_sock_cfg;
   dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
 
-  const uint32_t dviW = timing->h_active_pixels / 2;
+  const uint32_t dviW = timing->h_active_pixels / DVI_SYMBOLS_PER_WORD;
   const uint32_t dviH = timing->v_active_lines / DVI_VERTICAL_REPEAT;
 
   // -------------------------------------------------------------------------
@@ -171,7 +171,7 @@ int main() {
   // -------------------------------------------------------------------------
   if (useI2C) {
     lcdtap::pico2::I2cSlaveConfig i2cCfg = {i2c0, PIN_I2C_SDA, PIN_I2C_SCL,
-                                    I2C_SLAVE_ADDR};
+                                            I2C_SLAVE_ADDR};
     lcdtap::pico2::i2cSlaveInit(&gI2c, i2cCfg, i2cRingBuf, I2C_RING_BUF_WORDS);
     gI2c.inst = &inst;
   } else {
@@ -185,9 +185,9 @@ int main() {
     irq_set_priority(IO_IRQ_BANK0, 0x00);
 
     // SPI slave PIO + DMA (after dvi_init so DVI claims its channels first)
-    lcdtap::pico2::SpiSlaveConfig spiCfg = {SPI_PIO,          SPI_SM,       PIN_SPI_CS,
-                                    PIN_SPI_SCLK,     PIN_SPI_MOSI, PIN_SPI_DC,
-                                    SPI_RING_BUF_LOG2};
+    lcdtap::pico2::SpiSlaveConfig spiCfg = {
+        SPI_PIO,      SPI_SM,     PIN_SPI_CS,       PIN_SPI_SCLK,
+        PIN_SPI_MOSI, PIN_SPI_DC, SPI_RING_BUF_LOG2};
     lcdtap::pico2::spiSlaveInit(&gSpi, spiCfg, spiRingBuf, SPI_RING_BUF_WORDS);
     gSpi.inst = &inst;
     lcdtap::pico2::spiSlaveRegisterIrq(&gSpi);
@@ -197,8 +197,9 @@ int main() {
   // 7. Launch Core 1 (fillScanline + TMDS encode + serialise)
   // -------------------------------------------------------------------------
   lcdtap::pico2::DviOutConfig dviCfg = {PIN_LED, LED_TOGGLE_FRAMES};
-  lcdtap::pico2::dviOutPrepare(&gDvi, &dvi0, scanlineBufs[0], sizeof(scanlineBufs[0]),
-                       N_SCANLINE_BUFS, &inst, nullptr, nullptr, dviCfg);
+  lcdtap::pico2::dviOutPrepare(&gDvi, &dvi0, scanlineBufs[0],
+                               sizeof(scanlineBufs[0]), &inst, nullptr, nullptr,
+                               dviCfg);
   gDvi.dviH = dviH;
   lcdtap::pico2::dviOutLaunchCore1(&gDvi);
 

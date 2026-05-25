@@ -21,7 +21,6 @@ struct DviOutState {
   uint16_t *scanBuf0;  // pointer to first element of scanlineBufs[0]
   uint32_t
       scanBufStride;  // bytes between rows (= DVI_MAX_W * sizeof(uint16_t))
-  int nBufs;
   DviFillFunc fillFn;
   void *fillUserData;
   lcdtap::LcdTap *inst;  // nullptr = black frame output
@@ -40,7 +39,7 @@ struct DviOutState {
 // scanBuf0 = scanlineBufs[0] (decays to uint16_t*).
 // scanBufStride = sizeof(scanlineBufs[0]).
 void dviOutPrepare(DviOutState *s, dvi_inst *dvi, uint16_t *scanBuf0,
-                   uint32_t scanBufStride, int nBufs, lcdtap::LcdTap *inst,
+                   uint32_t scanBufStride, lcdtap::LcdTap *inst,
                    DviFillFunc fillFn, void *fillUserData,
                    const DviOutConfig &cfg);
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <dvi.h>
 
 // =============================================================================
 // Common pins (all interface modes)
@@ -123,7 +124,7 @@ static constexpr uint32_t I2C_RING_BUF_WORDS = 256u;  // 1 KB
 // supported DVI timings. Used to statically size the scanline buffers.
 // =============================================================================
 static constexpr int N_SCANLINE_BUFS = 4;
-static constexpr uint32_t DVI_MAX_W = 640u;  // 1280x720: 1280/2 = 640
+static constexpr uint32_t DVI_MAX_W = 1280 / DVI_SYMBOLS_PER_WORD;
 
 // =============================================================================
 // LED blink interval (DVI output frames)

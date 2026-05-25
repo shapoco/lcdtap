@@ -8,6 +8,11 @@ RELEASE_DIR="${SCRIPT_DIR}/release/${RELEASE_NAME}"
 
 # Build all example programs
 for example_dir in "${SCRIPT_DIR}/example"/*/; do
+    dir_name="$(basename "${example_dir}")"
+    if [ "${dir_name}" = "pico2_common" ]; then
+        continue
+    fi
+
     echo "=== Building ${example_dir} ==="
     (cd "${example_dir}" && bash build.sh)
 done
@@ -21,6 +26,11 @@ cp -r "${SCRIPT_DIR}/image" "${RELEASE_DIR}/"
 
 # Copy per-example artifacts
 for example_dir in "${SCRIPT_DIR}/example"/*/; do
+    dir_name="$(basename "${example_dir}")"
+    if [ "${dir_name}" = "pico2_common" ]; then
+        continue
+    fi
+    
     example_name="$(basename "${example_dir}")"
     dest="${RELEASE_DIR}/${example_name}"
     mkdir -p "${dest}"

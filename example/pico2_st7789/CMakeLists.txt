@@ -12,15 +12,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 pico_sdk_init()
 
-# Core library (MCU-agnostic)
-add_subdirectory(../../lib lib)
-
-# PicoDVI libdvi (INTERFACE library)
-add_subdirectory(
-    ../../submodule/PicoDVI/software/libdvi
-    libdvi
-)
-
 # Shared pico2 peripheral drivers (SPI/I2C/DVI)
 add_subdirectory(../../example/pico2_common pico2_common)
 

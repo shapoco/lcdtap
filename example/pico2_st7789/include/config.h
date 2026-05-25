@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <dvi.h>
 
 // =============================================================================
 // SPI slave pins (PIO1 SM0)
@@ -87,7 +88,7 @@ static constexpr uint32_t SPI_RING_BUF_WORDS =
 // supported DVI timings. Used to statically size the scanline buffers.
 // =============================================================================
 static constexpr int N_SCANLINE_BUFS = 4;
-static constexpr uint32_t DVI_MAX_W = 640u;  // 1280x720: 1280/2 = 640
+static constexpr uint32_t DVI_MAX_W = 1280 / DVI_SYMBOLS_PER_WORD;
 
 // =============================================================================
 // LED blink interval (DVI output frames)

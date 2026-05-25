@@ -4,6 +4,21 @@ add_library(pico2_common STATIC
     src/dvi_out.cpp
 )
 
+# PicoDVI libdvi (INTERFACE library)
+add_subdirectory(
+    ../../submodule/PicoDVI/software/libdvi
+    libdvi
+)
+
+# Core library (MCU-agnostic)
+add_subdirectory(../../lib lib)
+
+target_compile_definitions(pico2_common PUBLIC
+    DVI_SYMBOLS_PER_WORD=2
+    DVI_VERTICAL_REPEAT=2
+	DVI_N_TMDS_BUFFERS=3
+)
+
 pico_generate_pio_header(pico2_common
     ${CMAKE_CURRENT_LIST_DIR}/src/spi_4line_mode0.pio
 )

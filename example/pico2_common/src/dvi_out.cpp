@@ -1,5 +1,6 @@
 #include "lcdtap/pico2/dvi_out.hpp"
 
+#include <hardware/structs/bus_ctrl.h>
 #include <pico/multicore.h>
 
 extern "C" {
@@ -26,15 +27,26 @@ static void __not_in_flash_func(core1Main)() {
     if (s->fillFn) s->fillFn(0, s->scanBuf0, s->fillUserData);
     uint32_t *tmdsbuf;
     queue_remove_blocking_u32(&s->dvi->q_tmds_free, &tmdsbuf);
+
+#if DVI_SYMBOLS_PER_WORD == 2
     tmds_encode_data_channel_16bpp((uint32_t *)s->scanBuf0, tmdsbuf + 0 * wpc,
-                                   pixwidth / 2, DVI_16BPP_BLUE_MSB,
-                                   DVI_16BPP_BLUE_LSB);
+                                   wpc, DVI_16BPP_BLUE_MSB, DVI_16BPP_BLUE_LSB);
     tmds_encode_data_channel_16bpp((uint32_t *)s->scanBuf0, tmdsbuf + 1 * wpc,
-                                   pixwidth / 2, DVI_16BPP_GREEN_MSB,
+                                   wpc, DVI_16BPP_GREEN_MSB,
                                    DVI_16BPP_GREEN_LSB);
     tmds_encode_data_channel_16bpp((uint32_t *)s->scanBuf0, tmdsbuf + 2 * wpc,
-                                   pixwidth / 2, DVI_16BPP_RED_MSB,
-                                   DVI_16BPP_RED_LSB);
+                                   wpc, DVI_16BPP_RED_MSB, DVI_16BPP_RED_LSB);
+#else
+    tmds_encode_data_channel_fullres_16bpp(
+        (uint32_t *)s->scanBuf0, tmdsbuf + 0 * wpc, wpc, DVI_16BPP_BLUE_MSB,
+        DVI_16BPP_BLUE_LSB);
+    tmds_encode_data_channel_fullres_16bpp(
+        (uint32_t *)s->scanBuf0, tmdsbuf + 1 * wpc, wpc, DVI_16BPP_GREEN_MSB,
+        DVI_16BPP_GREEN_LSB);
+    tmds_encode_data_channel_fullres_16bpp(
+        (uint32_t *)s->scanBuf0, tmdsbuf + 2 * wpc, wpc, DVI_16BPP_RED_MSB,
+        DVI_16BPP_RED_LSB);
+#endif
     queue_add_blocking_u32(&s->dvi->q_tmds_valid, &tmdsbuf);
   }
 
@@ -70,15 +82,24 @@ static void __not_in_flash_func(core1Main)() {
     uint32_t *tmdsbuf;
     queue_remove_blocking_u32(&s->dvi->q_tmds_free, &tmdsbuf);
 
-    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 0 * wpc,
-                                   pixwidth / 2, DVI_16BPP_BLUE_MSB,
-                                   DVI_16BPP_BLUE_LSB);
-    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 1 * wpc,
-                                   pixwidth / 2, DVI_16BPP_GREEN_MSB,
-                                   DVI_16BPP_GREEN_LSB);
-    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 2 * wpc,
-                                   pixwidth / 2, DVI_16BPP_RED_MSB,
-                                   DVI_16BPP_RED_LSB);
+#if DVI_SYMBOLS_PER_WORD == 2
+    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 0 * wpc, wpc,
+                                   DVI_16BPP_BLUE_MSB, DVI_16BPP_BLUE_LSB);
+    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 1 * wpc, wpc,
+                                   DVI_16BPP_GREEN_MSB, DVI_16BPP_GREEN_LSB);
+    tmds_encode_data_channel_16bpp((uint32_t *)scanbuf, tmdsbuf + 2 * wpc, wpc,
+                                   DVI_16BPP_RED_MSB, DVI_16BPP_RED_LSB);
+#else
+    tmds_encode_data_channel_fullres_16bpp(
+        (uint32_t *)scanbuf, tmdsbuf + 0 * wpc, wpc, DVI_16BPP_BLUE_MSB,
+        DVI_16BPP_BLUE_LSB);
+    tmds_encode_data_channel_fullres_16bpp(
+        (uint32_t *)scanbuf, tmdsbuf + 1 * wpc, wpc, DVI_16BPP_GREEN_MSB,
+        DVI_16BPP_GREEN_LSB);
+    tmds_encode_data_channel_fullres_16bpp(
+        (uint32_t *)scanbuf, tmdsbuf + 2 * wpc, wpc, DVI_16BPP_RED_MSB,
+        DVI_16BPP_RED_LSB);
+#endif
 
     queue_add_blocking_u32(&s->dvi->q_tmds_valid, &tmdsbuf);
     queue_add_blocking_u32(&s->dvi->q_colour_free, &scanbuf);
@@ -96,13 +117,12 @@ static void __not_in_flash_func(core1Main)() {
 }
 
 void dviOutPrepare(DviOutState *s, dvi_inst *dvi, uint16_t *scanBuf0,
-                   uint32_t scanBufStride, int nBufs, lcdtap::LcdTap *inst,
+                   uint32_t scanBufStride, lcdtap::LcdTap *inst,
                    DviFillFunc fillFn, void *fillUserData,
                    const DviOutConfig &cfg) {
   s->dvi = dvi;
   s->scanBuf0 = scanBuf0;
   s->scanBufStride = scanBufStride;
-  s->nBufs = nBufs;
   s->inst = inst;
   s->fillFn = fillFn;
   s->fillUserData = fillUserData;
@@ -112,7 +132,7 @@ void dviOutPrepare(DviOutState *s, dvi_inst *dvi, uint16_t *scanBuf0,
   s->flashPauseReq = false;
   s->flashPauseAck = false;
 
-  for (int i = 0; i < nBufs; ++i) {
+  for (int i = 0; i < DVI_N_TMDS_BUFFERS; ++i) {
     uint16_t *p = (uint16_t *)((uint8_t *)scanBuf0 + i * scanBufStride);
     queue_add_blocking_u32(&dvi->q_colour_free, &p);
   }
@@ -120,6 +140,7 @@ void dviOutPrepare(DviOutState *s, dvi_inst *dvi, uint16_t *scanBuf0,
 
 void dviOutLaunchCore1(DviOutState *s) {
   sDvi = s;
+  hw_set_bits(&bus_ctrl_hw->priority, BUSCTRL_BUS_PRIORITY_PROC1_BITS);
   multicore_launch_core1(core1Main);
 }
 
