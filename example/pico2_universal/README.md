@@ -202,3 +202,9 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico2 \
 The SPI interface of LcdTap-Pico2 Universal can support clock frequencies up to approximately 40MHz. For frequencies exceeding this, you can add an external deserializer outside the Pico2 to support higher speeds. In this case, select Parallel as the Interface in the OSD menu.
 
 ![](./image/des_schematics.png)
+
+## Troubleshooting
+
+### Failed to boot normally
+
+Try powering on or resetting while pressing the Left key. This will boot while ignoring the settings saved in flash.

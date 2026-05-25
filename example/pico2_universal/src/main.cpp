@@ -369,7 +369,13 @@ int main() {
   // 1b. Read flash config — check for USB mass storage boot mode
   // -------------------------------------------------------------------------
   ConfigFile savedCfg = {};
-  bool hasSavedCfg = loadConfig(&savedCfg);
+  bool hasSavedCfg;
+  if (!gpio_get(PIN_KEY_LEFT)) {
+    // If left key is pressed at boot time, start with default settings
+    hasSavedCfg = false;
+  } else {
+    hasSavedCfg = loadConfig(&savedCfg);
+  }
 
   // -------------------------------------------------------------------------
   // 2. Voltage regulator and system clock
