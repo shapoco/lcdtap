@@ -13,11 +13,12 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 > [!WARNING]
 > Parallel Mode has not been tested yet. Please let me know if it works!
 
-## Schematics and Recommended Header Pinout
+## Schematics
+
+- Keep the input bus as short as possible and ensure all cables are the same length.
+- See also: [Recommended Header Pinout](../../README.md#recommended-header-pinout)
 
 ![](./image/schematics.png)
-
-![](./image/header_pinout.png)
 
 ## OSD Menu
 

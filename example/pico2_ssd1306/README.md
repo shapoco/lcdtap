@@ -1,10 +1,12 @@
 # LcdTap-Pico2 for SSD1306
 
-## Schematics and Recommended Header Pinout
+## Schematics
+
+- Keep the SPI bus as short as possible and ensure all cables are the same length.
+- The rotary switch can be substituted with a DIP switch.
+- See also: [Recommended Header Pinout](../../README.md#recommended-header-pinout)
 
 ![](./image/schematics.png)
-
-The rotary switch can be substituted with a DIP switch.
 
 ## Build instructions
 

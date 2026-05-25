@@ -1,10 +1,12 @@
 # LcdTap-Pico2 for ST7789
 
-## Schematics and Recommended Header Pinout
+## Schematics
+
+- Keep the SPI/I2C bus as short as possible and ensure all cables are the same length.
+- The rotary switch can be substituted with a DIP switch.
+- See also: [Recommended Header Pinout](../../README.md#recommended-header-pinout)
 
 ![](./image/schematics.png)
-
-The rotary switch can be substituted with a DIP switch.
 
 ## Build instructions
 

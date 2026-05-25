@@ -46,6 +46,10 @@ instructions, pin assignment, and configuration details.
 
 https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
 
+## Recommended Header Pinout
+
+![](./image/header_pinout.png)
+
 ## Configuration for M5Stack CoreS3
 
 ### Connection
