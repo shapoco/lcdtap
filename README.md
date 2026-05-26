@@ -52,6 +52,8 @@ https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
 
 ## Configuration for M5Stack CoreS3
 
+See also: [LcdTap: M5Stack CoreS3 の画面をミラーリング/キャプチャする](https://blog.shapoco.net/2026/0520-m5stack-with-large-monitor/)
+
 ### Connection
 
 The M5Stack CoreS3 does not have the CS signal exposed on the connector, so one of the following solutions is required.
@@ -83,6 +85,9 @@ Use pre-built firmware `lcdtap_pico2_st7789.uf2`
 ## Configuration for Arduboy
 
 See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
+
+> [!CAUTION]
+> Level shifter is required between Pico2 (3.3V) and Arduboy depending on its power supply voltage.
 
 > [!CAUTION]
 > The back side of the Arduboy board has exposed Li-Po battery terminals. Be careful not to short them.
