@@ -21,11 +21,7 @@ and outputs the framebuffer as a DVI-D signal.
 
 ## Example Design
 
-### Download Pre-built Binary
-
-See [releases](https://github.com/shapoco/lcdtap/releases) for pre-built UF2 binaries.
-
-### LcdTap-Pico2 Universal
+### LcdTap-Pico2 Universal (Recommended)
 
 Supports multiple LCD controllers and interfaces, selectable at runtime via an OSD menu.
 
@@ -50,118 +46,12 @@ https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
 
 ![](./image/header_pinout.png)
 
-## Configuration for M5Stack CoreS3
+## Applicable Examples
 
-See also: [LcdTap: M5Stack CoreS3 の画面をミラーリング/キャプチャする](https://blog.shapoco.net/2026/0520-m5stack-with-large-monitor/)
-
-### Connection
-
-The M5Stack CoreS3 does not have the CS signal exposed on the connector, so one of the following solutions is required.
-
-- [Route CS signal to M-Bus](https://x.com/lovyan03/status/2055491122949165549): Requires modifying `M5GFX.cpp` and recompiling, but no hardware modification is needed.
-
-    ```diff
-      void cs_control(bool flg) override
-      {
-        lgfx::Panel_ILI9342::cs_control(flg);
-
-    +   // Link GPIO5 with CS pin
-    +   lgfx::pinMode(GPIO_NUM_5, lgfx::pin_mode_t::output);
-    +   if (flg) {
-    +     lgfx::gpio_hi(GPIO_NUM_5);
-    +   } else {
-    +     lgfx::gpio_lo(GPIO_NUM_5);
-    +   }
-
-        // CS操作時にGPIO35の役割を切り替える (MISO or D/C);
-
-        // FSPIQ_IN_IDX==FSPI MISO / SIG_GPIO_OUT_IDX==GPIO OUT
-        // *(volatile uint32_t*)GPIO_FUNC35_OUT_SEL_CFG_REG = flg ? FSPIQ_OUT_IDX : SIG_GPIO_OUT_IDX;
-
-        // CS HIGHの場合はGPIO出力を無効化し、MISO入力として機能させる。
-        // CS LOW の場合はGPIO出力を有効化し、D/Cとして機能させる。
-        *(volatile uint32_t*)( flg
-                               ? GPIO_ENABLE1_W1TC_REG
-                               : GPIO_ENABLE1_W1TS_REG
-                             ) = 1u << (GPIO_NUM_35 & 31);
-      }
-    ```
-
-- Wire directly to R49 on the back of the board: Hardware modification is required, but no software changes are needed.
-
-    ![](./image/m5stack_cores3_cs.jpg)
-
-The remaining signals can be obtained from the rear connector. On CoreS3, MISO is used as DC.
-
-|LcdTap (Pico2)|Connection|
-|:--|:--|
-|GND|CoreS3's GND|
-|GPIO0 (RST)|Pico2's 3V3|
-|GPIO1 (CS)|(See above instructions)|
-|GPIO2 (SCLK)|CoreS3's SPI_SCLK|
-|GPIO3 (MOSI)|CoreS3's SPI_MOSI|
-|GPIO4 (DC)|CoreS3's SPI_MISO|
-|GPIO20 (CFG_OUT_720P)|Select according to your display|
-|GPIO21 (CFG_LCD_SIZE_SEL)|Pico2's GND (320x240)|
-|GPIO22 (CFG_SWAP_RB)|Pico2's GND (swap R/B)|
-|GPIO26 (CFG_INVERTED)|Pico2's GND (inverted)|
-|GPIO27/28 (CFG_ROT\[1:0\])|Open or GND|
-
-### Firmware
-
-Use pre-built firmware `lcdtap_pico2_st7789.uf2`
-
-## Configuration for Arduboy
-
-See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
-
-> [!CAUTION]
-> Level shifter is required between Pico2 (3.3V) and Arduboy depending on its power supply voltage.
-
-> [!CAUTION]
-> The back side of the Arduboy board has exposed Li-Po battery terminals. Be careful not to short them.
-
-### Connection
-
-|LcdTap (Pico2)|Connection|
-|:--|:--|
-|GND|Arduboy's GND|
-|GPIO0 (RST)|Arduboy's RST (Pin 27)|
-|GPIO1 (CS)|Arduboy's CS (Pin 26)|
-|GPIO2 (SCLK)|Arduboy's SCLK (Pin 15)|
-|GPIO3 (MOSI)|Arduboy's MOSI (Pin 16)|
-|GPIO4 (DC)|Arduboy's DC (Pin 25)|
-|GPIO20 (CFG_OUT_720P)|Select according to your display|
-|GPIO21 (CFG_LCD_SIZE_SEL)|Open or 3V3 (128x64)| 
-|GPIO22 (CFG_IFACE_SEL)|GND (SPI)|
-|GPIO27 (CFG_ROT\[0\])|Open or 3V3|
-|GPIO28 (CFG_ROT\[1\])|GND (Rotate 180°)|
-
-![](image/arduboy_conn_back.jpg)
-
-### Firmware
-
-Use pre-built firmware `lcdtap_pico2_ssd1306.uf2`
-
-## Configuration for TinyJoyPad
-
-See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
-
-### Connection
-
-|LcdTap (Pico2)|Connection|
-|:--|:--|
-|GND|TinyJoyPad's GND|
-|GPIO8 (SDA)|TinyJoyPad's SDA|
-|GPIO9 (SCL)|TinyJoyPad's SCL|
-|GPIO20 (CFG_OUT_720P)|Select according to your display|
-|GPIO21 (CFG_LCD_SIZE_SEL)|Open or 3V3 (128x64)| 
-|GPIO22 (CFG_IFACE_SEL)|Open or 3V3 (I2C)|
-|GPIO27/28 (CFG_ROT\[1:0\])|binary rotary switch or DIP-switch|
-
-### Firmware
-
-Use pre-built firmware `lcdtap_pico2_ssd1306.uf2`
+- [M5Stack CoreS3](./CFG_M5STACK_CORES3.md)
+- [PicoSystem](./CFG_PICOSYSTEM.md)
+- [Arduboy](./CFG_ARDUBOY.md)
+- [TinyJoyPad](./CFG_TINYJOYPAD.md)
 
 ## License
 

@@ -22,6 +22,7 @@ mkdir -p "${RELEASE_DIR}"
 
 # Copy top-level README
 cp "${SCRIPT_DIR}/README.md" "${RELEASE_DIR}/"
+cp ${SCRIPT_DIR}/CFG_*.md "${RELEASE_DIR}/"
 cp -r "${SCRIPT_DIR}/image" "${RELEASE_DIR}/"
 
 # Copy per-example artifacts

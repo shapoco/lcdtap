@@ -8,6 +8,13 @@
 
 ![](./image/schematics.png)
 
+## How to upload firmware
+
+1. Download zip file from [releases](https://github.com/shapoco/lcdtap/releases).
+2. Extract `lcdtap_pico2_ssd1306.uf2` from the zip file.
+3. Connect the Pico 2 to your computer while holding the BOOTSEL button to enter bootloader mode.
+4. Copy the UF2 file to the mounted drive.
+
 ## Build instructions
 
 ```bash

@@ -20,6 +20,13 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 
 ![](./image/schematics.png)
 
+## How to upload firmware
+
+1. Download zip file from [releases](https://github.com/shapoco/lcdtap/releases).
+2. Extract `lcdtap_pico2_universal.uf2` from the zip file.
+3. Connect the Pico 2 to your computer while holding the BOOTSEL button to enter bootloader mode.
+4. Copy the UF2 file to the mounted drive.
+
 ## OSD Menu
 
 Press the Enter key to open the configuration menu.
@@ -198,7 +205,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico2 \
          -DLCDTAP_LCD_SIZE_W=320 -DLCDTAP_LCD_SIZE_H=240
 ```
 
-## Supporting High-Speed SPI Clocks Above 40MHz
+## External Deserializer for High-Speed SPI
 
 The SPI interface of LcdTap-Pico2 Universal can support clock frequencies up to approximately 40MHz. For frequencies exceeding this, you can add an external deserializer outside the Pico2 to support higher speeds. In this case, select Parallel as the Interface in the OSD menu.
 
