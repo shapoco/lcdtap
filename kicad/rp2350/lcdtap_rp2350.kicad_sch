@@ -8966,7 +8966,7 @@
 		(uuid "02983a37-a7ef-4abd-94fd-9b230697bafa")
 	)
 	(junction
-		(at 105.41 38.1)
+		(at 119.38 38.1)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "0965fee3-adb4-4bb0-8211-049b66a5ae0f")
@@ -8984,7 +8984,7 @@
 		(uuid "0fbf7530-3bc3-4ebf-8f42-46099d739350")
 	)
 	(junction
-		(at 110.49 38.1)
+		(at 124.46 38.1)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "1282b2a7-313d-42e3-85bf-0fa6a2257b2f")
@@ -8994,6 +8994,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "19934f79-4d9a-469e-9b34-8bf7d7f86c7b")
+	)
+	(junction
+		(at 218.44 218.44)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "2461942c-2d8e-48d6-9a15-84c0f358b56d")
 	)
 	(junction
 		(at 274.32 30.48)
@@ -9014,7 +9020,7 @@
 		(uuid "2ced9c21-512d-4d7e-93ed-3afaf1cb1b5a")
 	)
 	(junction
-		(at 85.09 38.1)
+		(at 96.52 38.1)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "2fa56ef3-e2a8-4824-9d45-a4723bf2ca39")
@@ -9026,7 +9032,7 @@
 		(uuid "30eae1f9-7b85-468b-9d18-1fdb60a44da2")
 	)
 	(junction
-		(at 43.18 38.1)
+		(at 48.26 38.1)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "38035d8f-09ed-4b83-8f3a-bb117c23d966")
@@ -9050,19 +9056,13 @@
 		(uuid "431d46c3-34dd-44ea-9b08-b4219f99b0e5")
 	)
 	(junction
-		(at 27.94 38.1)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "465fac40-d157-47d2-9c79-b506879d9886")
-	)
-	(junction
 		(at 223.52 147.32)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "47494745-ca38-481f-91ff-0d7a08f7cc2f")
 	)
 	(junction
-		(at 100.33 38.1)
+		(at 114.3 38.1)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "48c612c0-efdf-4eb9-a9c8-45618ebec315")
@@ -9074,7 +9074,7 @@
 		(uuid "49abeeb1-71a3-4aa6-886b-61bb77e3ee5f")
 	)
 	(junction
-		(at 177.8 185.42)
+		(at 181.61 185.42)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "4ab78e08-2813-45c2-9f4d-d4bc21d67a21")
@@ -9128,7 +9128,7 @@
 		(uuid "6dcadc61-1242-40f0-ac62-4ba4f0acd28a")
 	)
 	(junction
-		(at 154.94 185.42)
+		(at 152.4 185.42)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "702f085b-da70-40c2-907f-3bc0f0abad3e")
@@ -9146,16 +9146,16 @@
 		(uuid "790117a9-cd2c-434d-b76c-a3be2aaef549")
 	)
 	(junction
+		(at 63.5 43.18)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "7d0a13cb-b712-411a-a3d8-cc06af8fa7a8")
+	)
+	(junction
 		(at 279.4 128.27)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "836af54b-b925-4944-bec1-fdbeb2745a7f")
-	)
-	(junction
-		(at 38.1 38.1)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "837a1dff-ffb0-4766-8bd5-6c0cfc45fd0c")
 	)
 	(junction
 		(at 213.36 147.32)
@@ -9212,10 +9212,28 @@
 		(uuid "b305cd2d-ba24-46eb-b13a-93bec189d6c9")
 	)
 	(junction
+		(at 106.68 38.1)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "b82ba7ca-cfc1-42d9-9d5a-15f4c4d9531b")
+	)
+	(junction
 		(at 226.06 44.45)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "b8af949d-a67a-418c-8461-0669b845d23f")
+	)
+	(junction
+		(at 43.18 38.1)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "b92c6d87-f584-4241-8ffa-7163b4b80987")
+	)
+	(junction
+		(at 168.91 203.2)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "bc7d80b2-0dc2-4ef9-97c7-76f16f8874b0")
 	)
 	(junction
 		(at 81.28 83.82)
@@ -9228,12 +9246,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "beff0c57-dcf2-4b92-985d-8dcb5b2deb94")
-	)
-	(junction
-		(at 95.25 38.1)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "c2c23b7f-4684-4253-a33e-e75535f6f54d")
 	)
 	(junction
 		(at 279.4 135.89)
@@ -9258,6 +9270,12 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "ca98db8a-59a5-41a7-a580-4f87dd4a894e")
+	)
+	(junction
+		(at 27.94 38.1)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "ccf81e63-60b8-48aa-8f13-b705173be1d2")
 	)
 	(junction
 		(at 226.06 30.48)
@@ -9326,7 +9344,7 @@
 		(uuid "eead8b55-8df1-4826-8250-15482917d242")
 	)
 	(junction
-		(at 139.7 200.66)
+		(at 137.16 200.66)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "f0fc4b8f-3f0d-41c2-b8f0-30049e42eefd")
@@ -9374,11 +9392,11 @@
 		(uuid "ff73f5fe-ae81-4039-b441-3f7ce4daecb8")
 	)
 	(no_connect
-		(at 165.1 223.52)
+		(at 162.56 223.52)
 		(uuid "155cced9-3e01-4655-b957-ba18cd8865af")
 	)
 	(no_connect
-		(at 165.1 213.36)
+		(at 162.56 213.36)
 		(uuid "305b57a0-8db4-43e0-be66-b0b964c0e9f8")
 	)
 	(no_connect
@@ -9386,23 +9404,23 @@
 		(uuid "3fa4443e-78ed-4dae-9eff-11735bcd89ec")
 	)
 	(no_connect
-		(at 165.1 220.98)
+		(at 162.56 220.98)
 		(uuid "46c40bc7-2085-447b-b425-094d15a33e32")
 	)
 	(no_connect
-		(at 165.1 226.06)
+		(at 162.56 226.06)
 		(uuid "6121e98c-fd92-48bc-854d-f556006162d2")
 	)
 	(no_connect
-		(at 165.1 198.12)
+		(at 162.56 198.12)
 		(uuid "770c1ae8-f308-417b-a40d-4e5b39e5fd9d")
 	)
 	(no_connect
-		(at 165.1 215.9)
+		(at 162.56 215.9)
 		(uuid "7e0d1ff1-a5a9-4ff3-9eaf-a4be384ef8a3")
 	)
 	(no_connect
-		(at 165.1 208.28)
+		(at 162.56 208.28)
 		(uuid "95c5f815-4471-4d8d-9469-8882c6c0cc89")
 	)
 	(no_connect
@@ -9414,11 +9432,11 @@
 		(uuid "aacfa24e-149b-4d7f-b5f5-704c42aa57f7")
 	)
 	(no_connect
-		(at 165.1 210.82)
+		(at 162.56 210.82)
 		(uuid "ae17c8c7-680f-49d6-8d39-858d0b272327")
 	)
 	(no_connect
-		(at 165.1 218.44)
+		(at 162.56 218.44)
 		(uuid "c2917f62-9850-464c-b14c-f9a59b7f6a67")
 	)
 	(no_connect
@@ -9426,11 +9444,11 @@
 		(uuid "de4fb777-c11c-4e2d-a39c-64bd2628f2ba")
 	)
 	(no_connect
-		(at 165.1 205.74)
+		(at 162.56 205.74)
 		(uuid "e7dc9dde-94fb-49c3-9227-0b5337351bc5")
 	)
 	(no_connect
-		(at 165.1 200.66)
+		(at 162.56 200.66)
 		(uuid "f06ab6e0-678b-4605-a781-9497a2e2d96f")
 	)
 	(no_connect
@@ -9559,7 +9577,7 @@
 	)
 	(wire
 		(pts
-			(xy 110.49 38.1) (xy 116.84 38.1)
+			(xy 124.46 38.1) (xy 130.81 38.1)
 		)
 		(stroke
 			(width 0)
@@ -9579,7 +9597,7 @@
 	)
 	(wire
 		(pts
-			(xy 85.09 40.64) (xy 85.09 38.1)
+			(xy 96.52 40.64) (xy 96.52 38.1)
 		)
 		(stroke
 			(width 0)
@@ -9589,7 +9607,7 @@
 	)
 	(wire
 		(pts
-			(xy 152.4 33.02) (xy 154.94 33.02)
+			(xy 167.64 33.02) (xy 170.18 33.02)
 		)
 		(stroke
 			(width 0)
@@ -9669,7 +9687,17 @@
 	)
 	(wire
 		(pts
-			(xy 152.4 35.56) (xy 154.94 35.56)
+			(xy 168.91 203.2) (xy 171.45 203.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0c228ed1-3b13-4017-b14a-879c5a7bfc08")
+	)
+	(wire
+		(pts
+			(xy 167.64 35.56) (xy 170.18 35.56)
 		)
 		(stroke
 			(width 0)
@@ -9879,7 +9907,7 @@
 	)
 	(wire
 		(pts
-			(xy 116.84 35.56) (xy 116.84 38.1)
+			(xy 130.81 35.56) (xy 130.81 38.1)
 		)
 		(stroke
 			(width 0)
@@ -9929,7 +9957,7 @@
 	)
 	(wire
 		(pts
-			(xy 167.64 185.42) (xy 165.1 185.42)
+			(xy 165.1 185.42) (xy 162.56 185.42)
 		)
 		(stroke
 			(width 0)
@@ -9949,7 +9977,7 @@
 	)
 	(wire
 		(pts
-			(xy 100.33 38.1) (xy 105.41 38.1)
+			(xy 114.3 38.1) (xy 119.38 38.1)
 		)
 		(stroke
 			(width 0)
@@ -10049,7 +10077,7 @@
 	)
 	(wire
 		(pts
-			(xy 139.7 200.66) (xy 139.7 217.17)
+			(xy 137.16 200.66) (xy 137.16 217.17)
 		)
 		(stroke
 			(width 0)
@@ -10169,7 +10197,7 @@
 	)
 	(wire
 		(pts
-			(xy 139.7 200.66) (xy 144.78 200.66)
+			(xy 137.16 200.66) (xy 142.24 200.66)
 		)
 		(stroke
 			(width 0)
@@ -10179,7 +10207,7 @@
 	)
 	(wire
 		(pts
-			(xy 177.8 182.88) (xy 177.8 193.04)
+			(xy 181.61 182.88) (xy 181.61 193.04)
 		)
 		(stroke
 			(width 0)
@@ -10219,7 +10247,7 @@
 	)
 	(wire
 		(pts
-			(xy 38.1 38.1) (xy 43.18 38.1)
+			(xy 43.18 38.1) (xy 48.26 38.1)
 		)
 		(stroke
 			(width 0)
@@ -10269,6 +10297,16 @@
 	)
 	(wire
 		(pts
+			(xy 63.5 43.18) (xy 60.96 43.18)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2eaa15b7-8a16-4085-8114-7fea6014570b")
+	)
+	(wire
+		(pts
 			(xy 226.06 27.94) (xy 226.06 30.48)
 		)
 		(stroke
@@ -10299,7 +10337,7 @@
 	)
 	(wire
 		(pts
-			(xy 119.38 198.12) (xy 144.78 198.12)
+			(xy 116.84 198.12) (xy 142.24 198.12)
 		)
 		(stroke
 			(width 0)
@@ -10309,7 +10347,7 @@
 	)
 	(wire
 		(pts
-			(xy 105.41 38.1) (xy 110.49 38.1)
+			(xy 119.38 38.1) (xy 124.46 38.1)
 		)
 		(stroke
 			(width 0)
@@ -10359,7 +10397,7 @@
 	)
 	(wire
 		(pts
-			(xy 152.4 40.64) (xy 154.94 40.64)
+			(xy 167.64 40.64) (xy 170.18 40.64)
 		)
 		(stroke
 			(width 0)
@@ -10369,7 +10407,7 @@
 	)
 	(wire
 		(pts
-			(xy 196.85 210.82) (xy 220.98 210.82)
+			(xy 200.66 210.82) (xy 220.98 210.82)
 		)
 		(stroke
 			(width 0)
@@ -10439,7 +10477,7 @@
 	)
 	(wire
 		(pts
-			(xy 105.41 38.1) (xy 105.41 40.64)
+			(xy 119.38 38.1) (xy 119.38 40.64)
 		)
 		(stroke
 			(width 0)
@@ -10449,7 +10487,7 @@
 	)
 	(wire
 		(pts
-			(xy 190.5 185.42) (xy 187.96 185.42)
+			(xy 194.31 185.42) (xy 191.77 185.42)
 		)
 		(stroke
 			(width 0)
@@ -10459,7 +10497,7 @@
 	)
 	(wire
 		(pts
-			(xy 152.4 50.8) (xy 154.94 50.8)
+			(xy 167.64 50.8) (xy 170.18 50.8)
 		)
 		(stroke
 			(width 0)
@@ -10659,7 +10697,7 @@
 	)
 	(wire
 		(pts
-			(xy 43.18 45.72) (xy 43.18 48.26)
+			(xy 48.26 45.72) (xy 48.26 48.26)
 		)
 		(stroke
 			(width 0)
@@ -10719,7 +10757,7 @@
 	)
 	(wire
 		(pts
-			(xy 195.58 203.2) (xy 196.85 203.2)
+			(xy 199.39 203.2) (xy 200.66 203.2)
 		)
 		(stroke
 			(width 0)
@@ -10729,7 +10767,7 @@
 	)
 	(wire
 		(pts
-			(xy 38.1 45.72) (xy 38.1 48.26)
+			(xy 43.18 45.72) (xy 43.18 48.26)
 		)
 		(stroke
 			(width 0)
@@ -10789,6 +10827,16 @@
 	)
 	(wire
 		(pts
+			(xy 55.88 43.18) (xy 52.07 43.18)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "4a483e0b-f8bd-44e2-a24b-1d89c45d9fbd")
+	)
+	(wire
+		(pts
 			(xy 203.2 144.78) (xy 203.2 149.86)
 		)
 		(stroke
@@ -10829,7 +10877,7 @@
 	)
 	(wire
 		(pts
-			(xy 95.25 38.1) (xy 100.33 38.1)
+			(xy 106.68 38.1) (xy 114.3 38.1)
 		)
 		(stroke
 			(width 0)
@@ -10909,7 +10957,7 @@
 	)
 	(wire
 		(pts
-			(xy 182.88 185.42) (xy 177.8 185.42)
+			(xy 186.69 185.42) (xy 181.61 185.42)
 		)
 		(stroke
 			(width 0)
@@ -10979,7 +11027,7 @@
 	)
 	(wire
 		(pts
-			(xy 165.1 203.2) (xy 167.64 203.2)
+			(xy 162.56 203.2) (xy 168.91 203.2)
 		)
 		(stroke
 			(width 0)
@@ -10999,7 +11047,7 @@
 	)
 	(wire
 		(pts
-			(xy 35.56 38.1) (xy 38.1 38.1)
+			(xy 38.1 38.1) (xy 43.18 38.1)
 		)
 		(stroke
 			(width 0)
@@ -11029,7 +11077,7 @@
 	)
 	(wire
 		(pts
-			(xy 74.93 43.18) (xy 95.25 43.18)
+			(xy 86.36 43.18) (xy 106.68 43.18)
 		)
 		(stroke
 			(width 0)
@@ -11039,7 +11087,7 @@
 	)
 	(wire
 		(pts
-			(xy 95.25 43.18) (xy 95.25 38.1)
+			(xy 106.68 43.18) (xy 106.68 38.1)
 		)
 		(stroke
 			(width 0)
@@ -11119,6 +11167,16 @@
 	)
 	(wire
 		(pts
+			(xy 63.5 43.18) (xy 63.5 45.72)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5d3927cd-bb7f-401e-9d2c-317db40c38be")
+	)
+	(wire
+		(pts
 			(xy 266.7 91.44) (xy 281.94 91.44)
 		)
 		(stroke
@@ -11159,7 +11217,7 @@
 	)
 	(wire
 		(pts
-			(xy 190.5 187.96) (xy 190.5 185.42)
+			(xy 194.31 187.96) (xy 194.31 185.42)
 		)
 		(stroke
 			(width 0)
@@ -11199,7 +11257,17 @@
 	)
 	(wire
 		(pts
-			(xy 152.4 38.1) (xy 154.94 38.1)
+			(xy 215.9 218.44) (xy 218.44 218.44)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "652ffa39-126e-4aa4-8830-c4f16bdc3fa1")
+	)
+	(wire
+		(pts
+			(xy 167.64 38.1) (xy 170.18 38.1)
 		)
 		(stroke
 			(width 0)
@@ -11369,6 +11437,16 @@
 	)
 	(wire
 		(pts
+			(xy 168.91 200.66) (xy 168.91 203.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6fc6a75d-55f9-488e-9bb6-d7e5adedee0f")
+	)
+	(wire
+		(pts
 			(xy 254 63.5) (xy 261.62 63.5)
 		)
 		(stroke
@@ -11429,6 +11507,16 @@
 	)
 	(wire
 		(pts
+			(xy 218.44 218.44) (xy 218.44 213.36)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7352a8b6-02d6-4e6f-a15a-567063721f9c")
+	)
+	(wire
+		(pts
 			(xy 223.52 160.02) (xy 203.2 160.02)
 		)
 		(stroke
@@ -11439,7 +11527,7 @@
 	)
 	(wire
 		(pts
-			(xy 152.4 43.18) (xy 154.94 43.18)
+			(xy 167.64 43.18) (xy 170.18 43.18)
 		)
 		(stroke
 			(width 0)
@@ -11619,7 +11707,7 @@
 	)
 	(wire
 		(pts
-			(xy 160.02 185.42) (xy 154.94 185.42)
+			(xy 157.48 185.42) (xy 152.4 185.42)
 		)
 		(stroke
 			(width 0)
@@ -11759,7 +11847,7 @@
 	)
 	(wire
 		(pts
-			(xy 137.16 200.66) (xy 139.7 200.66)
+			(xy 134.62 200.66) (xy 137.16 200.66)
 		)
 		(stroke
 			(width 0)
@@ -11779,7 +11867,7 @@
 	)
 	(wire
 		(pts
-			(xy 54.61 43.18) (xy 52.07 43.18)
+			(xy 66.04 43.18) (xy 63.5 43.18)
 		)
 		(stroke
 			(width 0)
@@ -11829,7 +11917,7 @@
 	)
 	(wire
 		(pts
-			(xy 154.94 182.88) (xy 154.94 193.04)
+			(xy 152.4 182.88) (xy 152.4 193.04)
 		)
 		(stroke
 			(width 0)
@@ -11839,7 +11927,7 @@
 	)
 	(wire
 		(pts
-			(xy 196.85 203.2) (xy 196.85 210.82)
+			(xy 200.66 203.2) (xy 200.66 210.82)
 		)
 		(stroke
 			(width 0)
@@ -11879,7 +11967,7 @@
 	)
 	(wire
 		(pts
-			(xy 110.49 45.72) (xy 110.49 48.26)
+			(xy 124.46 45.72) (xy 124.46 48.26)
 		)
 		(stroke
 			(width 0)
@@ -11909,7 +11997,7 @@
 	)
 	(wire
 		(pts
-			(xy 139.7 222.25) (xy 139.7 233.68)
+			(xy 137.16 222.25) (xy 137.16 233.68)
 		)
 		(stroke
 			(width 0)
@@ -12079,7 +12167,7 @@
 	)
 	(wire
 		(pts
-			(xy 27.94 38.1) (xy 30.48 38.1)
+			(xy 27.94 38.1) (xy 33.02 38.1)
 		)
 		(stroke
 			(width 0)
@@ -12179,7 +12267,7 @@
 	)
 	(wire
 		(pts
-			(xy 74.93 38.1) (xy 85.09 38.1)
+			(xy 86.36 38.1) (xy 96.52 38.1)
 		)
 		(stroke
 			(width 0)
@@ -12219,7 +12307,7 @@
 	)
 	(wire
 		(pts
-			(xy 52.07 38.1) (xy 54.61 38.1)
+			(xy 52.07 38.1) (xy 66.04 38.1)
 		)
 		(stroke
 			(width 0)
@@ -12389,7 +12477,7 @@
 	)
 	(wire
 		(pts
-			(xy 64.77 48.26) (xy 64.77 50.8)
+			(xy 76.2 48.26) (xy 76.2 50.8)
 		)
 		(stroke
 			(width 0)
@@ -12399,7 +12487,7 @@
 	)
 	(wire
 		(pts
-			(xy 82.55 40.64) (xy 85.09 40.64)
+			(xy 93.98 40.64) (xy 96.52 40.64)
 		)
 		(stroke
 			(width 0)
@@ -12579,7 +12667,7 @@
 	)
 	(wire
 		(pts
-			(xy 95.25 38.1) (xy 92.71 38.1)
+			(xy 106.68 38.1) (xy 104.14 38.1)
 		)
 		(stroke
 			(width 0)
@@ -12629,7 +12717,7 @@
 	)
 	(wire
 		(pts
-			(xy 152.4 48.26) (xy 154.94 48.26)
+			(xy 167.64 48.26) (xy 170.18 48.26)
 		)
 		(stroke
 			(width 0)
@@ -12809,7 +12897,7 @@
 	)
 	(wire
 		(pts
-			(xy 43.18 38.1) (xy 43.18 40.64)
+			(xy 48.26 38.1) (xy 48.26 40.64)
 		)
 		(stroke
 			(width 0)
@@ -12819,7 +12907,7 @@
 	)
 	(wire
 		(pts
-			(xy 119.38 200.66) (xy 132.08 200.66)
+			(xy 116.84 200.66) (xy 129.54 200.66)
 		)
 		(stroke
 			(width 0)
@@ -12889,7 +12977,7 @@
 	)
 	(wire
 		(pts
-			(xy 105.41 45.72) (xy 105.41 48.26)
+			(xy 119.38 45.72) (xy 119.38 48.26)
 		)
 		(stroke
 			(width 0)
@@ -12909,7 +12997,7 @@
 	)
 	(wire
 		(pts
-			(xy 218.44 233.68) (xy 218.44 213.36)
+			(xy 218.44 233.68) (xy 218.44 226.06)
 		)
 		(stroke
 			(width 0)
@@ -12959,7 +13047,7 @@
 	)
 	(wire
 		(pts
-			(xy 167.64 187.96) (xy 167.64 185.42)
+			(xy 165.1 187.96) (xy 165.1 185.42)
 		)
 		(stroke
 			(width 0)
@@ -13059,7 +13147,7 @@
 	)
 	(wire
 		(pts
-			(xy 100.33 38.1) (xy 100.33 40.64)
+			(xy 114.3 38.1) (xy 114.3 40.64)
 		)
 		(stroke
 			(width 0)
@@ -13099,7 +13187,7 @@
 	)
 	(wire
 		(pts
-			(xy 74.93 40.64) (xy 77.47 40.64)
+			(xy 86.36 40.64) (xy 88.9 40.64)
 		)
 		(stroke
 			(width 0)
@@ -13119,7 +13207,7 @@
 	)
 	(wire
 		(pts
-			(xy 100.33 45.72) (xy 100.33 48.26)
+			(xy 114.3 45.72) (xy 114.3 48.26)
 		)
 		(stroke
 			(width 0)
@@ -13146,6 +13234,16 @@
 			(type default)
 		)
 		(uuid "d60bd878-2bff-4cb1-8187-f4462f878aff")
+	)
+	(wire
+		(pts
+			(xy 218.44 220.98) (xy 218.44 218.44)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d6ec8610-41d7-454c-993f-dcf3d99358b3")
 	)
 	(wire
 		(pts
@@ -13299,7 +13397,7 @@
 	)
 	(wire
 		(pts
-			(xy 154.94 231.14) (xy 154.94 233.68)
+			(xy 152.4 231.14) (xy 152.4 233.68)
 		)
 		(stroke
 			(width 0)
@@ -13359,7 +13457,7 @@
 	)
 	(wire
 		(pts
-			(xy 177.8 213.36) (xy 177.8 233.68)
+			(xy 181.61 213.36) (xy 181.61 233.68)
 		)
 		(stroke
 			(width 0)
@@ -13559,7 +13657,7 @@
 	)
 	(wire
 		(pts
-			(xy 38.1 38.1) (xy 38.1 40.64)
+			(xy 43.18 38.1) (xy 43.18 40.64)
 		)
 		(stroke
 			(width 0)
@@ -13609,7 +13707,7 @@
 	)
 	(wire
 		(pts
-			(xy 85.09 38.1) (xy 87.63 38.1)
+			(xy 96.52 38.1) (xy 99.06 38.1)
 		)
 		(stroke
 			(width 0)
@@ -13619,7 +13717,7 @@
 	)
 	(wire
 		(pts
-			(xy 43.18 38.1) (xy 52.07 38.1)
+			(xy 48.26 38.1) (xy 52.07 38.1)
 		)
 		(stroke
 			(width 0)
@@ -13759,7 +13857,7 @@
 	)
 	(wire
 		(pts
-			(xy 110.49 38.1) (xy 110.49 40.64)
+			(xy 124.46 38.1) (xy 124.46 40.64)
 		)
 		(stroke
 			(width 0)
@@ -14178,7 +14276,7 @@
 		(uuid "58447380-d304-41bd-a509-a9b9fdcef8b3")
 	)
 	(label "EXDES_CS"
-		(at 119.38 200.66 0)
+		(at 116.84 200.66 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -14278,7 +14376,7 @@
 		(uuid "740ca1c3-3f48-4375-bbb0-3b4f04403b9c")
 	)
 	(label "EXDES_SCLK"
-		(at 119.38 198.12 0)
+		(at 116.84 198.12 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -14704,6 +14802,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 82.55 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 82.55 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 82.55 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 82.55 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(instances
 			(project "lcdtap_rp2350"
 				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
@@ -14770,6 +14912,50 @@
 			)
 		)
 		(property "Description" "Mounting Hole without connection"
+			(at 63.5 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 63.5 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 63.5 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 63.5 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 63.5 184.15 0)
 			(hide yes)
 			(show_name no)
@@ -14858,18 +15044,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 279.4 132.08 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C139797"
 			(at 279.4 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -14902,7 +15077,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C139797"
+		(property "KLC_S4.2_DVDD" ""
+			(at 279.4 132.08 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 279.4 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -14936,7 +15122,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 154.94 40.64 270)
+		(at 170.18 40.64 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -14946,7 +15132,7 @@
 		(dnp no)
 		(uuid "0551210a-f368-4061-a4ff-a7e01f6fc892")
 		(property "Reference" "#FLG05"
-			(at 156.845 40.64 0)
+			(at 172.085 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14957,7 +15143,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 158.75 40.64 90)
+			(at 173.99 40.64 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -14968,7 +15154,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 40.64 0)
+			(at 170.18 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14979,7 +15165,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 40.64 0)
+			(at 170.18 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -14990,7 +15176,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 154.94 40.64 0)
+			(at 170.18 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15167,6 +15353,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 58.42 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 58.42 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 58.42 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 58.42 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "fdb99d89-4911-4d95-a500-0a8a506f7f06")
 		)
@@ -15249,6 +15479,50 @@
 			)
 		)
 		(property "LCSC" "C19666"
+			(at 203.2 154.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 203.2 154.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 203.2 154.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 203.2 154.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 203.2 154.94 0)
 			(hide yes)
 			(show_name no)
@@ -15496,28 +15770,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 114.3 83.82 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 114.3 83.82 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C19666"
 			(at 114.3 83.82 0)
 			(hide yes)
@@ -15541,6 +15793,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 114.3 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 114.3 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 114.3 83.82 0)
 			(hide yes)
 			(show_name no)
@@ -15632,18 +15906,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 264.16 83.82 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25155"
 			(at 264.16 83.82 90)
 			(hide yes)
 			(show_name no)
@@ -15676,7 +15939,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25155"
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 83.82 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 264.16 83.82 90)
 			(hide yes)
 			(show_name no)
@@ -15836,6 +16110,50 @@
 			)
 		)
 		(property "Description" "Mounting Hole without connection"
+			(at 63.5 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 63.5 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 63.5 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 63.5 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 63.5 127 0)
 			(hide yes)
 			(show_name no)
@@ -16010,18 +16328,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 330.2 132.08 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C2290"
 			(at 330.2 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -16054,7 +16361,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C2290"
+		(property "KLC_S4.2_DVDD" ""
+			(at 330.2 132.08 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 330.2 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -16146,18 +16464,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 264.16 99.06 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25155"
 			(at 264.16 99.06 90)
 			(hide yes)
 			(show_name no)
@@ -16190,7 +16497,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25155"
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 99.06 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 264.16 99.06 90)
 			(hide yes)
 			(show_name no)
@@ -16293,6 +16611,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 78.74 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 78.74 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 78.74 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 78.74 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "ddf0e980-dff1-42a6-a1bd-a511bba5d6d7")
 		)
@@ -16314,7 +16676,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp yes)
@@ -16373,7 +16735,51 @@
 				)
 			)
 		)
-		(property "LCSC" "C492432"
+		(property "LCSC" ""
+			(at 68.58 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 68.58 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 68.58 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 68.58 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 68.58 200.66 0)
 			(hide yes)
 			(show_name no)
@@ -16483,18 +16889,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 264.16 91.44 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25155"
 			(at 264.16 91.44 90)
 			(hide yes)
 			(show_name no)
@@ -16527,7 +16922,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25155"
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 91.44 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 264.16 91.44 90)
 			(hide yes)
 			(show_name no)
@@ -16630,6 +17036,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 53.34 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 53.34 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 53.34 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 53.34 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "18e6ae28-eb2e-40d4-84a2-68742c886b8e")
 		)
@@ -16647,7 +17097,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 152.4 43.18 270)
+		(at 167.64 43.18 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -16658,7 +17108,7 @@
 		(fields_autoplaced yes)
 		(uuid "243f9465-07e8-4501-b8aa-dec0f8925b7a")
 		(property "Reference" "#PWR084"
-			(at 146.05 43.18 0)
+			(at 161.29 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16669,7 +17119,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 148.59 43.1799 90)
+			(at 163.83 43.1799 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -16680,7 +17130,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 152.4 43.18 0)
+			(at 167.64 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16691,7 +17141,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 152.4 43.18 0)
+			(at 167.64 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16702,7 +17152,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 152.4 43.18 0)
+			(at 167.64 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -16792,18 +17242,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 373.38 91.44 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C720616"
 			(at 373.38 91.44 0)
 			(hide yes)
 			(show_name no)
@@ -16836,7 +17275,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C720616"
+		(property "KLC_S4.2_DVDD" ""
+			(at 373.38 91.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 373.38 91.44 0)
 			(hide yes)
 			(show_name no)
@@ -17061,18 +17511,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 160.02 76.2 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C139797"
 			(at 160.02 76.2 0)
 			(hide yes)
 			(show_name no)
@@ -17105,7 +17544,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C139797"
+		(property "KLC_S4.2_DVDD" ""
+			(at 160.02 76.2 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 160.02 76.2 0)
 			(hide yes)
 			(show_name no)
@@ -17139,7 +17589,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 152.4 50.8 270)
+		(at 167.64 50.8 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -17150,7 +17600,7 @@
 		(fields_autoplaced yes)
 		(uuid "29017580-ae38-4655-8847-440ec874d796")
 		(property "Reference" "#PWR086"
-			(at 146.05 50.8 0)
+			(at 161.29 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17161,7 +17611,7 @@
 			)
 		)
 		(property "Value" "EXDES_GND"
-			(at 148.59 50.7999 90)
+			(at 163.83 50.7999 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17172,7 +17622,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 152.4 50.8 0)
+			(at 167.64 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17183,7 +17633,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 152.4 50.8 0)
+			(at 167.64 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17194,7 +17644,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 152.4 50.8 0)
+			(at 167.64 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17360,28 +17810,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 124.46 83.82 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 124.46 83.82 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 124.46 83.82 0)
 			(hide yes)
@@ -17415,6 +17843,28 @@
 				)
 			)
 		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 124.46 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 124.46 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "5294c84e-b057-4b7e-ae45-06f39c35794d")
 		)
@@ -17425,6 +17875,140 @@
 			(project "lcdtap_rp2350"
 				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
 					(reference "C17")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R_Small")
+		(at 218.44 223.52 180)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "2c3ee4c7-70fb-4298-8f38-99d1d67486bd")
+		(property "Reference" "R35"
+			(at 214.884 222.25 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 214.884 224.536 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+			(at 218.44 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 218.44 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor, small symbol"
+			(at 218.44 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25744"
+			(at 218.44 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 218.44 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 218.44 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 218.44 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 218.44 223.52 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "0a551ef1-5e0e-42f4-a84c-0711ae9db181")
+		)
+		(pin "1"
+			(uuid "560a2216-fec8-48f7-8bc6-b6453bcd3f91")
+		)
+		(instances
+			(project "lcdtap_rp2350"
+				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
+					(reference "R35")
 					(unit 1)
 				)
 			)
@@ -17510,7 +18094,7 @@
 	)
 	(symbol
 		(lib_id "Device:C_Small")
-		(at 185.42 185.42 90)
+		(at 189.23 185.42 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -17520,7 +18104,7 @@
 		(dnp no)
 		(uuid "2cdf8430-ef6b-4de4-a581-bf9ec964ad3f")
 		(property "Reference" "C26"
-			(at 185.42 179.832 90)
+			(at 189.23 179.832 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17530,7 +18114,7 @@
 			)
 		)
 		(property "Value" "100n"
-			(at 185.42 182.372 90)
+			(at 189.23 182.372 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17540,7 +18124,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 185.42 185.42 0)
+			(at 189.23 185.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17551,7 +18135,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 185.42 185.42 0)
+			(at 189.23 185.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17562,29 +18146,7 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
-			(at 185.42 185.42 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 185.42 185.42 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 185.42 185.42 0)
+			(at 189.23 185.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17595,7 +18157,7 @@
 			)
 		)
 		(property "LCSC" "C1525"
-			(at 185.42 185.42 0)
+			(at 189.23 185.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17606,7 +18168,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 185.42 185.42 0)
+			(at 189.23 185.42 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17617,7 +18179,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 185.42 185.42 0)
+			(at 189.23 185.42 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 189.23 185.42 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 189.23 185.42 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17644,7 +18228,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 64.77 50.8 0)
+		(at 76.2 50.8 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -17655,7 +18239,7 @@
 		(fields_autoplaced yes)
 		(uuid "2e74b6ed-fdb0-4cd3-a96f-8c8ebc08b1a1")
 		(property "Reference" "#PWR053"
-			(at 64.77 57.15 0)
+			(at 76.2 57.15 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17666,7 +18250,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 64.77 55.88 0)
+			(at 76.2 55.88 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17676,7 +18260,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 64.77 50.8 0)
+			(at 76.2 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17687,7 +18271,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 64.77 50.8 0)
+			(at 76.2 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17698,7 +18282,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 64.77 50.8 0)
+			(at 76.2 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -17788,18 +18372,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 294.64 132.08 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C139797"
 			(at 294.64 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -17832,7 +18405,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C139797"
+		(property "KLC_S4.2_DVDD" ""
+			(at 294.64 132.08 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 294.64 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -17941,6 +18525,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 55.88 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 55.88 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 55.88 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 55.88 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "35e73516-8365-40c0-9098-a0f4c92b1749")
 		)
@@ -17958,7 +18586,7 @@
 	)
 	(symbol
 		(lib_id "Device:D_TVS_Small")
-		(at 139.7 219.71 90)
+		(at 137.16 219.71 90)
 		(mirror x)
 		(unit 1)
 		(body_style 1)
@@ -17969,7 +18597,7 @@
 		(dnp no)
 		(uuid "33910a9e-041b-40e4-9d7a-2e88799799af")
 		(property "Reference" "D12"
-			(at 137.16 220.9801 90)
+			(at 134.62 220.9801 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17979,8 +18607,8 @@
 				(justify left)
 			)
 		)
-		(property "Value" "DF2B7AE"
-			(at 137.16 218.4401 90)
+		(property "Value" "SESD5Z5V"
+			(at 134.62 218.4401 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -17991,7 +18619,7 @@
 			)
 		)
 		(property "Footprint" "Diode_SMD:D_SOD-523"
-			(at 139.7 219.71 0)
+			(at 137.16 219.71 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18002,7 +18630,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 139.7 219.71 0)
+			(at 137.16 219.71 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18013,7 +18641,7 @@
 			)
 		)
 		(property "Description" "Bidirectional transient-voltage-suppression diode, small symbol"
-			(at 139.7 219.71 0)
+			(at 137.16 219.71 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18023,8 +18651,8 @@
 				)
 			)
 		)
-		(property "LCSC" "C1973289"
-			(at 139.7 219.71 90)
+		(property "LCSC" "C19631222"
+			(at 137.16 219.71 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18035,29 +18663,7 @@
 			)
 		)
 		(property "URL" ""
-			(at 139.7 219.71 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 139.7 219.71 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 139.7 219.71 90)
+			(at 137.16 219.71 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18068,7 +18674,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 139.7 219.71 90)
+			(at 137.16 219.71 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18079,7 +18685,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 139.7 219.71 90)
+			(at 137.16 219.71 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 137.16 219.71 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 137.16 219.71 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18126,7 +18754,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "DF2B7AE"
+		(property "Value" "SESD5Z5V"
 			(at 55.88 218.4401 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18170,7 +18798,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C1973289"
+		(property "LCSC" "C19631222"
 			(at 53.34 219.71 90)
 			(hide yes)
 			(show_name no)
@@ -18182,28 +18810,6 @@
 			)
 		)
 		(property "URL" ""
-			(at 53.34 219.71 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 53.34 219.71 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
 			(at 53.34 219.71 90)
 			(hide yes)
 			(show_name no)
@@ -18226,6 +18832,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 53.34 219.71 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 53.34 219.71 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 53.34 219.71 90)
 			(hide yes)
 			(show_name no)
@@ -18315,28 +18943,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 238.76 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 238.76 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 238.76 34.29 0)
 			(hide yes)
@@ -18360,6 +18966,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 238.76 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 238.76 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 238.76 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -18774,28 +19402,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 264.16 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 264.16 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 264.16 34.29 0)
 			(hide yes)
@@ -18829,6 +19435,28 @@
 				)
 			)
 		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "cb46972e-200a-4a5e-a726-ee918c11d3ce")
 		)
@@ -18846,7 +19474,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 152.4 48.26 90)
+		(at 167.64 48.26 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -18857,7 +19485,7 @@
 		(fields_autoplaced yes)
 		(uuid "3a1d0d7d-4384-445a-a2e7-d4fc0f286521")
 		(property "Reference" "#PWR085"
-			(at 156.21 48.26 0)
+			(at 171.45 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18868,7 +19496,7 @@
 			)
 		)
 		(property "Value" "EXDES_3V3"
-			(at 148.59 48.2599 90)
+			(at 163.83 48.2599 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -18879,7 +19507,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 152.4 48.26 0)
+			(at 167.64 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18890,7 +19518,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 152.4 48.26 0)
+			(at 167.64 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18901,7 +19529,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 152.4 48.26 0)
+			(at 167.64 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -18989,28 +19617,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 175.26 121.92 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 175.26 121.92 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1548"
 			(at 175.26 121.92 0)
 			(hide yes)
@@ -19044,6 +19650,28 @@
 				)
 			)
 		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 175.26 121.92 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 175.26 121.92 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "82b9ae0a-424d-43b5-b852-973668aa713e")
 		)
@@ -19054,6 +19682,128 @@
 			(project "lcdtap_rp2350"
 				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
 					(reference "C4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector:TestPoint_Small")
+		(at 215.9 218.44 180)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "3bf77c96-e869-446f-aab2-dbb01445f117")
+		(property "Reference" "TP15"
+			(at 212.344 218.44 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "TestPoint_Small"
+			(at 209.55 218.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "TestPoint:TestPoint_Pad_D1.0mm"
+			(at 210.82 218.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 210.82 218.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "test point"
+			(at 215.9 218.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 215.9 218.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 215.9 218.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 215.9 218.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 215.9 218.44 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "5eb1ca17-b289-491c-9940-1a142e4cb9d9")
+		)
+		(instances
+			(project "lcdtap_rp2350"
+				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
+					(reference "TP15")
 					(unit 1)
 				)
 			)
@@ -19124,18 +19874,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 195.58 68.58 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25100"
 			(at 195.58 68.58 90)
 			(hide yes)
 			(show_name no)
@@ -19168,7 +19907,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25100"
+		(property "KLC_S4.2_DVDD" ""
+			(at 195.58 68.58 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 195.58 68.58 90)
 			(hide yes)
 			(show_name no)
@@ -19261,6 +20011,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 101.6 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 101.6 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 101.6 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 101.6 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(instances
 			(project "lcdtap_rp2350"
 				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
@@ -19272,7 +20066,7 @@
 	)
 	(symbol
 		(lib_id "Device:L_Small")
-		(at 90.17 38.1 270)
+		(at 101.6 38.1 270)
 		(mirror x)
 		(unit 1)
 		(body_style 1)
@@ -19283,7 +20077,7 @@
 		(dnp no)
 		(uuid "4136d7fb-6308-4733-aa7d-0717e9284b12")
 		(property "Reference" "L2"
-			(at 90.17 36.068 90)
+			(at 101.6 36.068 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -19293,7 +20087,7 @@
 			)
 		)
 		(property "Value" "LQH3NPZ4R7MMEL"
-			(at 90.17 33.528 90)
+			(at 101.6 33.528 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -19303,7 +20097,7 @@
 			)
 		)
 		(property "Footprint" "shpc_discreet:LQH3NPZ4R7MMEL"
-			(at 90.17 38.1 0)
+			(at 101.6 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19314,7 +20108,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 90.17 38.1 0)
+			(at 101.6 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19325,29 +20119,7 @@
 			)
 		)
 		(property "Description" "Inductor, small symbol"
-			(at 90.17 38.1 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 90.17 38.1 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 90.17 38.1 90)
+			(at 101.6 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19358,7 +20130,7 @@
 			)
 		)
 		(property "LCSC" "C527613"
-			(at 90.17 38.1 90)
+			(at 101.6 38.1 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19369,7 +20141,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 90.17 38.1 90)
+			(at 101.6 38.1 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19380,7 +20152,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 90.17 38.1 90)
+			(at 101.6 38.1 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 101.6 38.1 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 101.6 38.1 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19411,7 +20205,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -19471,28 +20265,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 76.2 81.28 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 76.2 81.28 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 76.2 81.28 0)
 			(hide yes)
@@ -19505,6 +20277,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 76.2 81.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 76.2 81.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 76.2 81.28 0)
 			(hide yes)
 			(show_name no)
@@ -19550,7 +20344,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "DF2B7AE"
+		(property "Value" "SESD5Z5V"
 			(at 86.36 218.4401 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -19594,7 +20388,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C1973289"
+		(property "LCSC" "C19631222"
 			(at 88.9 219.71 90)
 			(hide yes)
 			(show_name no)
@@ -19606,28 +20400,6 @@
 			)
 		)
 		(property "URL" ""
-			(at 88.9 219.71 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 88.9 219.71 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
 			(at 88.9 219.71 90)
 			(hide yes)
 			(show_name no)
@@ -19650,6 +20422,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 88.9 219.71 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 88.9 219.71 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 88.9 219.71 90)
 			(hide yes)
 			(show_name no)
@@ -19742,18 +20536,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 330.2 124.46 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25900"
 			(at 330.2 124.46 0)
 			(hide yes)
 			(show_name no)
@@ -19786,7 +20569,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25900"
+		(property "KLC_S4.2_DVDD" ""
+			(at 330.2 124.46 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 330.2 124.46 0)
 			(hide yes)
 			(show_name no)
@@ -20032,18 +20826,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 195.58 66.04 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25100"
 			(at 195.58 66.04 90)
 			(hide yes)
 			(show_name no)
@@ -20076,7 +20859,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25100"
+		(property "KLC_S4.2_DVDD" ""
+			(at 195.58 66.04 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 195.58 66.04 90)
 			(hide yes)
 			(show_name no)
@@ -20246,18 +21040,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 264.16 96.52 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25155"
 			(at 264.16 96.52 90)
 			(hide yes)
 			(show_name no)
@@ -20290,7 +21073,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25155"
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 96.52 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 264.16 96.52 90)
 			(hide yes)
 			(show_name no)
@@ -20383,18 +21177,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 165.1 81.28 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C11702"
 			(at 165.1 81.28 0)
 			(hide yes)
 			(show_name no)
@@ -20427,7 +21210,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C11702"
+		(property "KLC_S4.2_DVDD" ""
+			(at 165.1 81.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 165.1 81.28 0)
 			(hide yes)
 			(show_name no)
@@ -20455,7 +21249,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 152.4 40.64 90)
+		(at 167.64 40.64 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -20466,7 +21260,7 @@
 		(fields_autoplaced yes)
 		(uuid "4b8e8ca1-8a2e-4cee-87f4-2b02fc69b86f")
 		(property "Reference" "#PWR083"
-			(at 156.21 40.64 0)
+			(at 171.45 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -20477,7 +21271,7 @@
 			)
 		)
 		(property "Value" "1V1"
-			(at 148.59 40.6399 90)
+			(at 163.83 40.6399 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -20488,7 +21282,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 152.4 40.64 0)
+			(at 167.64 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -20499,7 +21293,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 152.4 40.64 0)
+			(at 167.64 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -20510,7 +21304,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 152.4 40.64 0)
+			(at 167.64 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -20589,6 +21383,50 @@
 			)
 		)
 		(property "Description" "Mounting Hole without connection"
+			(at 44.45 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 44.45 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 44.45 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 44.45 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 44.45 127 0)
 			(hide yes)
 			(show_name no)
@@ -20862,7 +21700,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "DF2B7AE"
+		(property "Value" "SESD5Z5V"
 			(at 83.82 90.1701 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -20906,7 +21744,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C1973289"
+		(property "LCSC" "C19631222"
 			(at 81.28 91.44 90)
 			(hide yes)
 			(show_name no)
@@ -20918,28 +21756,6 @@
 			)
 		)
 		(property "URL" ""
-			(at 81.28 91.44 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 81.28 91.44 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
 			(at 81.28 91.44 90)
 			(hide yes)
 			(show_name no)
@@ -20962,6 +21778,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 81.28 91.44 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 81.28 91.44 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 81.28 91.44 90)
 			(hide yes)
 			(show_name no)
@@ -21133,18 +21971,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 274.32 132.08 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C139797"
 			(at 274.32 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -21177,7 +22004,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C139797"
+		(property "KLC_S4.2_DVDD" ""
+			(at 274.32 132.08 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 274.32 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -21211,7 +22049,7 @@
 	)
 	(symbol
 		(lib_id "Device:C_Small")
-		(at 162.56 185.42 90)
+		(at 160.02 185.42 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -21221,7 +22059,7 @@
 		(dnp no)
 		(uuid "51f8452f-1d5f-4b50-b315-47f9f0b7171d")
 		(property "Reference" "C25"
-			(at 162.56 179.832 90)
+			(at 160.02 179.832 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -21231,7 +22069,7 @@
 			)
 		)
 		(property "Value" "100n"
-			(at 162.56 182.372 90)
+			(at 160.02 182.372 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -21241,7 +22079,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 162.56 185.42 0)
+			(at 160.02 185.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21252,7 +22090,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 162.56 185.42 0)
+			(at 160.02 185.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21263,29 +22101,7 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
-			(at 162.56 185.42 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 162.56 185.42 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 162.56 185.42 0)
+			(at 160.02 185.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21296,7 +22112,7 @@
 			)
 		)
 		(property "LCSC" "C1525"
-			(at 162.56 185.42 0)
+			(at 160.02 185.42 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21307,7 +22123,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 162.56 185.42 0)
+			(at 160.02 185.42 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21318,7 +22134,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 162.56 185.42 0)
+			(at 160.02 185.42 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 160.02 185.42 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 160.02 185.42 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21345,7 +22183,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 105.41 48.26 0)
+		(at 119.38 48.26 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -21356,7 +22194,7 @@
 		(fields_autoplaced yes)
 		(uuid "52a2e3e6-772f-441c-9ec0-e4c97ed457a8")
 		(property "Reference" "#PWR059"
-			(at 105.41 54.61 0)
+			(at 119.38 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21367,7 +22205,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 105.41 53.34 0)
+			(at 119.38 53.34 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -21377,7 +22215,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 105.41 48.26 0)
+			(at 119.38 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21388,7 +22226,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 105.41 48.26 0)
+			(at 119.38 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21399,7 +22237,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 105.41 48.26 0)
+			(at 119.38 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21427,7 +22265,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp yes)
@@ -21486,7 +22324,51 @@
 				)
 			)
 		)
-		(property "LCSC" "C2894988"
+		(property "LCSC" ""
+			(at 369.57 33.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 369.57 33.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 369.57 33.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 369.57 33.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 369.57 33.02 0)
 			(hide yes)
 			(show_name no)
@@ -21709,6 +22591,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 66.04 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 66.04 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 66.04 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 66.04 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "a34b4077-1ff9-46b2-b93b-9402389da45c")
 		)
@@ -21886,7 +22812,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -21947,28 +22873,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 260.35 129.54 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 260.35 129.54 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 260.35 129.54 0)
 			(hide yes)
@@ -21981,6 +22885,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 260.35 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 260.35 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 260.35 129.54 0)
 			(hide yes)
 			(show_name no)
@@ -22069,18 +22995,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 264.16 86.36 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25155"
 			(at 264.16 86.36 90)
 			(hide yes)
 			(show_name no)
@@ -22113,7 +23028,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25155"
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 86.36 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 264.16 86.36 90)
 			(hide yes)
 			(show_name no)
@@ -22141,7 +23067,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 154.94 38.1 270)
+		(at 170.18 38.1 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -22151,7 +23077,7 @@
 		(dnp no)
 		(uuid "5cad31c8-6770-4591-8d6d-8e4309edbb2c")
 		(property "Reference" "#FLG04"
-			(at 156.845 38.1 0)
+			(at 172.085 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22162,7 +23088,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 158.75 38.1 90)
+			(at 173.99 38.1 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -22173,7 +23099,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 38.1 0)
+			(at 170.18 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22184,7 +23110,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 38.1 0)
+			(at 170.18 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22195,7 +23121,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 154.94 38.1 0)
+			(at 170.18 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22224,7 +23150,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -22285,28 +23211,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 358.14 99.06 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 358.14 99.06 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 358.14 99.06 0)
 			(hide yes)
@@ -22319,6 +23223,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 358.14 99.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 358.14 99.06 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 358.14 99.06 0)
 			(hide yes)
 			(show_name no)
@@ -22347,7 +23273,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -22407,28 +23333,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 213.36 143.51 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 213.36 143.51 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 213.36 143.51 0)
 			(hide yes)
@@ -22441,6 +23345,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 213.36 143.51 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 213.36 143.51 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 213.36 143.51 0)
 			(hide yes)
 			(show_name no)
@@ -22465,7 +23391,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 177.8 182.88 0)
+		(at 181.61 182.88 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -22476,7 +23402,7 @@
 		(fields_autoplaced yes)
 		(uuid "5f9f5741-7286-4b58-8f06-96658f5bfdc2")
 		(property "Reference" "#PWR071"
-			(at 177.8 186.69 0)
+			(at 181.61 186.69 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22487,7 +23413,7 @@
 			)
 		)
 		(property "Value" "EXDES_3V3"
-			(at 177.8 177.8 0)
+			(at 181.61 177.8 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -22497,7 +23423,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 177.8 182.88 0)
+			(at 181.61 182.88 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22508,7 +23434,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 177.8 182.88 0)
+			(at 181.61 182.88 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22519,7 +23445,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 177.8 182.88 0)
+			(at 181.61 182.88 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22761,18 +23687,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 58.42 73.66 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25905"
 			(at 58.42 73.66 0)
 			(hide yes)
 			(show_name no)
@@ -22784,7 +23699,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 58.42 73.66 0)
+			(at 58.42 73.66 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22795,7 +23710,7 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 58.42 73.66 0)
+			(at 58.42 73.66 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22805,8 +23720,19 @@
 				)
 			)
 		)
-		(property "LCSC" "C25905"
-			(at 58.42 73.66 0)
+		(property "KLC_S4.2_DVDD" ""
+			(at 58.42 73.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 58.42 73.66 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22915,7 +23841,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -22976,28 +23902,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 358.14 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 358.14 109.22 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 358.14 109.22 0)
 			(hide yes)
@@ -23010,6 +23914,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 358.14 109.22 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 358.14 109.22 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 358.14 109.22 0)
 			(hide yes)
 			(show_name no)
@@ -23038,7 +23964,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -23099,28 +24025,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 260.35 111.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 260.35 111.76 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 260.35 111.76 0)
 			(hide yes)
@@ -23133,6 +24037,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 260.35 111.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 260.35 111.76 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 260.35 111.76 0)
 			(hide yes)
 			(show_name no)
@@ -23235,7 +24161,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 152.4 35.56 90)
+		(at 167.64 35.56 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -23246,7 +24172,7 @@
 		(fields_autoplaced yes)
 		(uuid "65f0bc61-0d5e-43cc-9bd7-8114de371712")
 		(property "Reference" "#PWR082"
-			(at 156.21 35.56 0)
+			(at 171.45 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23257,7 +24183,7 @@
 			)
 		)
 		(property "Value" "VSYS"
-			(at 148.59 35.5599 90)
+			(at 163.83 35.5599 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23268,7 +24194,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 152.4 35.56 0)
+			(at 167.64 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23279,7 +24205,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 152.4 35.56 0)
+			(at 167.64 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23290,7 +24216,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 152.4 35.56 0)
+			(at 167.64 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23768,6 +24694,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 82.55 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 82.55 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 82.55 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 82.55 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(instances
 			(project "lcdtap_rp2350"
 				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
@@ -23799,7 +24769,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "DF2B7AE"
+		(property "Value" "SESD5Z5V"
 			(at 177.8 156.2101 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23843,7 +24813,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C1973289"
+		(property "LCSC" "C19631222"
 			(at 175.26 157.48 90)
 			(hide yes)
 			(show_name no)
@@ -23855,28 +24825,6 @@
 			)
 		)
 		(property "URL" ""
-			(at 175.26 157.48 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 175.26 157.48 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
 			(at 175.26 157.48 90)
 			(hide yes)
 			(show_name no)
@@ -23909,6 +24857,28 @@
 				)
 			)
 		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 175.26 157.48 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 175.26 157.48 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "2"
 			(uuid "ded8615f-3c02-457a-bb19-7587dc0f7454")
 		)
@@ -23926,7 +24896,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 43.18 48.26 0)
+		(at 48.26 48.26 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -23937,7 +24907,7 @@
 		(fields_autoplaced yes)
 		(uuid "6dc181a3-37c9-4c4d-b206-51be6b783889")
 		(property "Reference" "#PWR055"
-			(at 43.18 54.61 0)
+			(at 48.26 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23948,7 +24918,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 43.18 53.34 0)
+			(at 48.26 53.34 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -23958,7 +24928,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 43.18 48.26 0)
+			(at 48.26 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23969,7 +24939,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 43.18 48.26 0)
+			(at 48.26 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -23980,7 +24950,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 43.18 48.26 0)
+			(at 48.26 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24066,28 +25036,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 284.48 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 284.48 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 284.48 34.29 0)
 			(hide yes)
@@ -24121,6 +25069,28 @@
 				)
 			)
 		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 284.48 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 284.48 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "26c4fb26-5745-450f-a011-47deef96c785")
 		)
@@ -24138,7 +25108,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 154.94 33.02 270)
+		(at 170.18 33.02 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -24148,7 +25118,7 @@
 		(dnp no)
 		(uuid "71f5ba39-aad6-46ce-8b8a-e5858e7a69db")
 		(property "Reference" "#FLG03"
-			(at 156.845 33.02 0)
+			(at 172.085 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24159,7 +25129,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 158.75 33.02 90)
+			(at 173.99 33.02 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -24170,7 +25140,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 33.02 0)
+			(at 170.18 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24181,7 +25151,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 33.02 0)
+			(at 170.18 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24192,7 +25162,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 154.94 33.02 0)
+			(at 170.18 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24282,6 +25252,50 @@
 			)
 		)
 		(property "LCSC" "C19666"
+			(at 223.52 154.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 223.52 154.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 223.52 154.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 223.52 154.94 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 223.52 154.94 0)
 			(hide yes)
 			(show_name no)
@@ -24384,6 +25398,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 63.5 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 63.5 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 63.5 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 63.5 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "fb14ca11-33ff-4587-8df9-ff91f5bcaaf5")
 		)
@@ -24401,7 +25459,7 @@
 	)
 	(symbol
 		(lib_id "Device:C_Small")
-		(at 80.01 40.64 90)
+		(at 91.44 40.64 90)
 		(mirror x)
 		(unit 1)
 		(body_style 1)
@@ -24412,7 +25470,7 @@
 		(dnp no)
 		(uuid "76fc8457-d64c-4829-a889-7fab7bafbc6f")
 		(property "Reference" "C19"
-			(at 77.216 41.91 90)
+			(at 88.646 41.91 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -24422,7 +25480,7 @@
 			)
 		)
 		(property "Value" "100n"
-			(at 83.566 41.91 90)
+			(at 94.996 41.91 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -24432,7 +25490,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 80.01 40.64 0)
+			(at 91.44 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24443,7 +25501,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 80.01 40.64 0)
+			(at 91.44 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24454,29 +25512,7 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
-			(at 80.01 40.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 80.01 40.64 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 80.01 40.64 90)
+			(at 91.44 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24487,7 +25523,7 @@
 			)
 		)
 		(property "LCSC" "C1525"
-			(at 80.01 40.64 90)
+			(at 91.44 40.64 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24498,7 +25534,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 80.01 40.64 90)
+			(at 91.44 40.64 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24509,7 +25545,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 80.01 40.64 90)
+			(at 91.44 40.64 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 91.44 40.64 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 91.44 40.64 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24536,7 +25594,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 152.4 33.02 90)
+		(at 167.64 33.02 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -24547,7 +25605,7 @@
 		(fields_autoplaced yes)
 		(uuid "7707ba7f-e6c4-4238-a0bd-5f3ea0adb9e3")
 		(property "Reference" "#PWR080"
-			(at 156.21 33.02 0)
+			(at 171.45 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24558,7 +25616,7 @@
 			)
 		)
 		(property "Value" "VBUS"
-			(at 148.59 33.0199 90)
+			(at 163.83 33.0199 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -24569,7 +25627,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 152.4 33.02 0)
+			(at 167.64 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24580,7 +25638,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 152.4 33.02 0)
+			(at 167.64 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24591,7 +25649,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 152.4 33.02 0)
+			(at 167.64 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24636,7 +25694,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "DF2B7AE"
+		(property "Value" "SESD5Z5V"
 			(at 167.64 156.2101 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24680,7 +25738,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C1973289"
+		(property "LCSC" "C19631222"
 			(at 170.18 157.48 90)
 			(hide yes)
 			(show_name no)
@@ -24692,28 +25750,6 @@
 			)
 		)
 		(property "URL" ""
-			(at 170.18 157.48 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 170.18 157.48 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
 			(at 170.18 157.48 90)
 			(hide yes)
 			(show_name no)
@@ -24736,6 +25772,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 170.18 157.48 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 170.18 157.48 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 170.18 157.48 90)
 			(hide yes)
 			(show_name no)
@@ -24923,7 +25981,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -24983,28 +26041,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 165.1 73.66 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 165.1 73.66 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 165.1 73.66 0)
 			(hide yes)
@@ -25017,6 +26053,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 165.1 73.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 165.1 73.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 165.1 73.66 0)
 			(hide yes)
 			(show_name no)
@@ -25103,28 +26161,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 248.92 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 248.92 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 248.92 34.29 0)
 			(hide yes)
@@ -25158,6 +26194,28 @@
 				)
 			)
 		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 248.92 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 248.92 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "6b0963de-62b2-45a1-a3a3-f507d62d4d0a")
 		)
@@ -25175,7 +26233,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 154.94 35.56 270)
+		(at 170.18 35.56 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -25185,7 +26243,7 @@
 		(dnp no)
 		(uuid "7f5b3b3e-0c25-4230-a6ee-a0b8cc452207")
 		(property "Reference" "#FLG09"
-			(at 156.845 35.56 0)
+			(at 172.085 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25196,7 +26254,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 158.75 35.56 90)
+			(at 173.99 35.56 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -25207,7 +26265,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 35.56 0)
+			(at 170.18 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25218,7 +26276,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 35.56 0)
+			(at 170.18 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25229,7 +26287,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 154.94 35.56 0)
+			(at 170.18 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25253,7 +26311,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 152.4 38.1 90)
+		(at 167.64 38.1 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -25264,7 +26322,7 @@
 		(fields_autoplaced yes)
 		(uuid "7fcc7dab-6801-430d-b36a-626011654130")
 		(property "Reference" "#PWR081"
-			(at 156.21 38.1 0)
+			(at 171.45 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25275,7 +26333,7 @@
 			)
 		)
 		(property "Value" "3V3"
-			(at 148.59 38.0999 90)
+			(at 163.83 38.0999 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -25286,7 +26344,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 152.4 38.1 0)
+			(at 167.64 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25297,7 +26355,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 152.4 38.1 0)
+			(at 167.64 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25308,7 +26366,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 152.4 38.1 0)
+			(at 167.64 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25485,6 +26543,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 83.82 203.2 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 83.82 203.2 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 83.82 203.2 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 83.82 203.2 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "b30b72ef-1b03-4ffd-9dca-08d07cbfcd53")
 		)
@@ -25579,7 +26681,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 190.5 187.96 0)
+		(at 194.31 187.96 0)
 		(mirror y)
 		(unit 1)
 		(body_style 1)
@@ -25590,7 +26692,7 @@
 		(dnp no)
 		(uuid "876cca5f-9127-4bb1-9a63-a1abf1a414db")
 		(property "Reference" "#PWR070"
-			(at 190.5 194.31 0)
+			(at 194.31 194.31 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25601,7 +26703,7 @@
 			)
 		)
 		(property "Value" "EXDES_GND"
-			(at 190.5 192.278 0)
+			(at 194.31 192.278 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -25611,7 +26713,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 190.5 187.96 0)
+			(at 194.31 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25622,7 +26724,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 190.5 187.96 0)
+			(at 194.31 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25633,7 +26735,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 190.5 187.96 0)
+			(at 194.31 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25661,7 +26763,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -25721,28 +26823,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 190.5 73.66 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 190.5 73.66 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 190.5 73.66 0)
 			(hide yes)
@@ -25755,6 +26835,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 190.5 73.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 190.5 73.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 190.5 73.66 0)
 			(hide yes)
 			(show_name no)
@@ -25784,7 +26886,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -25845,28 +26947,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 358.14 101.6 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 358.14 101.6 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 358.14 101.6 0)
 			(hide yes)
@@ -25879,6 +26959,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 358.14 101.6 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 358.14 101.6 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 358.14 101.6 0)
 			(hide yes)
 			(show_name no)
@@ -25903,7 +27005,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 177.8 233.68 0)
+		(at 181.61 233.68 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -25914,7 +27016,7 @@
 		(fields_autoplaced yes)
 		(uuid "88f7179d-1410-4dbf-a9de-b4bb9dd35c28")
 		(property "Reference" "#PWR074"
-			(at 177.8 240.03 0)
+			(at 181.61 240.03 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25925,7 +27027,7 @@
 			)
 		)
 		(property "Value" "EXDES_GND"
-			(at 177.8 238.76 0)
+			(at 181.61 238.76 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -25935,7 +27037,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 177.8 233.68 0)
+			(at 181.61 233.68 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25946,7 +27048,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 177.8 233.68 0)
+			(at 181.61 233.68 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25957,7 +27059,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 177.8 233.68 0)
+			(at 181.61 233.68 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -26046,6 +27148,50 @@
 			)
 		)
 		(property "LCSC" "C25118"
+			(at 264.16 71.12 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 264.16 71.12 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 71.12 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 71.12 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 264.16 71.12 90)
 			(hide yes)
 			(show_name no)
@@ -26215,18 +27361,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 264.16 101.6 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25155"
 			(at 264.16 101.6 90)
 			(hide yes)
 			(show_name no)
@@ -26259,7 +27394,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25155"
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 101.6 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 264.16 101.6 90)
 			(hide yes)
 			(show_name no)
@@ -26364,7 +27510,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 154.94 182.88 0)
+		(at 152.4 182.88 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -26375,7 +27521,7 @@
 		(fields_autoplaced yes)
 		(uuid "8c309179-f6a8-4013-adb7-15bc2315b608")
 		(property "Reference" "#PWR068"
-			(at 154.94 186.69 0)
+			(at 152.4 186.69 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -26386,7 +27532,7 @@
 			)
 		)
 		(property "Value" "EXDES_3V3"
-			(at 154.94 177.8 0)
+			(at 152.4 177.8 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -26396,7 +27542,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 182.88 0)
+			(at 152.4 182.88 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -26407,7 +27553,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 182.88 0)
+			(at 152.4 182.88 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -26418,7 +27564,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 154.94 182.88 0)
+			(at 152.4 182.88 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -26594,6 +27740,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 73.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 73.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 73.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 73.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "66ba1c77-7dad-4786-bc12-ac2d2887c740")
 		)
@@ -26694,7 +27884,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -26755,28 +27945,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 358.14 93.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 358.14 93.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 358.14 93.98 0)
 			(hide yes)
@@ -26789,6 +27957,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 358.14 93.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 358.14 93.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 358.14 93.98 0)
 			(hide yes)
 			(show_name no)
@@ -26969,7 +28159,7 @@
 	)
 	(symbol
 		(lib_id "Device:R_Small")
-		(at 134.62 200.66 90)
+		(at 132.08 200.66 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -26979,7 +28169,7 @@
 		(dnp no)
 		(uuid "915567d1-1bf4-4abb-aace-52a393f93469")
 		(property "Reference" "R31"
-			(at 132.334 199.39 90)
+			(at 129.794 199.39 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -26990,7 +28180,7 @@
 			)
 		)
 		(property "Value" "47"
-			(at 136.906 199.39 90)
+			(at 134.366 199.39 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -27001,7 +28191,7 @@
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
-			(at 134.62 200.66 0)
+			(at 132.08 200.66 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27012,7 +28202,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 134.62 200.66 0)
+			(at 132.08 200.66 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27023,7 +28213,7 @@
 			)
 		)
 		(property "Description" "Resistor, small symbol"
-			(at 134.62 200.66 0)
+			(at 132.08 200.66 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27034,7 +28224,51 @@
 			)
 		)
 		(property "LCSC" "C25118"
-			(at 134.62 200.66 90)
+			(at 132.08 200.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 132.08 200.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 132.08 200.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 132.08 200.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 132.08 200.66 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27281,18 +28515,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 264.16 88.9 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25155"
 			(at 264.16 88.9 90)
 			(hide yes)
 			(show_name no)
@@ -27325,7 +28548,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25155"
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 88.9 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 264.16 88.9 90)
 			(hide yes)
 			(show_name no)
@@ -27374,7 +28608,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "DF2B7AE"
+		(property "Value" "SESD5Z5V"
 			(at 25.4 41.9101 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27418,7 +28652,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C1973289"
+		(property "LCSC" "C19631222"
 			(at 27.94 43.18 90)
 			(hide yes)
 			(show_name no)
@@ -27430,28 +28664,6 @@
 			)
 		)
 		(property "URL" ""
-			(at 27.94 43.18 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 27.94 43.18 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
 			(at 27.94 43.18 90)
 			(hide yes)
 			(show_name no)
@@ -27474,6 +28686,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 27.94 43.18 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 27.94 43.18 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 27.94 43.18 90)
 			(hide yes)
 			(show_name no)
@@ -27577,6 +28811,129 @@
 		)
 	)
 	(symbol
+		(lib_id "Connector:TestPoint_Small")
+		(at 63.5 45.72 0)
+		(mirror x)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "94aaa50e-0701-4565-9b97-4ad7ce9e97cb")
+		(property "Reference" "TP14"
+			(at 63.754 47.752 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "TestPoint_Small"
+			(at 69.85 45.72 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "TestPoint:TestPoint_Pad_D1.0mm"
+			(at 68.58 45.72 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 68.58 45.72 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "test point"
+			(at 63.5 45.72 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 63.5 45.72 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 63.5 45.72 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 63.5 45.72 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 63.5 45.72 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "e2f10bd4-a48c-4ec6-9b09-a5cea0286e48")
+		)
+		(instances
+			(project "lcdtap_rp2350"
+				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
+					(reference "TP14")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_name "SKRPACE010_2")
 		(lib_id "shpc_mechanical:SKRPACE010")
 		(at 289.56 132.08 270)
@@ -27645,18 +29002,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 289.56 132.08 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C139797"
 			(at 289.56 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -27689,7 +29035,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C139797"
+		(property "KLC_S4.2_DVDD" ""
+			(at 289.56 132.08 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 289.56 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -27723,7 +29080,7 @@
 	)
 	(symbol
 		(lib_id "Device:C_Small")
-		(at 110.49 43.18 0)
+		(at 124.46 43.18 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -27733,7 +29090,7 @@
 		(dnp no)
 		(uuid "95bde6e3-b139-4945-85b4-2ad344929457")
 		(property "Reference" "C24"
-			(at 110.49 33.782 0)
+			(at 124.46 33.782 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -27743,7 +29100,7 @@
 			)
 		)
 		(property "Value" "100n"
-			(at 110.49 36.322 0)
+			(at 124.46 36.322 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -27753,7 +29110,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 110.49 43.18 0)
+			(at 124.46 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27764,7 +29121,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 110.49 43.18 0)
+			(at 124.46 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27775,29 +29132,7 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
-			(at 110.49 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 110.49 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 110.49 43.18 0)
+			(at 124.46 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27808,7 +29143,7 @@
 			)
 		)
 		(property "LCSC" "C1525"
-			(at 110.49 43.18 0)
+			(at 124.46 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27819,7 +29154,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 110.49 43.18 0)
+			(at 124.46 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -27830,7 +29165,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 110.49 43.18 0)
+			(at 124.46 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 124.46 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 124.46 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28022,28 +29379,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 139.7 93.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 139.7 93.98 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 139.7 93.98 0)
 			(hide yes)
@@ -28056,6 +29391,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 139.7 93.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 139.7 93.98 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 139.7 93.98 0)
 			(hide yes)
 			(show_name no)
@@ -28178,7 +29535,7 @@
 	)
 	(symbol
 		(lib_id "Regulator_Switching:AP63203WU")
-		(at 64.77 40.64 0)
+		(at 76.2 40.64 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -28188,7 +29545,7 @@
 		(dnp no)
 		(uuid "974e6e3a-2bec-4b51-93f5-c3674fe475bf")
 		(property "Reference" "U3"
-			(at 66.04 47.752 0)
+			(at 77.47 47.752 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28199,7 +29556,7 @@
 			)
 		)
 		(property "Value" "AP63203WU"
-			(at 66.04 50.292 0)
+			(at 77.47 50.292 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28210,7 +29567,7 @@
 			)
 		)
 		(property "Footprint" "Package_TO_SOT_SMD:TSOT-23-6"
-			(at 64.77 63.5 0)
+			(at 76.2 63.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28221,7 +29578,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.diodes.com/assets/Datasheets/AP63200-AP63201-AP63203-AP63205.pdf"
-			(at 64.77 40.64 0)
+			(at 76.2 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28232,7 +29589,7 @@
 			)
 		)
 		(property "Description" "2A, 1.1MHz Buck DC/DC Converter, fixed 3.3V output voltage, TSOT-23-6"
-			(at 64.77 40.64 0)
+			(at 76.2 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28243,7 +29600,7 @@
 			)
 		)
 		(property "LCSC" "C780769"
-			(at 64.77 40.64 0)
+			(at 76.2 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28254,29 +29611,7 @@
 			)
 		)
 		(property "URL" ""
-			(at 64.77 40.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 64.77 40.64 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 64.77 40.64 0)
+			(at 76.2 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28287,7 +29622,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 64.77 40.64 0)
+			(at 76.2 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28298,7 +29633,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 64.77 40.64 0)
+			(at 76.2 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 76.2 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 76.2 40.64 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28341,7 +29698,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -28402,28 +29759,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 260.35 114.3 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 260.35 114.3 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 260.35 114.3 0)
 			(hide yes)
@@ -28436,6 +29771,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 260.35 114.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 260.35 114.3 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 260.35 114.3 0)
 			(hide yes)
 			(show_name no)
@@ -28464,7 +29821,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp yes)
@@ -28522,7 +29879,51 @@
 				)
 			)
 		)
-		(property "LCSC" "C2897428"
+		(property "LCSC" ""
+			(at 281.94 205.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 281.94 205.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 281.94 205.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 281.94 205.74 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 281.94 205.74 0)
 			(hide yes)
 			(show_name no)
@@ -28669,7 +30070,7 @@
 	)
 	(symbol
 		(lib_id "74xGxx:74LVC1G04")
-		(at 182.88 203.2 0)
+		(at 186.69 203.2 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -28679,7 +30080,7 @@
 		(dnp no)
 		(uuid "9b4098c1-b7a5-48ff-871d-822eb017a0c2")
 		(property "Reference" "U6"
-			(at 179.578 209.55 0)
+			(at 183.388 209.55 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28690,7 +30091,7 @@
 			)
 		)
 		(property "Value" "74LVC1G04"
-			(at 179.578 212.09 0)
+			(at 183.388 212.09 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28701,7 +30102,7 @@
 			)
 		)
 		(property "Footprint" "Package_TO_SOT_SMD:SOT-23-5"
-			(at 182.88 203.2 0)
+			(at 186.69 203.2 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28712,7 +30113,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/sn74lvc1g04.pdf"
-			(at 182.88 203.2 0)
+			(at 186.69 203.2 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28723,7 +30124,7 @@
 			)
 		)
 		(property "Description" "Single NOT Gate, Low-Voltage CMOS"
-			(at 182.88 203.2 0)
+			(at 186.69 203.2 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28734,7 +30135,51 @@
 			)
 		)
 		(property "LCSC" "C7827"
-			(at 182.88 203.2 0)
+			(at 186.69 203.2 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 186.69 203.2 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 186.69 203.2 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 186.69 203.2 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 186.69 203.2 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28770,7 +30215,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 38.1 48.26 0)
+		(at 43.18 48.26 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -28781,7 +30226,7 @@
 		(fields_autoplaced yes)
 		(uuid "9bb2a26a-2c74-4d62-aeaf-0436ce932a40")
 		(property "Reference" "#PWR054"
-			(at 38.1 54.61 0)
+			(at 43.18 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28792,7 +30237,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 38.1 53.34 0)
+			(at 43.18 53.34 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -28802,7 +30247,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 38.1 48.26 0)
+			(at 43.18 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28813,7 +30258,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 38.1 48.26 0)
+			(at 43.18 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -28824,7 +30269,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 38.1 48.26 0)
+			(at 43.18 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29000,6 +30445,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 58.42 200.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 58.42 200.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 58.42 200.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 58.42 200.66 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "afca0c30-96ab-4999-9627-105dfbec22ac")
 		)
@@ -29080,18 +30569,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 195.58 127 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25076"
 			(at 195.58 127 90)
 			(hide yes)
 			(show_name no)
@@ -29124,7 +30602,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25076"
+		(property "KLC_S4.2_DVDD" ""
+			(at 195.58 127 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 195.58 127 90)
 			(hide yes)
 			(show_name no)
@@ -29231,7 +30720,7 @@
 	)
 	(symbol
 		(lib_id "Device:C_Small")
-		(at 105.41 43.18 0)
+		(at 119.38 43.18 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -29241,7 +30730,7 @@
 		(dnp no)
 		(uuid "a4797189-7e74-432a-a653-13aa5041b203")
 		(property "Reference" "C23"
-			(at 105.41 33.782 0)
+			(at 119.38 33.782 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -29251,7 +30740,7 @@
 			)
 		)
 		(property "Value" "22u"
-			(at 105.41 36.322 0)
+			(at 119.38 36.322 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -29261,7 +30750,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 105.41 43.18 0)
+			(at 119.38 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29272,7 +30761,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 105.41 43.18 0)
+			(at 119.38 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29283,29 +30772,7 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
-			(at 105.41 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 105.41 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 105.41 43.18 0)
+			(at 119.38 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29316,7 +30783,7 @@
 			)
 		)
 		(property "LCSC" "C59461"
-			(at 105.41 43.18 0)
+			(at 119.38 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29327,7 +30794,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 105.41 43.18 0)
+			(at 119.38 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29338,7 +30805,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 105.41 43.18 0)
+			(at 119.38 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 119.38 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 119.38 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29427,28 +30916,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 229.87 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 229.87 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 229.87 34.29 0)
 			(hide yes)
@@ -29482,6 +30949,28 @@
 				)
 			)
 		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 229.87 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 229.87 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "e9ac3b96-6f2d-4ea8-871d-352569f09fcf")
 		)
@@ -29499,7 +30988,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 167.64 187.96 0)
+		(at 165.1 187.96 0)
 		(mirror y)
 		(unit 1)
 		(body_style 1)
@@ -29510,7 +30999,7 @@
 		(dnp no)
 		(uuid "a507c5d6-1a2c-4096-ad4c-b3f5f95439f8")
 		(property "Reference" "#PWR069"
-			(at 167.64 194.31 0)
+			(at 165.1 194.31 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29521,7 +31010,7 @@
 			)
 		)
 		(property "Value" "EXDES_GND"
-			(at 167.64 192.278 0)
+			(at 165.1 192.278 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -29531,7 +31020,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 167.64 187.96 0)
+			(at 165.1 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29542,7 +31031,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 167.64 187.96 0)
+			(at 165.1 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29553,7 +31042,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 167.64 187.96 0)
+			(at 165.1 187.96 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29642,6 +31131,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 44.45 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 44.45 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 44.45 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 44.45 184.15 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(instances
 			(project "lcdtap_rp2350"
 				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
@@ -29715,28 +31248,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 238.76 185.42 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 238.76 185.42 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 238.76 185.42 0)
 			(hide yes)
@@ -29749,7 +31260,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 238.76 185.42 0)
+			(at 238.76 185.42 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29760,7 +31271,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 238.76 185.42 0)
+			(at 238.76 185.42 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 238.76 185.42 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 238.76 185.42 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -29852,18 +31385,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 185.42 76.2 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C139797"
 			(at 185.42 76.2 0)
 			(hide yes)
 			(show_name no)
@@ -29896,7 +31418,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C139797"
+		(property "KLC_S4.2_DVDD" ""
+			(at 185.42 76.2 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 185.42 76.2 0)
 			(hide yes)
 			(show_name no)
@@ -29994,6 +31527,61 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 231.14 208.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 231.14 208.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 231.14 208.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 231.14 208.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C5947"
+			(at 231.14 208.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "63724187-430c-417e-802c-5a683fe4a9c6")
 		)
@@ -30053,7 +31641,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 154.94 50.8 270)
+		(at 170.18 50.8 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -30063,7 +31651,7 @@
 		(dnp no)
 		(uuid "aae90c2f-abf3-464e-b934-b7c07c0739d9")
 		(property "Reference" "#FLG011"
-			(at 156.845 50.8 0)
+			(at 172.085 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30074,7 +31662,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 158.75 50.8 90)
+			(at 173.99 50.8 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -30085,7 +31673,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 50.8 0)
+			(at 170.18 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30096,7 +31684,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 50.8 0)
+			(at 170.18 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30107,7 +31695,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 154.94 50.8 0)
+			(at 170.18 50.8 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30194,18 +31782,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 182.88 116.84 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C11702"
 			(at 182.88 116.84 90)
 			(hide yes)
 			(show_name no)
@@ -30238,7 +31815,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C11702"
+		(property "KLC_S4.2_DVDD" ""
+			(at 182.88 116.84 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 182.88 116.84 90)
 			(hide yes)
 			(show_name no)
@@ -30266,7 +31854,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 139.7 233.68 0)
+		(at 137.16 233.68 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -30276,7 +31864,7 @@
 		(dnp no)
 		(uuid "ac7e8b22-92e7-4bef-af63-6dec988f826c")
 		(property "Reference" "#PWR092"
-			(at 139.7 240.03 0)
+			(at 137.16 240.03 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30287,7 +31875,7 @@
 			)
 		)
 		(property "Value" "EXDES_GND"
-			(at 139.7 238.76 0)
+			(at 137.16 238.76 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -30297,7 +31885,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 139.7 233.68 0)
+			(at 137.16 233.68 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30308,7 +31896,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 139.7 233.68 0)
+			(at 137.16 233.68 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30319,7 +31907,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 139.7 233.68 0)
+			(at 137.16 233.68 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30497,7 +32085,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 116.84 35.56 0)
+		(at 130.81 35.56 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -30508,7 +32096,7 @@
 		(fields_autoplaced yes)
 		(uuid "b3455829-3f12-4841-b316-4267d67f2578")
 		(property "Reference" "#PWR061"
-			(at 116.84 39.37 0)
+			(at 130.81 39.37 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30519,7 +32107,7 @@
 			)
 		)
 		(property "Value" "3V3"
-			(at 116.84 30.48 0)
+			(at 130.81 30.48 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -30529,7 +32117,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 116.84 35.56 0)
+			(at 130.81 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30540,7 +32128,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 116.84 35.56 0)
+			(at 130.81 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30551,7 +32139,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 116.84 35.56 0)
+			(at 130.81 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30806,6 +32394,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 68.58 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 68.58 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 68.58 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 68.58 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "0e32267a-0fa5-4c3e-a8dd-78d0618e25ed")
 		)
@@ -30885,18 +32517,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 195.58 124.46 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25076"
 			(at 195.58 124.46 90)
 			(hide yes)
 			(show_name no)
@@ -30929,7 +32550,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25076"
+		(property "KLC_S4.2_DVDD" ""
+			(at 195.58 124.46 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 195.58 124.46 90)
 			(hide yes)
 			(show_name no)
@@ -30957,7 +32589,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 154.94 43.18 270)
+		(at 170.18 43.18 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -30967,7 +32599,7 @@
 		(dnp no)
 		(uuid "b98c0865-6a53-4033-8a21-639e43ba5c29")
 		(property "Reference" "#FLG010"
-			(at 156.845 43.18 0)
+			(at 172.085 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -30978,7 +32610,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 158.75 43.18 90)
+			(at 173.99 43.18 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -30989,7 +32621,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 43.18 0)
+			(at 170.18 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31000,7 +32632,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 43.18 0)
+			(at 170.18 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31011,7 +32643,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 154.94 43.18 0)
+			(at 170.18 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31133,7 +32765,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "DF2B7AE"
+		(property "Value" "SESD5Z5V"
 			(at 40.64 218.4401 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31177,7 +32809,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C1973289"
+		(property "LCSC" "C19631222"
 			(at 38.1 219.71 90)
 			(hide yes)
 			(show_name no)
@@ -31189,28 +32821,6 @@
 			)
 		)
 		(property "URL" ""
-			(at 38.1 219.71 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 38.1 219.71 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
 			(at 38.1 219.71 90)
 			(hide yes)
 			(show_name no)
@@ -31233,6 +32843,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 38.1 219.71 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 38.1 219.71 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 38.1 219.71 90)
 			(hide yes)
 			(show_name no)
@@ -31260,7 +32892,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 110.49 48.26 0)
+		(at 124.46 48.26 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -31271,7 +32903,7 @@
 		(fields_autoplaced yes)
 		(uuid "bd192006-9cb5-4d71-be21-7ee5296b870f")
 		(property "Reference" "#PWR060"
-			(at 110.49 54.61 0)
+			(at 124.46 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31282,7 +32914,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 110.49 53.34 0)
+			(at 124.46 53.34 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -31292,7 +32924,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 110.49 48.26 0)
+			(at 124.46 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31303,7 +32935,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 110.49 48.26 0)
+			(at 124.46 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31314,7 +32946,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 110.49 48.26 0)
+			(at 124.46 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31338,7 +32970,7 @@
 	)
 	(symbol
 		(lib_id "Device:C_Small")
-		(at 38.1 43.18 0)
+		(at 43.18 43.18 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -31348,7 +32980,7 @@
 		(dnp no)
 		(uuid "bdea6a92-e688-4d72-8019-2c60c24327fd")
 		(property "Reference" "C20"
-			(at 38.1 33.782 0)
+			(at 43.18 33.782 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -31358,7 +32990,7 @@
 			)
 		)
 		(property "Value" "10u"
-			(at 38.1 36.322 0)
+			(at 43.18 36.322 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -31368,7 +33000,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 38.1 43.18 0)
+			(at 43.18 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31379,7 +33011,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 38.1 43.18 0)
+			(at 43.18 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31390,29 +33022,7 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
-			(at 38.1 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 38.1 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 38.1 43.18 0)
+			(at 43.18 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31423,7 +33033,7 @@
 			)
 		)
 		(property "LCSC" "C19702"
-			(at 38.1 43.18 0)
+			(at 43.18 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31434,7 +33044,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 38.1 43.18 0)
+			(at 43.18 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31445,7 +33055,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 38.1 43.18 0)
+			(at 43.18 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 43.18 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 43.18 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31536,18 +33168,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 264.16 93.98 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25155"
 			(at 264.16 93.98 90)
 			(hide yes)
 			(show_name no)
@@ -31580,7 +33201,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25155"
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 93.98 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 264.16 93.98 90)
 			(hide yes)
 			(show_name no)
@@ -31671,18 +33303,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 58.42 76.2 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25905"
 			(at 58.42 76.2 0)
 			(hide yes)
 			(show_name no)
@@ -31694,7 +33315,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 58.42 76.2 0)
+			(at 58.42 76.2 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31705,7 +33326,7 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 58.42 76.2 0)
+			(at 58.42 76.2 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31715,8 +33336,19 @@
 				)
 			)
 		)
-		(property "LCSC" "C25905"
-			(at 58.42 76.2 0)
+		(property "KLC_S4.2_DVDD" ""
+			(at 58.42 76.2 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 58.42 76.2 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31736,6 +33368,140 @@
 			(project "lcdtap_rp2350"
 				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
 					(reference "R5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R_Small")
+		(at 58.42 43.18 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "beeca80e-0b17-4667-8bda-bec05668cfef")
+		(property "Reference" "R34"
+			(at 54.356 42.164 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 62.738 42.164 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0402_1005Metric"
+			(at 58.42 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 58.42 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Resistor, small symbol"
+			(at 58.42 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C25744"
+			(at 58.42 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 58.42 43.18 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 58.42 43.18 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 58.42 43.18 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 58.42 43.18 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "2"
+			(uuid "d8994696-8f29-4687-b79f-a3ca6b644763")
+		)
+		(pin "1"
+			(uuid "567f3100-c7f0-41eb-bd87-58d3f6743399")
+		)
+		(instances
+			(project "lcdtap_rp2350"
+				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
+					(reference "R34")
 					(unit 1)
 				)
 			)
@@ -31805,28 +33571,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 279.4 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 279.4 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 279.4 34.29 0)
 			(hide yes)
@@ -31850,6 +33594,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 279.4 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 279.4 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 279.4 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -32107,6 +33873,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 60.96 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 60.96 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 60.96 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 60.96 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "c6728890-87f2-4a6f-a03c-e3f66bfa7f38")
 		)
@@ -32191,18 +34001,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 284.48 132.08 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C139797"
 			(at 284.48 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -32235,7 +34034,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C139797"
+		(property "KLC_S4.2_DVDD" ""
+			(at 284.48 132.08 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 284.48 132.08 90)
 			(hide yes)
 			(show_name no)
@@ -32331,18 +34141,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 205.74 30.48 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C25105"
 			(at 205.74 30.48 90)
 			(hide yes)
 			(show_name no)
@@ -32375,7 +34174,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C25105"
+		(property "KLC_S4.2_DVDD" ""
+			(at 205.74 30.48 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 205.74 30.48 90)
 			(hide yes)
 			(show_name no)
@@ -32478,28 +34288,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 346.71 33.02 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 346.71 33.02 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 346.71 33.02 0)
 			(hide yes)
@@ -32512,6 +34300,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 346.71 33.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 346.71 33.02 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 346.71 33.02 0)
 			(hide yes)
 			(show_name no)
@@ -32702,28 +34512,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 35.56 83.82 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 35.56 83.82 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 35.56 83.82 0)
 			(hide yes)
@@ -32736,6 +34524,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 35.56 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 35.56 83.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 35.56 83.82 0)
 			(hide yes)
 			(show_name no)
@@ -33028,28 +34838,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 165.1 121.92 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 165.1 121.92 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1548"
 			(at 165.1 121.92 0)
 			(hide yes)
@@ -33073,6 +34861,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 165.1 121.92 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 165.1 121.92 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 165.1 121.92 0)
 			(hide yes)
 			(show_name no)
@@ -33162,28 +34972,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 254 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 254 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 254 34.29 0)
 			(hide yes)
@@ -33217,6 +35005,28 @@
 				)
 			)
 		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 254 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 254 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "60b2ad78-1cde-40c5-9b09-c38a64e0f54c")
 		)
@@ -33234,7 +35044,7 @@
 	)
 	(symbol
 		(lib_id "shpc_ic:74HC4040")
-		(at 154.94 210.82 0)
+		(at 152.4 210.82 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -33244,7 +35054,7 @@
 		(dnp no)
 		(uuid "ccdd2aa0-dc54-4f64-9632-88bc42d60646")
 		(property "Reference" "U5"
-			(at 156.464 230.378 0)
+			(at 153.924 230.378 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -33255,7 +35065,7 @@
 			)
 		)
 		(property "Value" "74HC4040"
-			(at 156.464 232.918 0)
+			(at 153.924 232.918 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -33266,7 +35076,7 @@
 			)
 		)
 		(property "Footprint" "Package_SO:SOIC-16_3.9x9.9mm_P1.27mm"
-			(at 154.94 208.28 0)
+			(at 152.4 208.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33277,7 +35087,7 @@
 			)
 		)
 		(property "Datasheet" "https://www.ti.com/cn/lit/gpn/sn74hc4040"
-			(at 154.94 208.28 0)
+			(at 152.4 208.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33288,7 +35098,7 @@
 			)
 		)
 		(property "Description" "8-bit serial in/out Shift Register 3-State Outputs"
-			(at 154.94 208.28 0)
+			(at 152.4 208.28 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33298,8 +35108,52 @@
 				)
 			)
 		)
-		(property "LCSC" "C6848"
-			(at 154.94 210.82 0)
+		(property "LCSC" "C27387"
+			(at 152.4 210.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 152.4 210.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 152.4 210.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 152.4 210.82 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 152.4 210.82 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33373,7 +35227,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -33434,28 +35288,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 358.14 106.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 358.14 106.68 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 358.14 106.68 0)
 			(hide yes)
@@ -33468,6 +35300,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 358.14 106.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 358.14 106.68 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 358.14 106.68 0)
 			(hide yes)
 			(show_name no)
@@ -33570,7 +35424,7 @@
 	)
 	(symbol
 		(lib_id "Device:D_Schottky_Small")
-		(at 33.02 38.1 0)
+		(at 35.56 38.1 0)
 		(mirror y)
 		(unit 1)
 		(body_style 1)
@@ -33582,7 +35436,7 @@
 		(fields_autoplaced yes)
 		(uuid "d3a6ee71-b4d2-4888-aa5a-a8576f6df460")
 		(property "Reference" "D5"
-			(at 33.274 31.75 0)
+			(at 35.814 31.75 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -33592,7 +35446,7 @@
 			)
 		)
 		(property "Value" "MSK4010"
-			(at 33.274 34.29 0)
+			(at 35.814 34.29 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -33602,7 +35456,7 @@
 			)
 		)
 		(property "Footprint" "Diode_SMD:D_SOD-523"
-			(at 33.02 38.1 90)
+			(at 35.56 38.1 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33613,7 +35467,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 33.02 38.1 90)
+			(at 35.56 38.1 90)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33624,7 +35478,7 @@
 			)
 		)
 		(property "Description" "Schottky diode, small symbol"
-			(at 33.02 38.1 0)
+			(at 35.56 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33635,29 +35489,7 @@
 			)
 		)
 		(property "LCSC" "C282563"
-			(at 33.02 38.1 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 33.02 38.1 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 33.02 38.1 0)
+			(at 35.56 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33668,7 +35500,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 33.02 38.1 0)
+			(at 35.56 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33679,7 +35511,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 33.02 38.1 0)
+			(at 35.56 38.1 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 35.56 38.1 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 35.56 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33706,7 +35560,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 100.33 48.26 0)
+		(at 114.3 48.26 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -33717,7 +35571,7 @@
 		(fields_autoplaced yes)
 		(uuid "d5b60b30-e1a9-4b4e-8b8e-ccf09b2ef296")
 		(property "Reference" "#PWR058"
-			(at 100.33 54.61 0)
+			(at 114.3 54.61 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33728,7 +35582,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 100.33 53.34 0)
+			(at 114.3 53.34 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -33738,7 +35592,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 100.33 48.26 0)
+			(at 114.3 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33749,7 +35603,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 100.33 48.26 0)
+			(at 114.3 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33760,7 +35614,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 100.33 48.26 0)
+			(at 114.3 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -33924,28 +35778,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 214.63 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 214.63 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C19666"
 			(at 214.63 34.29 0)
 			(hide yes)
@@ -33969,6 +35801,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 214.63 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 214.63 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 214.63 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -34073,7 +35927,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 154.94 233.68 0)
+		(at 152.4 233.68 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -34084,7 +35938,7 @@
 		(fields_autoplaced yes)
 		(uuid "d71f05f7-1f41-498d-973b-57748f51b5da")
 		(property "Reference" "#PWR065"
-			(at 154.94 240.03 0)
+			(at 152.4 240.03 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -34095,7 +35949,7 @@
 			)
 		)
 		(property "Value" "EXDES_GND"
-			(at 154.94 238.76 0)
+			(at 152.4 238.76 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -34105,7 +35959,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 233.68 0)
+			(at 152.4 233.68 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -34116,7 +35970,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 233.68 0)
+			(at 152.4 233.68 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -34127,7 +35981,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 154.94 233.68 0)
+			(at 152.4 233.68 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -34172,7 +36026,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "DF2B7AE"
+		(property "Value" "SESD5Z5V"
 			(at 73.66 90.1701 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -34216,7 +36070,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C1973289"
+		(property "LCSC" "C19631222"
 			(at 76.2 91.44 90)
 			(hide yes)
 			(show_name no)
@@ -34228,28 +36082,6 @@
 			)
 		)
 		(property "URL" ""
-			(at 76.2 91.44 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 76.2 91.44 90)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
 			(at 76.2 91.44 90)
 			(hide yes)
 			(show_name no)
@@ -34272,6 +36104,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 76.2 91.44 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 76.2 91.44 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 76.2 91.44 90)
 			(hide yes)
 			(show_name no)
@@ -34453,6 +36307,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 317.5 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 317.5 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 317.5 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 317.5 129.54 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "SH"
 			(uuid "e6354627-51c1-4987-a05b-6aa18d79b59c")
 		)
@@ -34547,28 +36445,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 243.84 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 243.84 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 243.84 34.29 0)
 			(hide yes)
@@ -34592,6 +36468,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 243.84 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 243.84 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 243.84 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -34684,18 +36582,7 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 223.52 142.24 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
+		(property "LCSC" "C42411119"
 			(at 223.52 142.24 0)
 			(hide yes)
 			(show_name no)
@@ -34728,7 +36615,18 @@
 				)
 			)
 		)
-		(property "LCSC" "C42411119"
+		(property "KLC_S4.2_DVDD" ""
+			(at 223.52 142.24 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 223.52 142.24 0)
 			(hide yes)
 			(show_name no)
@@ -34818,28 +36716,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 259.08 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 259.08 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 259.08 34.29 0)
 			(hide yes)
@@ -34863,6 +36739,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 259.08 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 259.08 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 259.08 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -35030,28 +36928,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 274.32 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 274.32 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C1525"
 			(at 274.32 34.29 0)
 			(hide yes)
@@ -35085,6 +36961,28 @@
 				)
 			)
 		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 274.32 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 274.32 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "001b76b9-f271-4fcb-bd4c-748c459e2122")
 		)
@@ -35102,7 +37000,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 154.94 48.26 270)
+		(at 170.18 48.26 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -35112,7 +37010,7 @@
 		(dnp no)
 		(uuid "e2c15672-471d-4396-8553-3a930054f3ae")
 		(property "Reference" "#FLG06"
-			(at 156.845 48.26 0)
+			(at 172.085 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -35123,7 +37021,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 158.75 48.26 90)
+			(at 173.99 48.26 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -35134,7 +37032,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 154.94 48.26 0)
+			(at 170.18 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -35145,7 +37043,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 154.94 48.26 0)
+			(at 170.18 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -35156,7 +37054,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 154.94 48.26 0)
+			(at 170.18 48.26 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -35235,6 +37133,50 @@
 			)
 		)
 		(property "Description" "Mounting Hole without connection"
+			(at 101.6 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 101.6 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 101.6 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 101.6 127 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 101.6 127 0)
 			(hide yes)
 			(show_name no)
@@ -35338,7 +37280,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
@@ -35398,28 +37340,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 81.28 81.28 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 81.28 81.28 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 81.28 81.28 0)
 			(hide yes)
@@ -35432,6 +37352,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 81.28 81.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 81.28 81.28 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 81.28 81.28 0)
 			(hide yes)
 			(show_name no)
@@ -35830,28 +37772,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 222.25 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 222.25 34.29 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C19666"
 			(at 222.25 34.29 0)
 			(hide yes)
@@ -35875,6 +37795,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 222.25 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 222.25 34.29 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 222.25 34.29 0)
 			(hide yes)
 			(show_name no)
@@ -36054,6 +37996,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 76.2 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 76.2 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 76.2 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 76.2 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "8b3e14a8-5035-4562-8d40-17a28f93d474")
 		)
@@ -36146,6 +38132,50 @@
 				)
 			)
 		)
+		(property "KLC_S3.3" ""
+			(at 264.16 81.28 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 264.16 81.28 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 264.16 81.28 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 264.16 81.28 90)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(pin "1"
 			(uuid "d6403577-eace-4f74-962d-5684eeb74780")
 		)
@@ -36168,7 +38198,7 @@
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp yes)
@@ -36227,28 +38257,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 149.86 149.86 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 149.86 149.86 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "KLC_S3.3" ""
 			(at 149.86 149.86 0)
 			(hide yes)
@@ -36261,6 +38269,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 149.86 149.86 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 149.86 149.86 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 149.86 149.86 0)
 			(hide yes)
 			(show_name no)
@@ -36430,28 +38460,6 @@
 				)
 			)
 		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 33.02 219.71 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 33.02 219.71 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
 		(property "LCSC" "C19702"
 			(at 33.02 219.71 0)
 			(hide yes)
@@ -36475,6 +38483,28 @@
 			)
 		)
 		(property "KLC_S4.1" ""
+			(at 33.02 219.71 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 33.02 219.71 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
 			(at 33.02 219.71 0)
 			(hide yes)
 			(show_name no)
@@ -36580,7 +38610,7 @@
 	)
 	(symbol
 		(lib_id "Device:C_Small")
-		(at 100.33 43.18 0)
+		(at 114.3 43.18 0)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -36590,7 +38620,7 @@
 		(dnp no)
 		(uuid "fbe68f74-4ba7-4f90-bc0f-461e74a9ee88")
 		(property "Reference" "C22"
-			(at 100.33 33.782 0)
+			(at 114.3 33.782 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -36600,7 +38630,7 @@
 			)
 		)
 		(property "Value" "22u"
-			(at 100.33 36.322 0)
+			(at 114.3 36.322 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -36610,7 +38640,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_0603_1608Metric"
-			(at 100.33 43.18 0)
+			(at 114.3 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -36621,7 +38651,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 100.33 43.18 0)
+			(at 114.3 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -36632,29 +38662,7 @@
 			)
 		)
 		(property "Description" "Unpolarized capacitor, small symbol"
-			(at 100.33 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 100.33 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 100.33 43.18 0)
+			(at 114.3 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -36665,7 +38673,7 @@
 			)
 		)
 		(property "LCSC" "C59461"
-			(at 100.33 43.18 0)
+			(at 114.3 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -36676,7 +38684,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 100.33 43.18 0)
+			(at 114.3 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -36687,7 +38695,29 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 100.33 43.18 0)
+			(at 114.3 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 114.3 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 114.3 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -36799,6 +38829,17 @@
 				)
 			)
 		)
+		(property "LCSC" "C20625731"
+			(at 170.18 116.84 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
 		(property "KLC_S4.2_DVDD" ""
 			(at 170.18 116.84 0)
 			(hide yes)
@@ -36811,17 +38852,6 @@
 			)
 		)
 		(property "KLC_S4.2_VREG_LX" ""
-			(at 170.18 116.84 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "LCSC" "C20625731"
 			(at 170.18 116.84 0)
 			(hide yes)
 			(show_name no)
@@ -36932,18 +38962,18 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:C_Small")
-		(at 43.18 43.18 0)
+		(lib_id "Connector:TestPoint_Small")
+		(at 168.91 200.66 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
-		(in_bom yes)
+		(in_bom no)
 		(on_board yes)
 		(in_pos_files yes)
 		(dnp no)
-		(uuid "fe3ef343-2af4-409f-a89f-40cc5dba2b49")
-		(property "Reference" "C21"
-			(at 43.18 33.782 0)
+		(uuid "fdd72b4c-59ad-48e4-9b34-fa3706da92d7")
+		(property "Reference" "TP16"
+			(at 168.91 198.628 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -36952,18 +38982,20 @@
 				)
 			)
 		)
-		(property "Value" "100n"
-			(at 43.18 36.322 0)
+		(property "Value" "TestPoint_Small"
+			(at 162.56 200.66 0)
+			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
+				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
-			(at 43.18 43.18 0)
+		(property "Footprint" "TestPoint:TestPoint_Pad_D1.0mm"
+			(at 163.83 200.66 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -36974,7 +39006,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 43.18 43.18 0)
+			(at 163.83 200.66 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -36984,41 +39016,8 @@
 				)
 			)
 		)
-		(property "Description" "Unpolarized capacitor, small symbol"
-			(at 43.18 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_DVDD" ""
-			(at 43.18 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "KLC_S4.2_VREG_LX" ""
-			(at 43.18 43.18 0)
-			(hide yes)
-			(show_name no)
-			(do_not_autoplace no)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "LCSC" "C1525"
-			(at 43.18 43.18 0)
+		(property "Description" "test point"
+			(at 168.91 200.66 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -37029,7 +39028,7 @@
 			)
 		)
 		(property "KLC_S3.3" ""
-			(at 43.18 43.18 0)
+			(at 168.91 200.66 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -37040,7 +39039,160 @@
 			)
 		)
 		(property "KLC_S4.1" ""
-			(at 43.18 43.18 0)
+			(at 168.91 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 168.91 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 168.91 200.66 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "079d5c4a-76bb-4690-b497-c5e21da6dfdb")
+		)
+		(instances
+			(project "lcdtap_rp2350"
+				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
+					(reference "TP16")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C_Small")
+		(at 48.26 43.18 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "fe3ef343-2af4-409f-a89f-40cc5dba2b49")
+		(property "Reference" "C21"
+			(at 48.26 33.782 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100n"
+			(at 48.26 36.322 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_SMD:C_0402_1005Metric"
+			(at 48.26 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 48.26 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Unpolarized capacitor, small symbol"
+			(at 48.26 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "LCSC" "C1525"
+			(at 48.26 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S3.3" ""
+			(at 48.26 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.1" ""
+			(at 48.26 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_DVDD" ""
+			(at 48.26 43.18 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "KLC_S4.2_VREG_LX" ""
+			(at 48.26 43.18 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
