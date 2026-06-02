@@ -1,0 +1,3 @@
+production/
+*.kicad_*
+fabrication-toolkit-options.json
