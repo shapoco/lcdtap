@@ -8255,7 +8255,6 @@
 				(pin passive line
 					(at 0 -5.08 90)
 					(length 1.27)
-					(hide yes)
 					(name "SH"
 						(effects
 							(font
@@ -8310,8 +8309,9 @@
 					)
 				)
 				(pin passive line
-					(at 0 -6.35 90)
-					(length 2.54)
+					(at 0 -5.08 90)
+					(length 1.27)
+					(hide yes)
 					(name "SH"
 						(effects
 							(font
@@ -9595,7 +9595,7 @@
 	)
 	(wire
 		(pts
-			(xy 167.64 33.02) (xy 170.18 33.02)
+			(xy 167.64 30.48) (xy 170.18 30.48)
 		)
 		(stroke
 			(width 0)
@@ -9685,7 +9685,7 @@
 	)
 	(wire
 		(pts
-			(xy 167.64 35.56) (xy 170.18 35.56)
+			(xy 167.64 33.02) (xy 170.18 33.02)
 		)
 		(stroke
 			(width 0)
@@ -10285,6 +10285,16 @@
 	)
 	(wire
 		(pts
+			(xy 317.5 134.62) (xy 317.5 137.16)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2eed563c-0c50-4b86-82df-d98d2b3b6622")
+	)
+	(wire
+		(pts
 			(xy 226.06 27.94) (xy 226.06 30.48)
 		)
 		(stroke
@@ -10375,7 +10385,7 @@
 	)
 	(wire
 		(pts
-			(xy 167.64 40.64) (xy 170.18 40.64)
+			(xy 167.64 38.1) (xy 170.18 38.1)
 		)
 		(stroke
 			(width 0)
@@ -10592,16 +10602,6 @@
 			(type default)
 		)
 		(uuid "4023a05d-f5a2-4359-866c-e6238d53a4a3")
-	)
-	(wire
-		(pts
-			(xy 210.82 30.48) (xy 210.82 45.72)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "4042c984-f88c-4318-a84a-603e6bebd787")
 	)
 	(wire
 		(pts
@@ -11235,7 +11235,7 @@
 	)
 	(wire
 		(pts
-			(xy 167.64 38.1) (xy 170.18 38.1)
+			(xy 167.64 35.56) (xy 170.18 35.56)
 		)
 		(stroke
 			(width 0)
@@ -12095,16 +12095,6 @@
 	)
 	(wire
 		(pts
-			(xy 317.5 135.89) (xy 317.5 137.16)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "98622187-a6ae-49be-ad85-fb42b9acc9ae")
-	)
-	(wire
-		(pts
 			(xy 241.3 44.45) (xy 269.24 44.45)
 		)
 		(stroke
@@ -12192,6 +12182,16 @@
 			(type default)
 		)
 		(uuid "9b022ec1-38fb-40cc-be59-9d6d517ac923")
+	)
+	(wire
+		(pts
+			(xy 210.82 30.48) (xy 210.82 45.72)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9b28e87b-6edb-4446-9dc5-b003e84c23e7")
 	)
 	(wire
 		(pts
@@ -13545,6 +13545,16 @@
 	)
 	(wire
 		(pts
+			(xy 167.64 40.64) (xy 170.18 40.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e9a5f689-6206-4870-b631-043171693804")
+	)
+	(wire
+		(pts
 			(xy 279.4 124.46) (xy 279.4 128.27)
 		)
 		(stroke
@@ -14373,6 +14383,16 @@
 		)
 		(uuid "923cd4a2-750b-425a-a954-76b5646ddb20")
 	)
+	(label "VREG_AVDD"
+		(at 210.82 43.18 90)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "9968a9c3-13ae-404e-a09e-058c6d6b2903")
+	)
 	(label "DVI_D1+"
 		(at 281.94 99.06 180)
 		(effects
@@ -15050,7 +15070,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 170.18 40.64 270)
+		(at 170.18 38.1 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -15060,7 +15080,7 @@
 		(dnp no)
 		(uuid "0551210a-f368-4061-a4ff-a7e01f6fc892")
 		(property "Reference" "#FLG05"
-			(at 172.085 40.64 0)
+			(at 172.085 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15071,7 +15091,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 173.99 40.64 90)
+			(at 173.99 38.1 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -15082,7 +15102,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 170.18 40.64 0)
+			(at 170.18 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15093,7 +15113,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 170.18 40.64 0)
+			(at 170.18 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -15104,7 +15124,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 170.18 40.64 0)
+			(at 170.18 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21177,7 +21197,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 167.64 40.64 90)
+		(at 167.64 38.1 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -21188,7 +21208,7 @@
 		(fields_autoplaced yes)
 		(uuid "4b8e8ca1-8a2e-4cee-87f4-2b02fc69b86f")
 		(property "Reference" "#PWR083"
-			(at 171.45 40.64 0)
+			(at 171.45 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21199,7 +21219,7 @@
 			)
 		)
 		(property "Value" "1V1"
-			(at 163.83 40.6399 90)
+			(at 163.83 38.0999 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -21210,7 +21230,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 167.64 40.64 0)
+			(at 167.64 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21221,7 +21241,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 167.64 40.64 0)
+			(at 167.64 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -21232,7 +21252,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 167.64 40.64 0)
+			(at 167.64 38.1 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22917,7 +22937,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 170.18 38.1 270)
+		(at 170.18 35.56 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -22927,7 +22947,7 @@
 		(dnp no)
 		(uuid "5cad31c8-6770-4591-8d6d-8e4309edbb2c")
 		(property "Reference" "#FLG04"
-			(at 172.085 38.1 0)
+			(at 172.085 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22938,7 +22958,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 173.99 38.1 90)
+			(at 173.99 35.56 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -22949,7 +22969,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 170.18 38.1 0)
+			(at 170.18 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22960,7 +22980,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 170.18 38.1 0)
+			(at 170.18 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -22971,7 +22991,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 170.18 38.1 0)
+			(at 170.18 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24011,7 +24031,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 167.64 35.56 90)
+		(at 167.64 33.02 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -24022,7 +24042,7 @@
 		(fields_autoplaced yes)
 		(uuid "65f0bc61-0d5e-43cc-9bd7-8114de371712")
 		(property "Reference" "#PWR082"
-			(at 171.45 35.56 0)
+			(at 171.45 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24033,7 +24053,7 @@
 			)
 		)
 		(property "Value" "VSYS"
-			(at 163.83 35.5599 90)
+			(at 163.83 33.0199 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -24044,7 +24064,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 167.64 35.56 0)
+			(at 167.64 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24055,7 +24075,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 167.64 35.56 0)
+			(at 167.64 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24066,7 +24086,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 167.64 35.56 0)
+			(at 167.64 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24811,7 +24831,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 170.18 33.02 270)
+		(at 170.18 30.48 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -24821,7 +24841,7 @@
 		(dnp no)
 		(uuid "71f5ba39-aad6-46ce-8b8a-e5858e7a69db")
 		(property "Reference" "#FLG03"
-			(at 172.085 33.02 0)
+			(at 172.085 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24832,7 +24852,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 173.99 33.02 90)
+			(at 173.99 30.48 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -24843,7 +24863,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 170.18 33.02 0)
+			(at 170.18 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24854,7 +24874,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 170.18 33.02 0)
+			(at 170.18 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -24865,7 +24885,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 170.18 33.02 0)
+			(at 170.18 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25297,7 +25317,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 167.64 33.02 90)
+		(at 167.64 30.48 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -25308,7 +25328,7 @@
 		(fields_autoplaced yes)
 		(uuid "7707ba7f-e6c4-4238-a0bd-5f3ea0adb9e3")
 		(property "Reference" "#PWR080"
-			(at 171.45 33.02 0)
+			(at 171.45 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25319,7 +25339,7 @@
 			)
 		)
 		(property "Value" "VBUS"
-			(at 163.83 33.0199 90)
+			(at 163.83 30.4799 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -25330,7 +25350,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 167.64 33.02 0)
+			(at 167.64 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25341,7 +25361,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 167.64 33.02 0)
+			(at 167.64 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25352,7 +25372,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 167.64 33.02 0)
+			(at 167.64 30.48 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25653,6 +25673,84 @@
 		)
 	)
 	(symbol
+		(lib_id "power:PWR_FLAG")
+		(at 170.18 40.64 270)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "7cdbc9aa-62b1-4806-993d-33b412744ce4")
+		(property "Reference" "#FLG07"
+			(at 172.085 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "PWR_FLAG"
+			(at 173.99 40.64 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 170.18 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 170.18 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Special symbol for telling ERC where power comes from"
+			(at 170.18 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "33d9d255-08ce-45e7-9a22-b038b280ecfc")
+		)
+		(instances
+			(project "lcdtap_rp2350"
+				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
+					(reference "#FLG07")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C_Small")
 		(at 248.92 34.29 0)
 		(unit 1)
@@ -25788,7 +25886,7 @@
 	)
 	(symbol
 		(lib_id "power:PWR_FLAG")
-		(at 170.18 35.56 270)
+		(at 170.18 33.02 270)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -25798,7 +25896,7 @@
 		(dnp no)
 		(uuid "7f5b3b3e-0c25-4230-a6ee-a0b8cc452207")
 		(property "Reference" "#FLG09"
-			(at 172.085 35.56 0)
+			(at 172.085 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25809,7 +25907,7 @@
 			)
 		)
 		(property "Value" "PWR_FLAG"
-			(at 173.99 35.56 90)
+			(at 173.99 33.02 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -25820,7 +25918,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 170.18 35.56 0)
+			(at 170.18 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25831,7 +25929,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 170.18 35.56 0)
+			(at 170.18 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25842,7 +25940,7 @@
 			)
 		)
 		(property "Description" "Special symbol for telling ERC where power comes from"
-			(at 170.18 35.56 0)
+			(at 170.18 33.02 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25866,7 +25964,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 167.64 38.1 90)
+		(at 167.64 35.56 90)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -25877,7 +25975,7 @@
 		(fields_autoplaced yes)
 		(uuid "7fcc7dab-6801-430d-b36a-626011654130")
 		(property "Reference" "#PWR081"
-			(at 171.45 38.1 0)
+			(at 171.45 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25888,7 +25986,7 @@
 			)
 		)
 		(property "Value" "3V3"
-			(at 163.83 38.0999 90)
+			(at 163.83 35.5599 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -25899,7 +25997,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 167.64 38.1 0)
+			(at 167.64 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25910,7 +26008,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 167.64 38.1 0)
+			(at 167.64 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -25921,7 +26019,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 167.64 38.1 0)
+			(at 167.64 35.56 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -31556,6 +31654,85 @@
 			(project "lcdtap_rp2350"
 				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
 					(reference "#PWR09")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3V3")
+		(at 167.64 40.64 90)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "b0521e29-3a78-46d9-89e6-3bc5478189d6")
+		(property "Reference" "#PWR093"
+			(at 171.45 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "VREG_AVDD"
+			(at 163.83 40.6399 90)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 167.64 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 167.64 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 167.64 40.64 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "b54fe364-42d2-4df8-aeef-3b07e3cd6a68")
+		)
+		(instances
+			(project "lcdtap_rp2350"
+				(path "/bb6d9c56-6581-49df-a688-e642dbd096a3"
+					(reference "#PWR093")
 					(unit 1)
 				)
 			)
