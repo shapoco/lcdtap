@@ -2,6 +2,8 @@ build/
 release/
 tmp.*
 tmp.*/
+venv/
+__pycache__/
 
 # KiCad
 *-backups/
