@@ -272,6 +272,25 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
 }
 .preset-select:focus { outline: none; border-color: var(--accent); }
 
+#transport-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 5px 30px 5px 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b949e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+  min-width: 110px;
+}
+#transport-select:focus { outline: none; border-color: var(--accent); }
+#transport-select:disabled { opacity: 0.5; cursor: default; }
+
 /* ── Frame Buffer tab ────────────────────────────────────── */
 .fb-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 
@@ -403,6 +422,10 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
   </div>
   <div class="header-spacer"></div>
   <div class="conn-controls">
+    <select id="transport-select">
+      <option value="webserial">WebSerial</option>
+      <option value="webusb">WebUSB</option>
+    </select>
     <button id="btn-connect" class="primary">Connect</button>
     <button id="btn-disconnect" disabled>Disconnect</button>
   </div>
@@ -484,8 +507,10 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
 <!-- ── Toast area ──────────────────────────────────────── -->
 <div id="toast-area"></div>
 
-<script>
+<script type="module">
 'use strict';
+
+import { serial as webSerialPolyfill } from "https://cdn.jsdelivr.net/npm/web-serial-polyfill@1.0.15";
 
 // ─── Serial Connection ──────────────────────────────────────────────────────
 
@@ -501,8 +526,8 @@ class SerialConnection {
 
   get connected() { return this._port !== null; }
 
-  async connect() {
-    const port = await navigator.serial.requestPort();
+  async connect(serialApi) {
+    const port = await serialApi.requestPort();
     await port.open({ baudRate: 115200 });
     this._port = port;
     this._writer = port.writable.getWriter();
@@ -607,6 +632,7 @@ function setConnected(yes) {
   elConnLabel.textContent = yes ? 'Connected' : 'Disconnected';
   btnConnect.disabled    =  yes;
   btnDisconnect.disabled = !yes;
+  transportSelect.disabled = yes;
   document.querySelectorAll('.tab-btn').forEach(b => { b.disabled = !yes; });
   document.querySelectorAll('#btn-apply,#btn-refresh-params,#btn-load-preset,#btn-capture,#btn-force-trigger,#btn-abort')
     .forEach(b => { b.disabled = !yes; });
@@ -617,17 +643,14 @@ function setConnected(yes) {
   }
 }
 
-if (!('serial' in navigator)) {
-  document.body.innerHTML = `<div style="padding:40px;color:var(--red);font-family:system-ui">
-    Web Serial API is not supported in this browser.<br>
-    Please use Chrome or Edge (desktop).
-  </div>`;
-}
+const transportSelect = document.getElementById('transport-select');
+transportSelect.value = ('serial' in navigator) ? 'webserial' : 'webusb';
 
 btnConnect.addEventListener('click', async () => {
   try {
     btnConnect.disabled = true;
-    await conn.connect();
+    const serialApi = (transportSelect.value === 'webusb') ? webSerialPolyfill : navigator.serial;
+    await conn.connect(serialApi);
     // Handshake
     const resp = await conn.sendCommand({ command: 'hello' }, 5000);
     const obj = JSON.parse(resp);
