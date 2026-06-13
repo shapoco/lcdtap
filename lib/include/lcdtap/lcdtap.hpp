@@ -38,28 +38,31 @@ enum class ControllerType : uint8_t {
 enum class InterfaceFormat : uint8_t {
   // 1bpp monochrome, vertical 8-pixel pack, high-to-low
   // e.g. SSD1306
-  GRAY1_VPACK8_H2L = 0x00,
+  GRAY1_VPACK8_H2L,
 
   // 3bpp RGB, horizontal 2-pixel pack, high-to-low, 8bit right-aligned
   // e.g. ILI9488
-  RGB111_HPACK2_H2L_RA8 = 0x01,
+  RGB111_HPACK2_H2L_RA8,
 
   // 8bpp RGB, 3-3-2 bits
   // e.g. SSD1331
-  RGB332 = 0x02,
+  RGB332,
 
   // 12bpp, horizontal 2-pixel pack, high-to-low, big-endian
   // e.g. ST7789
-  RGB444_HPACK2_H2L_BE = 0x03,
+  RGB444_HPACK2_H2L_BE,
 
   // 16bpp, big-endian
-  RGB565_BE = 0x05,
+  RGB565_BE,
 
   // 18bpp, unpacked, 8bit left-aligned, big-endian
-  RGB666_UNPACK_LA8_BE = 0x06,
+  RGB666_UNPACK_LA8_BE,
 
   // 18bpp, unpacked, 8bit right-aligned, big-endian
-  RGB666_UNPACK_RA8_BE = 0x07,
+  RGB666_UNPACK_RA8_BE,
+
+  // Number of formats (not a valid format)
+  NUM_FORMATS,
 };
 
 //=============================================================================
