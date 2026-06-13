@@ -194,6 +194,21 @@ cutter = (
 back_panel = back_panel.cut(cutter)
 front_panel = front_panel.cut(cutter)
 
+# ピンヘッダの 1 番ピンマーク
+verts = [
+    (0, 0),
+    (-1, -2),
+    (1, -2),
+]
+cutter = (
+    cq.Workplane("XZ")
+    .polyline(verts)
+    .close()
+    .extrude(10)
+    .translate((header_x - 3.5 * 2.54, -case_h / 2 + wall_t - 0.5, header_z - header_hole_t / 2 - 1))
+)
+back_panel = back_panel.cut(cutter)
+
 # 上面スイッチ
 sw_notch_t = 1
 sw_notch = (
@@ -226,7 +241,11 @@ verts = [
     (2, -2),
 ]
 cutter = (
-    cq.Workplane("XY").polyline(verts).close().extrude(10).translate((0, 0, case_t - wall_t + 0.5))
+    cq.Workplane("XY")
+    .polyline(verts)
+    .close()
+    .extrude(10)
+    .translate((0, 0, case_t - wall_t + 0.5))
 )
 front_panel = front_panel.cut(cutter.translate((dpad_x, dpad_y + dpad_ry + 7, 0)))
 front_panel = front_panel.cut(
@@ -290,6 +309,37 @@ cutter = (
 )
 back_panel = back_panel.cut(cutter)
 front_panel = front_panel.cut(cutter)
+
+# サイドスイッチの文字
+back_panel = back_panel.cut(
+    cq.Workplane("YZ")
+    .text(
+        "720p",
+        4,
+        99,
+        font="Arial",
+        kind="bold",
+        halign="right",
+        valign="center",
+    )
+    .rotate((0, 0, 0), (0, 0, 1), 180)
+    .translate((-case_w / 2 + 1, side_y + 5, side_z - 3))
+)
+
+back_panel = back_panel.cut(
+    cq.Workplane("YZ")
+    .text(
+        "480p",
+        4,
+        99,
+        font="Arial",
+        kind="bold",
+        halign="left",
+        valign="center",
+    )
+    .rotate((0, 0, 0), (0, 0, 1), 180)
+    .translate((-case_w / 2 + 1, side_y - 5, side_z - 3))
+)
 
 # ケース前面のネジ穴
 guide = (
@@ -421,10 +471,8 @@ front_panel = front_panel.rotate(
 sw_rot = sw.rotate((0, -sw_h / 2, 0), (1, -sw_h / 2, 0), 90)
 sw_set = sw_rot
 for i in range(1, len(sw_poses)):
-    sw_set = sw_set.union(
-        sw_rot.translate((i * (sw_w + 3),0,0))
-    )
-    
+    sw_set = sw_set.union(sw_rot.translate((i * (sw_w + 3), 0, 0)))
+
 if False:
     show_object(back_panel, options={"color": (0.5, 0.5, 0.5), "alpha": 0.5})
     show_object(front_panel, options={"color": (0.5, 0.5, 0.5), "alpha": 0.5})
