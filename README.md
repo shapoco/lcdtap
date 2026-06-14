@@ -42,9 +42,28 @@ instructions, pin assignment, and configuration details.
 
 https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
 
-## Recommended Header Pinout
+## Recommended Header Pinout / Cable Color
 
 ![](./image/header_pinout.png)
+
+|Pin|Parallel Mode|SPI Mode|I2C Mode|Recommended Color|
+|:--:|:--:|:--:|:--:|:--:|
+|1|RST|RST||Violet or Brown|
+|2|CS|CS||Yellow|
+|3|WEN|SCLK||White|
+|4|GND|GND||Black|
+|5|D1|DC||Blue|
+|6|D0|MOSI||Green|
+|7|3V3|3V3|3V3|Red|
+|8|D2||||
+|9|D5||SDA|Green|
+|10|D3||||
+|11|D6||SCL|White|
+|12|D4||||
+|13|GND||GND|Black|
+|14|D7||||
+|15|VSYS||VSYS|Orange|
+|16|DC||||
 
 ## Applicable Examples
 
