@@ -36,6 +36,7 @@ static constexpr uint16_t OSD_ITEM_ID_SWAP_RB = 6u;
 static constexpr uint16_t OSD_ITEM_ID_OUTPUT_ROT = 7u;
 static constexpr uint16_t OSD_ITEM_ID_SCALE_MODE = 8u;
 static constexpr uint16_t OSD_ITEM_ID_FORCE_PWR_ON = 9u;
+static constexpr uint16_t OSD_ITEM_ID_IF_FMT_OVR = 10u;
 static constexpr uint16_t OSD_ITEM_ID_VIEW_DUMP = 12u;
 static constexpr uint16_t OSD_ITEM_ID_APPLY = 13u;
 static constexpr uint16_t OSD_ITEM_ID_CANCEL = 14u;
@@ -60,13 +61,13 @@ enum class OsdMenuType : uint8_t {
 struct OsdMenuItem {
   uint16_t id;  // Unique identifier; 0 = unassigned
   OsdMenuType type;
-  const char* name;     // Item label
-  const char* unit;     // Unit string shown after the value (e.g. "px", "deg")
-  const char** options; // Display strings for ENUM type (nullptr otherwise)
-  int16_t min;          // Minimum value (INTEGER / ENUM index)
-  int16_t max;          // Maximum value (INTEGER / ENUM index)
-  int16_t step;         // Increment per key press (INTEGER / ENUM)
-  int16_t value;        // Current value; for ACTION: OSD_ACTION_XXX
+  const char* name;      // Item label
+  const char* unit;      // Unit string shown after the value (e.g. "px", "deg")
+  const char** options;  // Display strings for ENUM type (nullptr otherwise)
+  int16_t min;           // Minimum value (INTEGER / ENUM index)
+  int16_t max;           // Maximum value (INTEGER / ENUM index)
+  int16_t step;          // Increment per key press (INTEGER / ENUM)
+  int16_t value;         // Current value; for ACTION: OSD_ACTION_XXX
 };
 
 //=============================================================================

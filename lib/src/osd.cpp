@@ -20,6 +20,10 @@ static const char* kRotationNames[] = {"0", "90", "180", "270"};
 static const char* kScaleModeNames[] = {"STRETCH", "FIT", "PIXEL_PERF"};
 static constexpr int kNumScaleModes = 3;
 
+static const char*
+    kIfFmtOvrNames[1 + static_cast<int>(InterfaceFormat::NUM_FORMATS)];
+static bool kIfFmtOvrNamesInited = false;
+
 //=============================================================================
 // getDefaultOsdConfig
 //=============================================================================
@@ -267,6 +271,15 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
   LcdTapConfig cfg = lcdtap.getConfig();
   numItems_ = 0;
 
+  if (!kIfFmtOvrNamesInited) {
+    kIfFmtOvrNames[0] = "Off";
+    for (int i = 0; i < static_cast<int>(InterfaceFormat::NUM_FORMATS); ++i) {
+      kIfFmtOvrNames[i + 1] =
+          getShortInterfaceFormatName(static_cast<InterfaceFormat>(i));
+    }
+    kIfFmtOvrNamesInited = true;
+  }
+
   // Helper lambda to append an item and assign its ID
   auto add = [this](uint16_t id) -> OsdMenuItem& {
     OsdMenuItem& it = items_[numItems_++];
@@ -350,6 +363,20 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     it.max = 1;
     it.step = 1;
     it.value = cfg.forcePowerOn ? 1 : 0;
+  }
+
+  // Format Override
+  {
+    OsdMenuItem& it = add(OSD_ITEM_ID_IF_FMT_OVR);
+    it.type = OsdMenuType::ENUM;
+    it.name = "Format Override";
+    it.unit = "";
+    it.options = kIfFmtOvrNames;
+    it.min = -1;
+    it.max = static_cast<int16_t>(
+        static_cast<int>(InterfaceFormat::NUM_FORMATS) - 1);
+    it.step = 1;
+    it.value = static_cast<int16_t>(cfg.interfaceFormatOverride);
   }
 
   // Output Rotation
@@ -511,9 +538,12 @@ LcdTapConfig Osd::buildConfig() const {
   cfg.inverted = (get(OSD_ITEM_ID_INVERSION, 0) != 0);
   cfg.swapRB = (get(OSD_ITEM_ID_SWAP_RB, 0) != 0);
   // dviWidth / dviHeight: not set here; preserved by applyConfig()
-  cfg.outputRotation = static_cast<uint8_t>(get(OSD_ITEM_ID_OUTPUT_ROT, 0) & 3u);
+  cfg.outputRotation =
+      static_cast<uint8_t>(get(OSD_ITEM_ID_OUTPUT_ROT, 0) & 3u);
   cfg.scaleMode = static_cast<ScaleMode>(get(OSD_ITEM_ID_SCALE_MODE, 0));
   cfg.forcePowerOn = (get(OSD_ITEM_ID_FORCE_PWR_ON, 0) != 0);
+  cfg.interfaceFormatOverride =
+      static_cast<int8_t>(get(OSD_ITEM_ID_IF_FMT_OVR, -1));
 
   return cfg;
 }
@@ -797,6 +827,8 @@ void Osd::loadConfig(const LcdTapConfig& cfg) {
   set(OSD_ITEM_ID_OUTPUT_ROT, static_cast<int16_t>(cfg.outputRotation & 3u));
   set(OSD_ITEM_ID_SCALE_MODE, static_cast<int16_t>(cfg.scaleMode));
   set(OSD_ITEM_ID_FORCE_PWR_ON, cfg.forcePowerOn ? 1 : 0);
+  set(OSD_ITEM_ID_IF_FMT_OVR,
+      static_cast<int16_t>(cfg.interfaceFormatOverride));
 
   renderAll();
 }

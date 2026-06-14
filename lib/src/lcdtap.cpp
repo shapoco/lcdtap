@@ -17,46 +17,54 @@ DumpConfig getDefaultDumpConfig() { return {}; }
 
 void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
   *cfg = {};
+  memset(cfg, 0, sizeof(*cfg));
+  cfg->controller = type;
+  cfg->forcePowerOn = false;
+  cfg->interfaceFormatOverride = -1;
+  cfg->dviWidth = 640;
+  cfg->dviHeight = 480;
+  cfg->scaleMode = ScaleMode::FIT;
+  cfg->inverted = false;
+  cfg->swapRB = false;
   switch (type) {
     case ControllerType::ST7789:
-      cfg->controller = ControllerType::ST7789;
       cfg->lcdWidth = 240;
       cfg->lcdHeight = 320;
-      cfg->interfaceFormat = InterfaceFormat::RGB565_BE;
-      cfg->dviWidth = 640;
-      cfg->dviHeight = 480;
-      cfg->scaleMode = ScaleMode::FIT;
       cfg->inverted = true;
-      cfg->swapRB = false;
       cfg->outputRotation = 3;
-      cfg->forcePowerOn = false;
       break;
     case ControllerType::SSD1306:
-      cfg->controller = ControllerType::SSD1306;
       cfg->lcdWidth = 128;
       cfg->lcdHeight = 64;
-      cfg->interfaceFormat = InterfaceFormat::GRAY1_VPACK8_H2L;
-      cfg->dviWidth = 640;
-      cfg->dviHeight = 480;
-      cfg->scaleMode = ScaleMode::FIT;
-      cfg->inverted = false;
-      cfg->swapRB = false;
       cfg->outputRotation = 2;
-      cfg->forcePowerOn = false;
       break;
     case ControllerType::SSD1331:
-      cfg->controller = ControllerType::SSD1331;
       cfg->lcdWidth = 96;
       cfg->lcdHeight = 64;
-      cfg->interfaceFormat = InterfaceFormat::RGB332;
-      cfg->dviWidth = 640;
-      cfg->dviHeight = 480;
-      cfg->scaleMode = ScaleMode::FIT;
-      cfg->inverted = false;
-      cfg->swapRB = false;
       cfg->outputRotation = 2;
-      cfg->forcePowerOn = false;
       break;
+  }
+}
+
+InterfaceFormat getDefaultInterfaceFormat(ControllerType type) {
+  switch (type) {
+    case ControllerType::ST7789: return InterfaceFormat::RGB565_BE;
+    case ControllerType::SSD1306: return InterfaceFormat::GRAY1_VPACK8_H2L;
+    case ControllerType::SSD1331: return InterfaceFormat::RGB332;
+    default: return InterfaceFormat::RGB565_BE;
+  }
+}
+
+const char* getShortInterfaceFormatName(InterfaceFormat fmt) {
+  switch (fmt) {
+    case InterfaceFormat::GRAY1_VPACK8_H2L: return "GRAY1";
+    case InterfaceFormat::RGB111_HPACK2_H2L_RA8: return "RGB111";
+    case InterfaceFormat::RGB332: return "RGB332";
+    case InterfaceFormat::RGB444_HPACK2_H2L_BE: return "RGB444";
+    case InterfaceFormat::RGB565_BE: return "RGB565";
+    case InterfaceFormat::RGB666_UNPACK_LA8_BE: return "RGB666_LA";
+    case InterfaceFormat::RGB666_UNPACK_RA8_BE: return "RGB666_RA";
+    default: return "(undefined)";
   }
 }
 
@@ -118,7 +126,7 @@ void ControllerBase::resetCommon() {
   displayOn = false;
   inverted = false;
   cachedLittleEndian = false;
-  interfaceFormat = config.interfaceFormat;
+  interfaceFormat = getDefaultInterfaceFormat(config.controller);
   currentCmd = 0x00;
   cmdDataLen = 0;
   casetXS = 0;
@@ -138,7 +146,11 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
   int32_t i = 0;
   int32_t length = numBytes * stride;
 
-  switch (interfaceFormat) {
+  InterfaceFormat effectiveFmt =
+      (config.interfaceFormatOverride >= 0)
+          ? static_cast<InterfaceFormat>(config.interfaceFormatOverride)
+          : interfaceFormat;
+  switch (effectiveFmt) {
     case InterfaceFormat::RGB332: {
       // 1 byte = 1 pixel: {R[2:0], G[2:0], B[1:0]}
       // Expand 3→5 bits: (r<<2)|(r>>1)  3→6 bits: (g<<3)|g  2→5 bits:
@@ -605,7 +617,6 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
 
     ctrl->config = cfg;
     ctrl->outputRotation = cfg.outputRotation & 3u;
-    ctrl->interfaceFormat = cfg.interfaceFormat;
     ctrl->calcScaleParams();
     ctrl->softReset();
     return Status::OK;
@@ -627,7 +638,6 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   bool displayOn = ctrl->displayOn;
   ctrl->config = cfg;
   ctrl->outputRotation = cfg.outputRotation & 3u;
-  ctrl->interfaceFormat = cfg.interfaceFormat;
   ctrl->calcScaleParams();
   ctrl->softReset();
   ctrl->sleeping = sleeping;

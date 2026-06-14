@@ -538,7 +538,7 @@ struct RespGen {
   InterfaceType paramPresetIface = InterfaceType::SPI_4LINE;
 
   // Per-call chunk buffer for formatted segments
-  char chunkBuf[192] = {};
+  char chunkBuf[256] = {};
   int chunkLen = 0;
   int chunkPos = 0;
 };
@@ -587,7 +587,7 @@ static void chunkFromStr(const char* s) {
 // getparams output helpers
 // =============================================================================
 
-static constexpr int NUM_PARAMS_OUT = 8;
+static constexpr int NUM_PARAMS_OUT = 9;
 
 static const char* kControllerOptions[] = {"ST7789", "SSD1306", "SSD1331"};
 static const char* kIfaceOptions[] = {"I2C", "4-Line SPI", "3-Line SPI",
@@ -655,7 +655,33 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
                    "\"value\":%s}%s",
                    prefix, cfg.swapRB ? "true" : "false", suffix);
       break;
-    case 6:  // outputRotation ENUM
+    case 6:  // forcePowerOn BOOLEAN
+      n = snprintf(buf, static_cast<size_t>(cap),
+                   "%s{\"id\":\"forcePowerOn\",\"type\":\"BOOLEAN\","
+                   "\"name\":\"Force Power On\","
+                   "\"value\":%s}%s",
+                   prefix, cfg.forcePowerOn ? "true" : "false", suffix);
+      break;
+    case 7: {  // interfaceFormatOverride ENUM
+      int pos =
+          snprintf(buf, static_cast<size_t>(cap),
+                   "%s{\"id\":\"interfaceFormatOverride\",\"type\":\"ENUM\","
+                   "\"name\":\"Format Override\",\"unit\":null,"
+                   "\"options\":{\"Off\":-1",
+                   prefix);
+      for (int i = 0;
+           i < static_cast<int>(lcdtap::InterfaceFormat::NUM_FORMATS); ++i) {
+        pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), ",\"%s\":%d",
+                        lcdtap::getShortInterfaceFormatName(
+                            static_cast<lcdtap::InterfaceFormat>(i)),
+                        i);
+      }
+      n = pos + snprintf(buf + pos, static_cast<size_t>(cap - pos),
+                         "},\"value\":%d}%s",
+                         static_cast<int>(cfg.interfaceFormatOverride), suffix);
+      break;
+    }
+    case 8:  // outputRotation ENUM
       n = snprintf(buf, static_cast<size_t>(cap),
                    "%s{\"id\":\"outputRotation\",\"type\":\"ENUM\","
                    "\"name\":\"Output Rotation\",\"unit\":\"deg\","
@@ -663,13 +689,6 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
                    "\"value\":%d}%s",
                    prefix, static_cast<int>(cfg.outputRotation), suffix);
       (void)kRotOptions;
-      break;
-    case 7:  // forcePowerOn BOOLEAN
-      n = snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"forcePowerOn\",\"type\":\"BOOLEAN\","
-                   "\"name\":\"Force Power On\","
-                   "\"value\":%s}%s",
-                   prefix, cfg.forcePowerOn ? "true" : "false", suffix);
       break;
     default: (void)kControllerOptions; return false;
   }
@@ -764,6 +783,8 @@ static void execCommand(const Parser& p) {
         cfg.outputRotation = static_cast<uint8_t>(v);
       } else if (strcmp(k, "forcePowerOn") == 0) {
         cfg.forcePowerOn = (v != 0);
+      } else if (strcmp(k, "interfaceFormatOverride") == 0) {
+        cfg.interfaceFormatOverride = static_cast<int8_t>(v);
       }
     }
 

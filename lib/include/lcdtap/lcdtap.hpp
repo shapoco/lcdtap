@@ -33,7 +33,7 @@ enum class ControllerType : uint8_t {
 };
 
 //=============================================================================
-// Interface Pixel format (SPI input side — COLMOD equivalent)
+// Interface Pixel format (SPI/I2C input side)
 //=============================================================================
 enum class InterfaceFormat : uint8_t {
   // 1bpp monochrome, vertical 8-pixel pack, high-to-low
@@ -78,28 +78,26 @@ enum class ScaleMode : uint8_t {
 // Configuration structure
 //=============================================================================
 struct LcdTapConfig {
-  // --- LCD controller ---
   ControllerType controller;
 
-  // --- SPI input (LCD) side ---
   uint16_t lcdWidth;
   uint16_t lcdHeight;
-  InterfaceFormat
-      interfaceFormat;  // Initial pixel format (can be changed via COLMOD)
-
-  // --- DVI output side ---
-  uint16_t dviWidth;   // DVI active area width (pixels)
-  uint16_t dviHeight;  // DVI active area height (lines)
-  ScaleMode scaleMode;
 
   bool inverted;  // true: INVON→non-inverted / INVOFF→inverted
   bool swapRB;    // true: invert cachedBGR (swap R and B channels)
 
-  uint8_t outputRotation;  // 0:none, 1:90°CW, 2:180°, 3:270°CW
-
   // When true, fillScanline() renders pixels regardless of the sleeping /
   // displayOn state set by the LCD controller commands.
   bool forcePowerOn;
+
+  // -1 = Off (interfaceFormat follows COLMOD/SETREMAP);
+  // 0..NUM_FORMATS-1 = forced pixel format regardless of COLMOD/SETREMAP.
+  int8_t interfaceFormatOverride;
+
+  uint16_t dviWidth;   // DVI active area width (pixels)
+  uint16_t dviHeight;  // DVI active area height (lines)
+  ScaleMode scaleMode;
+  uint8_t outputRotation;  // 0:none, 1:90°CW, 2:180°, 3:270°CW
 };
 
 //=============================================================================
@@ -127,6 +125,11 @@ struct HostInterface {
 // Override fields as needed before passing to the LcdTap constructor.
 //=============================================================================
 void getDefaultConfig(ControllerType type, LcdTapConfig* cfg);
+
+InterfaceFormat getDefaultInterfaceFormat(ControllerType type);
+
+// Returns a short display name for the given InterfaceFormat (e.g. "RGB565").
+const char* getShortInterfaceFormatName(InterfaceFormat fmt);
 
 //=============================================================================
 // Command dump
