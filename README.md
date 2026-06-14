@@ -72,6 +72,8 @@ https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
 - [Arduboy](./CFG_ARDUBOY.md)
 - [TinyJoyPad](./CFG_TINYJOYPAD.md)
 - [Thumby](./CFG_THUMBY.md)
+- [Geiger-Muller Counter SOEKS-01M](./CFG_SOEKS01M.md)
+- [USB Digital Tester J7-c](./CFG_J7C.md)
 
 ## License
 
