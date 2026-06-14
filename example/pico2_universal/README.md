@@ -20,119 +20,6 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 
 ![](./image/schematics.png)
 
-## How to upload firmware
-
-1. Download zip file from [releases](https://github.com/shapoco/lcdtap/releases).
-2. Extract `lcdtap_pico2_universal.uf2` from the zip file.
-3. Connect the Pico 2 to your computer while holding the BOOTSEL button to enter bootloader mode.
-4. Copy the UF2 file to the mounted drive.
-
-## OSD Menu
-
-Press the Enter key to open the configuration menu.
-
-![](./image/osd_ss.png)
-
-### While OSD is closed
-
-| Key | Action |
-|-----|--------|
-| Left / Right | Cycle output rotation (0° → 90° → 180° → 270°) and save immediately |
-| Enter | Open the OSD menu |
-
-### While OSD is open
-
-| Key | Action |
-|-----|--------|
-| Up / Down | Navigate menu items |
-| Left / Right | Adjust selected value |
-| Enter on Apply | Apply changes and save to flash |
-| Enter on Cancel | Discard changes and close |
-| Enter on Command Dump | Open the command dump viewer |
-
-### Command Dump Viewer
-
-Selecting **Command Dump** opens a hex viewer that shows the raw LCD command/data stream captured since power-on (or since the last trigger).
-
-![](./image/cmd_dump_ss.png)
-
-| Key | Action |
-|-----|--------|
-| Enter | Clear buffer and start a new capture |
-| Right | Stop capture (mark complete) |
-| Left | Return to the configuration menu |
-| Up / Down | Scroll |
-
-Each row displays 16 entries. Colors indicate the type of each entry:
-
-| Color | Meaning |
-|-------|---------|
-| Black on cyan | Command byte |
-| White on black / dark-gray (alternating) | Data byte |
-| Black on yellow (`HR`) | Hardware reset event |
-| `..` in dark gray | Empty (not yet captured) |
-
-## USB Serial Interface
-
-LcdTap-Pico2 Universal exposes a USB CDC (virtual COM port) that accepts JSON commands terminated with CRLF (`\r\n`).
-
-### Quick start
-
-Connect via any serial terminal at any baud rate (USB CDC ignores baud):
-
-```
-{"command":"hello"}
-```
-
-Response:
-
-```
-{"response":"welcome lcdtap"}
-```
-
-### Supported commands
-
-| Command | Description |
-|---------|-------------|
-| `hello` | Verify the connection |
-| `getparams` | Get all configuration parameters as JSON |
-| `setparams` | Update one or more parameters and save to flash |
-| `getframebuffer` | Read the current framebuffer as Base64-encoded RGB565 |
-| `cmddump_start` | Start capturing the LCD command stream |
-| `cmddump_abort` | Abort an in-progress capture |
-| `cmddump_forcetrigger` | Force the capture to the active state immediately |
-| `cmddump_getstatus` | Get the capture state (`WAIT`, `ACTIVE`, or `COMPLETE`) |
-| `cmddump_read` | Read the captured command data as Base64 |
-
-See [UART_PROTOCOL.md](UART_PROTOCOL.md) for the full protocol specification.
-
-### Example: read framebuffer with Python
-
-```python
-import serial, base64, struct
-from PIL import Image
-
-port = serial.Serial('/dev/ttyACM0', timeout=5)
-port.write(b'{"command":"getframebuffer"}\r\n')
-resp = port.readline()
-
-import json
-j = json.loads(resp)
-w, h = j['width'], j['height']
-raw = base64.b64decode(j['data'])
-pixels = struct.unpack(f'<{w*h}H', raw)
-
-img = Image.new('RGB', (w, h))
-img.putdata([(((p>>11)&0x1F)<<3, ((p>>5)&0x3F)<<2, (p&0x1F)<<3) for p in pixels])
-img.save('framebuffer.png')
-```
-
-### Example: change LCD resolution
-
-```
-{"command":"setparams","params":{"lcdWidth":128,"lcdHeight":64}}
-```
-
 ## GPIO Assignments
 
 ### Common (all modes)
@@ -173,7 +60,50 @@ img.save('framebuffer.png')
 | 3–10 | IN | D[0..7] | | | parallel data |
 | 11 | IN | DC | | | D/C# signal |
 
-## UART/Web App
+## Uploading Firmware
+
+1. Download zip file from [releases](https://github.com/shapoco/lcdtap/releases).
+2. Extract `lcdtap_pico2_universal.uf2` from the zip file.
+3. Connect the Pico 2 to your computer while holding the BOOTSEL button to enter bootloader mode.
+4. Copy the UF2 file to the mounted drive.
+
+## OSD Menu
+
+Press the Enter key to open the configuration menu.
+
+![](./image/osd_ss.png)
+
+| Key | Action |
+|-----|--------|
+| Up / Down | Navigate menu items |
+| Left / Right | Adjust selected value |
+| Enter on Apply | Apply changes and save to flash |
+| Enter on Cancel | Discard changes and close |
+| Enter on Command Dump | Open the command dump viewer |
+
+### Command Dump Viewer
+
+Selecting **Command Dump** opens a hex viewer that shows the raw LCD command/data stream captured since power-on (or since the last trigger).
+
+![](./image/cmd_dump_ss.png)
+
+| Key | Action |
+|-----|--------|
+| Enter | Clear buffer and start a new capture |
+| Right | Stop capture (mark complete) |
+| Left | Return to the configuration menu |
+| Up / Down | Scroll |
+
+Each row displays 16 entries. Colors indicate the type of each entry:
+
+| Color | Meaning |
+|-------|---------|
+| Black on cyan | Command byte |
+| White on black / dark-gray (alternating) | Data byte |
+| Black on yellow (`HR`) | Hardware reset event |
+| `..` in dark gray | Empty (not yet captured) |
+
+## USB Serial Interface
 
 LcdTap-Pico2 Universal accepts JSON commands over the USB CDC serial interface.
 This allows remote configuration and framebuffer readout from a PC.
@@ -182,7 +112,7 @@ Available here: https://shapoco.github.io/lcdtap/monitor
 
 ![](./image/web_app.png)
 
-## Build
+## Building Firmware from Source
 
 ```bash
 export PICO_SDK_PATH=/path/to/pico-sdk
@@ -207,7 +137,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico2 \
 
 ## External Deserializer for High-Speed SPI
 
-The SPI interface of LcdTap-Pico2 Universal can support clock frequencies up to approximately 40MHz. For frequencies exceeding this, you can add an external deserializer outside the Pico2 to support higher speeds. In this case, select Parallel as the Interface in the OSD menu.
+The SPI interface of LcdTap-Pico2 Universal can support clock frequencies up to approximately 50MHz. For frequencies exceeding this, you can add an external deserializer outside the Pico2 to support higher speeds. In this case, select Parallel as the Interface in the OSD menu.
 
 ![](./image/des_schematics.png)
 
