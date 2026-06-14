@@ -11,6 +11,9 @@
 
 #define LCDTAP_INLINE inline __attribute__((always_inline))
 
+#define LCDTAP_CLIP(min, max, val) \
+  ((val) < (min) ? (min) : ((val) > (max) ? (max) : (val)))
+
 namespace lcdtap {
 
 //=============================================================================

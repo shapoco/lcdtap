@@ -47,21 +47,20 @@ void Ssd1306Controller::dispatchCommand(uint8_t cmd) {
         break;
       case CMD_SET_COL_ADDR:
         if (cmdDataLen == 0) {
-          casetXS = cmd;
+          casetXS = LCDTAP_CLIP(0, config.lcdWidth - 1, cmd);
           ramwrX = casetXS;
         } else {
-          casetXE = cmd;
+          casetXE = LCDTAP_CLIP(casetXS, config.lcdWidth - 1, cmd);
           log("SSD1306: SET_COL_ADDR");
         }
         break;
       case CMD_SET_PAGE_ADDR:
         if (cmdDataLen == 0) {
-          rasetYS = static_cast<uint16_t>(cmd * 8u);
+          rasetYS = LCDTAP_CLIP(0, config.lcdHeight - 1, (uint16_t)cmd * 8u);
           ramwrY = rasetYS;
         } else {
-          rasetYE = static_cast<uint16_t>(cmd * 8u + 7u);
-          if (rasetYE >= config.lcdHeight)
-            rasetYE = static_cast<uint16_t>(config.lcdHeight - 1);
+          rasetYE = LCDTAP_CLIP(rasetYS, config.lcdHeight - 1,
+                                (uint16_t)cmd * 8u + 7u);
           log("SSD1306: SET_PAGE_ADDR");
         }
         break;

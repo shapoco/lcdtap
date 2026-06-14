@@ -131,14 +131,16 @@ void St7789Controller::feedDataByte(uint8_t byte) {
     case CMD_CASET:
       switch (cmdDataLen) {
         case 0: ramwrBuf[0] = byte; break;
-        case 1:
-          hwColStart = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
-          break;
+        case 1: {
+          uint16_t tmp = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, tmp);
+        } break;
         case 2: ramwrBuf[0] = byte; break;
-        case 3:
-          hwColEnd = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+        case 3: {
+          uint16_t tmp = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, tmp);
           log("CASET");
-          break;
+        } break;
         default: break;
       }
       ++cmdDataLen;
@@ -146,14 +148,16 @@ void St7789Controller::feedDataByte(uint8_t byte) {
     case CMD_RASET:
       switch (cmdDataLen) {
         case 0: ramwrBuf[0] = byte; break;
-        case 1:
-          hwRowStart = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
-          break;
+        case 1: {
+          uint16_t tmp = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, tmp);
+        } break;
         case 2: ramwrBuf[0] = byte; break;
-        case 3:
-          hwRowEnd = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+        case 3: {
+          uint16_t tmp = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, tmp);
           log("RASET");
-          break;
+        } break;
         default: break;
       }
       ++cmdDataLen;
