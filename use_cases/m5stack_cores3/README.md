@@ -1,5 +1,7 @@
 # Configuration for M5Stack CoreS3
 
+![](./thumb.jpg)
+
 See also: [LcdTap: M5Stack CoreS3 の画面をミラーリング/キャプチャする](https://blog.shapoco.net/2026/0520-m5stack-with-large-monitor/)
 
 ## Accessing the Chip Select Signal
@@ -41,7 +43,7 @@ Requires modifying `M5GFX.cpp` and recompiling, but no hardware modification is 
 
 Wire directly to R49 on the back of the board: Hardware modification is required, but no software changes are needed.
 
-![](./image/m5stack_cores3_cs.jpg)
+![](wiring.jpg)
 
 ## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
 

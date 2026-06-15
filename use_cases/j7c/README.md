@@ -1,6 +1,8 @@
 # Configuration for J7-c
 
-![](image/j7c_conn.jpg)
+![](./thumb.jpg)
+
+![](wiring.jpg)
 
 ## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
 

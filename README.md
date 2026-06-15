@@ -1,4 +1,4 @@
-# LcdTap
+<p align="center"><img src="./image/logo.png" width="240"></p>
 
 A library and its example design that receives LCD controller commands (via SPI or I2C)
 and outputs the framebuffer as a DVI-D signal.
@@ -19,28 +19,41 @@ and outputs the framebuffer as a DVI-D signal.
 - Supported Interfaces: SPI (4-line, 3-line), I2C, Parallel
 - Supported Pixel Formats: Monochrome, RGB111, RGB332, RGB444, RGB565, RGB666
 
-## Example Design
-
-### LcdTap-Pico2 Universal (Recommended)
-
-Supports multiple LCD controllers and interfaces, selectable at runtime via an OSD menu.
-
-See [pico2_universal](example/pico2_universal/README.md) for build
-instructions, pin assignment, and configuration details.
-
-### LcdTap-Pico2 for ST7789, ILI9341, ILI9488, etc.
-
-See [pico2_st7789](example/pico2_st7789/README.md) for build
-instructions, pin assignment, and configuration details.
-
-### LcdTap-Pico2 for SSD1306, SSD1309, etc.
-
-See [pico2_ssd1306](example/pico2_ssd1306/README.md) for build
-instructions, pin assignment, and configuration details.
-
 ## Video
 
 https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
+
+## Implementations
+
+### [LcdTap-Pico2 Universal](example/pico2_universal/) (Recommended)
+
+Supports multiple LCD controllers and interfaces, selectable at runtime via an OSD menu.
+
+![](image/board_pico2_universal.jpg)
+
+### [LcdTap-Pico2 for ST7789](example/pico2_st7789/)
+
+Simplified version 240x320 or 240x320 SPI LCDs.
+
+### [LcdTap-Pico2 for SSD1306](example/pico2_ssd1306/)
+
+Simplified version 128x64 monochrome OLEDs with SSD1306 controller.
+
+## Pre-built Firmware
+
+See [Releases](https://github.com/shapoco/lcdtap/releases).
+
+## Use Cases
+
+Click the thumbnails to see configuration details.
+
+[<img src="./use_cases/arduboy/thumb.jpg" width="256">](./use_cases/arduboy/)
+[<img src="./use_cases/j7c/thumb.jpg" width="256">](./use_cases/j7c/)
+[<img src="./use_cases/m5stack_cores3/thumb.jpg" width="256">](./use_cases/m5stack_cores3/)
+[<img src="./use_cases/picosystem/thumb.jpg" width="256">](./use_cases/picosystem/)
+[<img src="./use_cases/soeks01m/thumb.jpg" width="256">](./use_cases/soeks01m/)
+[<img src="./use_cases/thumby/thumb.jpg" width="256">](./use_cases/thumby/)
+[<img src="./use_cases/tinyjoypad/thumb.jpg" width="256">](./use_cases/tinyjoypad/)
 
 ## Recommended Header Pinout / Cable Color
 
@@ -64,16 +77,6 @@ https://github.com/user-attachments/assets/6f17d5dc-84d3-4a2a-a3ea-fca37591515f
 |14|D7||||
 |15|VSYS||VSYS|Orange|
 |16|DC||||
-
-## Applicable Examples
-
-- [M5Stack CoreS3](./CFG_M5STACK_CORES3.md)
-- [PicoSystem](./CFG_PICOSYSTEM.md)
-- [Arduboy](./CFG_ARDUBOY.md)
-- [TinyJoyPad](./CFG_TINYJOYPAD.md)
-- [Thumby](./CFG_THUMBY.md)
-- [Geiger-Muller Counter SOEKS-01M](./CFG_SOEKS01M.md)
-- [USB Digital Tester J7-c](./CFG_J7C.md)
 
 ## License
 

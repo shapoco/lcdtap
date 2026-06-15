@@ -1,5 +1,7 @@
 # Configuration for TinyJoyPad
 
+![](./thumb.jpg)
+
 See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
 
 ## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)

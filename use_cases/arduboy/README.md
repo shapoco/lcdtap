@@ -1,5 +1,7 @@
 # Configuration for Arduboy
 
+![](./thumb.jpg)
+
 See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
 
 > [!CAUTION]
@@ -8,7 +10,7 @@ See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.sh
 > [!CAUTION]
 > The back side of the Arduboy board has exposed Li-Po battery terminals. Be careful not to short them.
 
-![](image/arduboy_conn.jpg)
+![](wiring.jpg)
 
 ## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
 

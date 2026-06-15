@@ -1,5 +1,7 @@
 # Configuration for PicoSystem
 
+![](./thumb.jpg)
+
 ## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
 
 ### External Deserializer is Required
@@ -10,7 +12,7 @@ The PicoSystem's SPI is too fast for the LcdTap's 4-Line SPI interface, so an [e
 
 To access the SPI bus on PicoSystem, you need to scrape off the solder resist on the board and solder the wires.
 
-![](./image/picosystem_conn.jpg)
+![](wiring.jpg)
 
 ### Configuration
 

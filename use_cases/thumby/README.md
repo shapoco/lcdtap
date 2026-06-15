@@ -1,6 +1,8 @@
 # Configuration for Thumby
 
-![](image/thumby_conn.jpg)
+![](./thumb.jpg)
+
+![](wiring.jpg)
 
 ## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
 

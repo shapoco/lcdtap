@@ -1,9 +1,11 @@
 # Configuration for SOEKS-01M
 
+![](./thumb.jpg)
+
 > [!CAUTION]
 > High voltage is present near the Geiger-Müller tube. Always turn off the power before working on it.
 
-![](image/soeks01m_conn.jpg)
+![](wiring.jpg)
 
 ## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
 
