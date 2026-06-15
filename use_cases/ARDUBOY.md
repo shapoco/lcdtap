@@ -8,7 +8,7 @@ See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.sh
 > [!CAUTION]
 > The back side of the Arduboy board has exposed Li-Po battery terminals. Be careful not to short them.
 
-![](image/cfg_arduboy_conn.jpg)
+![](image/arduboy_conn.jpg)
 
 ## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
 

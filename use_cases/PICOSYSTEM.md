@@ -10,7 +10,7 @@ The PicoSystem's SPI is too fast for the LcdTap's 4-Line SPI interface, so an [e
 
 To access the SPI bus on PicoSystem, you need to scrape off the solder resist on the board and solder the wires.
 
-![](./image/cfg_picosystem_conn.jpg)
+![](./image/picosystem_conn.jpg)
 
 ### Configuration
 

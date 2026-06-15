@@ -41,7 +41,7 @@ Requires modifying `M5GFX.cpp` and recompiling, but no hardware modification is 
 
 Wire directly to R49 on the back of the board: Hardware modification is required, but no software changes are needed.
 
-![](./image/cfg_m5stack_cores3_cs.jpg)
+![](./image/m5stack_cores3_cs.jpg)
 
 ## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
 

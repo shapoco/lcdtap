@@ -1,6 +1,6 @@
 # Configuration for Thumby
 
-![](image/cfg_thumby_conn.jpg)
+![](image/thumby_conn.jpg)
 
 ## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
 
