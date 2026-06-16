@@ -45,7 +45,7 @@ Wire directly to R49 on the back of the board: Hardware modification is required
 
 ![](wiring.jpg)
 
-## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
+## Using [LcdTap-Pico2 Universal](../../example/pico2_universal/)
 
 ### Connection
 
@@ -65,7 +65,7 @@ Wire directly to R49 on the back of the board: Hardware modification is required
 3. Turn-on Swap R/B.
 4. Set Output Rotation to 0°.
 
-## Using [LcdTap-Pico2 for ST7789](example/pico2_st7789/README.md)
+## Using [LcdTap-Pico2 for ST7789](../../example/pico2_st7789/)
 
 ### Connection
 

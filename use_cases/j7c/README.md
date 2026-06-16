@@ -4,7 +4,7 @@
 
 ![](wiring.jpg)
 
-## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
+## Using [LcdTap-Pico2 Universal](../../example/pico2_universal/README.md)
 
 ### Connection
 

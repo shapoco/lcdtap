@@ -4,7 +4,7 @@
 
 ![](wiring.jpg)
 
-## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
+## Using [LcdTap-Pico2 Universal](../../example/pico2_universal/)
 
 ### Connection
 
@@ -22,7 +22,7 @@
 1. Load preset for SSD1306.
 2. Change the interface type to SPI.
 
-## Using [LcdTap-Pico2 for SSD1306](example/pico2_ssd1306/README.md)
+## Using [LcdTap-Pico2 for SSD1306](../../example/pico2_ssd1306/)
 
 ### Connection
 

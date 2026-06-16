@@ -4,7 +4,7 @@
 
 See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/)
 
-## Using [LcdTap-Pico2 Universal](example/pico2_universal/README.md)
+## Using [LcdTap-Pico2 Universal](../../example/pico2_universal/)
 
 ### Connection
 
@@ -18,7 +18,7 @@ See also: [LcdTap: TinyJoyPad や Arduboy を大画面で遊ぶ](https://blog.sh
 
 Use preset configuration for SSD1306.
 
-## Using [LcdTap-Pico2 for SSD1306](example/pico2_ssd1306/README.md)
+## Using [LcdTap-Pico2 for SSD1306](../../example/pico2_ssd1306/)
 
 ### Connection
 
