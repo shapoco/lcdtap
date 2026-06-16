@@ -23,9 +23,9 @@ void St7789Controller::updateWriteCache() {
     rasetYS = hwRowStart;
     rasetYE = hwRowEnd;
   } else {
-    casetXS = hwRowStart;  // fast axis = hardware row
+    casetXS = hwRowStart;
     casetXE = hwRowEnd;
-    rasetYS = hwColStart;  // slow axis = hardware col
+    rasetYS = hwColStart;
     rasetYE = hwColEnd;
   }
   cachedBGR = ((madctl >> 3) & 1) ^ config.swapRB;
@@ -132,14 +132,21 @@ void St7789Controller::feedDataByte(uint8_t byte) {
       switch (cmdDataLen) {
         case 0: ramwrBuf[0] = byte; break;
         case 1: {
-          uint16_t tmp = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
-          hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, tmp);
+          uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          if ((madctl & 0x20u) == 0) {
+            hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, val);
+          } else {
+            hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, val);
+          }
         } break;
         case 2: ramwrBuf[0] = byte; break;
         case 3: {
-          uint16_t tmp = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
-          hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, tmp);
-          log("CASET");
+          uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          if ((madctl & 0x20u) == 0) {
+            hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, val);
+          } else {
+            hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, val);
+          }
         } break;
         default: break;
       }
@@ -149,14 +156,21 @@ void St7789Controller::feedDataByte(uint8_t byte) {
       switch (cmdDataLen) {
         case 0: ramwrBuf[0] = byte; break;
         case 1: {
-          uint16_t tmp = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
-          hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, tmp);
+          uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          if ((madctl & 0x20u) == 0) {
+            hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, val);
+          } else {
+            hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, val);
+          }
         } break;
         case 2: ramwrBuf[0] = byte; break;
         case 3: {
-          uint16_t tmp = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
-          hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, tmp);
-          log("RASET");
+          uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
+          if ((madctl & 0x20u) == 0) {
+            hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, val);
+          } else {
+            hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, val);
+          }
         } break;
         default: break;
       }

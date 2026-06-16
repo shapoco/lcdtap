@@ -141,16 +141,30 @@ void Ssd1331Controller::execCommand() {
 
   switch (currentCmd) {
     case CMD_SETCOLUMN:
-      hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, cmdBuf[0]);
-      hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, cmdBuf[1]);
+      if ((remap & ssd1331::REMAP_ADDR_INC) == 0) {
+        // mv=0: SETCOLUMN = column address, clip to lcdWidth
+        hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, cmdBuf[0]);
+        hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, cmdBuf[1]);
+      } else {
+        // mv=1: SETCOLUMN = row address, clip to lcdHeight
+        hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, cmdBuf[0]);
+        hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, cmdBuf[1]);
+      }
       // casetXS/XE and ramwrX are set in updateWriteCache() when CMD_SETROW
       // arrives
       log("SSD1331: SETCOLUMN");
       break;
 
     case CMD_SETROW:
-      hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, cmdBuf[0]);
-      hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, cmdBuf[1]);
+      if ((remap & ssd1331::REMAP_ADDR_INC) == 0) {
+        // mv=0: SETROW = row address, clip to lcdHeight
+        hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, cmdBuf[0]);
+        hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, cmdBuf[1]);
+      } else {
+        // mv=1: SETROW = column address, clip to lcdWidth
+        hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, cmdBuf[0]);
+        hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, cmdBuf[1]);
+      }
       ramwrBufLen = 0;
       updateWriteCache();
       log("SSD1331: SETROW");
