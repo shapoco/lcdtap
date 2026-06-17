@@ -1,0 +1,150 @@
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #21262d;
+  --surface3: #2d333b;
+  --accent: #58a6ff;
+  --accent-hover: #79b8ff;
+  --green: #3fb950;
+  --yellow: #e3b341;
+  --red: #f85149;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --border: #30363d;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--text);
+  background-color: var(--bg);
+}
+
+a {
+  text-decoration: none !important;
+  color: var(--accent) !important;
+}
+
+a:hover {
+  color: var(--accent-hover) !important;
+}
+
+header {
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rex 0.5rem;
+  text-align: left;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+header .logo {
+  height: 40px;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+footer {
+  background-color: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 0.5rex 0.5rem;
+  text-align: center;
+}
+
+main {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+pre, code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background-color: var(--surface2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+}
+
+code {
+  padding: 0.2rem 0.4rem;
+}
+
+.large-img {
+  width: 100%;
+  border-radius: var(--radius);
+}
+
+p, ul, ol, pre, blockquote, h2, h3, table {
+  margin: 2rex 0;
+}
+
+h2 {
+  font-size: 150%;
+  padding: 0.5rex 0.5rem;
+  background-color: var(--surface3);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+
+h3 {
+  font-size: 120%;
+  padding: 0.5rex 0;
+  background: none;
+  border-bottom: 1px solid var(--surface3);
+  color: var(--text);
+}
+
+ul.card-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+ul.card-list li {
+  margin: 0;
+  padding: 0.5rem;
+  width: 180px;
+  text-align: center;
+  background-color: var(--surface2);
+  border-radius: var(--radius);
+  box-sizing: border-box;
+}
+ul.card-list li img {
+  width: 100%;
+  border-radius: var(--radius);
+}
+
+blockquote.caution {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: var(--surface3);
+  border-left: 4px solid var(--yellow);
+  border-radius: var(--radius-sm);
+}
+
+table {
+  border-collapse: collapse;
+  font-size: 90%;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.5rex 0.5rem;
+}
+th {
+  background-color: var(--surface2);
+  font-weight: bold;
+  text-align: center;
+}
+td {
+  background-color: var(--surface);
+  text-align: left;
+}

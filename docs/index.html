@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
+  <script>
+    var remoteHost = window.location.hostname;
+    if (remoteHost == "localhost") {
+      console.log(`Google Analytics disabled on: '${remoteHost}'`);
+    }
+    else {
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-KJ53WNQ22G');
+    }
+  </script>
+
+  <link rel="stylesheet" href="style.css">
+  <title>LcdTap</title>
+</head>
+
+<body>
+  <main>
+    <h1 style="text-align: center;">
+      <img src="./image/logo.png" alt="LcdTap" /><br>
+    </h1>
+
+    <p style="text-align: center;">
+      <a href="https://github.com/shapoco/lcdtap/" target="_blank">GitHub Repository</a>
+    </p>
+
+    <h2 id="what-is-lcdtap">What is LcdTap?</h2>
+
+    <p>
+      LcdTap is a library and its implementation that receives LCD controller
+      commands (via SPI or I2C) and outputs the framebuffer as a DVI-D signal.
+      You can also change settings and capture still images via UART.
+    </p>
+    <p>
+      <img src="./image/cover.jpg" class="large-img" />
+    </p>
+    <p>
+      You can use it in many ways: play tiny screen games like Arduboy on a large screen,
+      enhance your product appeal at exhibitions and presentations, debug devices, and much more.
+    </p>
+    <p>
+      <img src="./image/use-cases.png" class="large-img" />
+    </p>
+
+    <h2 id="features">Features</h2>
+
+    <ul>
+      <li>Receives LCD controller commands and reconstructs images into the framebuffer</li>
+      <li>Outputs framebuffer contents as DVI-D signal (using <a href="https://github.com/Wren6991/PicoDVI"
+          target="_blank">PicoDVI</a>)
+      </li>
+      <li>Programmable screen sizes (up to 480x320 supported on Pico2)</li>
+      <li>Command Dump: Captures and displays LCD control commands</li>
+      <li>Supported Controllers: ST7789, ILI9341, ILI9488, SSD1306, SSD1309, SSD1331, and some variants</li>
+      <li>Supported Interfaces: SPI (4-line, 3-line), I2C, 8-bit Parallel</li>
+      <li>Supported Pixel Formats: Monochrome, RGB111, RGB332, RGB444, RGB565, RGB666</li>
+    </ul>
+
+    <h2 id="lcdtap-pico2-universal">LcdTap-Pico2 Universal</h2>
+
+    <p>
+      LcdTap-Pico2 Universal is an LcdTap implementation for Raspberry Pi Pico 2.
+    </p>
+    <p>
+      <img src="image/pico2-universal-boards.jpg" class="large-img" />
+    </p>
+    <p>
+      By changing settings via five buttons or UART interface,
+      it can adapt to various LCD controllers and interfaces. You can view the contents of LCD control
+      commands using Command Dump, and also obtain pixel-perfect still image captures via UART interface.
+    </p>
+
+    <h3>Schematics</h3>
+    <p>
+      <img src="https://github.com/shapoco/lcdtap/raw/main/example/pico2_universal/image/schematics.png"
+        class="large-img" alt="LcdTap-Pico2 Universal Schematic" />
+    </p>
+
+    <h3>Download Pre-built Firmware</h3>
+    <ol>
+      <li>
+        Download the zip from the <a href="https://github.com/shapoco/lcdtap/releases">releases</a>
+        and extract <code>lcdtap_pico2_universal.uf2</code>.
+      </li>
+      <li>
+        Connect Raspberry Pi Pico 2 to your computer while holding the BOOTSEL button, and copy the
+        extracted <code>.uf2</code> file to the mounted storage.
+      </li>
+    </ol>
+
+    <h3>USB Serial Interface</h3>
+    <p>
+      Serial Interface is available from
+      <a href="https://shapoco.github.io/lcdtap/monitor/" target="_blank">LcdTap Monitor</a>.
+    </p>
+
+    <h3>Technical Details</h3>
+    <p>
+      See <a href="https://github.com/shapoco/lcdtap/tree/main/example/pico2_universal">example/pico2_universal</a>.
+    </p>
+
+    <h3 id="cases">Cases</h3>
+    <p>
+      If you try LcdTap, I would be happy if you could tweet your connection and
+      setup details with the
+      <a href="https://twitter.com/hashtag/LcdTap" target="_blank">#LcdTap</a> tag ;)
+    </p>
+    <ul class="card-list">
+      <li>
+        <a href="./cases/arduboy/"><img src="./cases/arduboy/thumb.jpg" /><br>
+          Arduboy
+        </a>
+      </li>
+      <li>
+        <a href="./cases/j7c/"><img src="./cases/j7c/thumb.jpg" /><br>
+          USB Tester J7-c
+        </a>
+      </li>
+      <li>
+        <a href="./cases/kws-x1/"><img src="./cases/kws-x1/thumb.jpg" /><br>
+          USB Tester KWS-X1
+        </a>
+      </li>
+      <li>
+        <a href="./cases/m5stack-cores3/"><img src="./cases/m5stack-cores3/thumb.jpg" /><br>
+          M5Stack CoreS3
+        </a>
+      </li>
+      <li>
+        <a href="./cases/picosystem/"><img src="./cases/picosystem/thumb.jpg" /><br>
+          Picosystem
+        </a>
+      </li>
+      <li>
+        <a href="./cases/soeks01m/"><img src="./cases/soeks01m/thumb.jpg" /><br>
+          Geiger-Muller Counter Soeks-01M
+        </a>
+      </li>
+      <li>
+        <a href="./cases/thumby/"><img src="./cases/thumby/thumb.jpg" /><br>
+          Thumby
+        </a>
+      </li>
+      <li>
+        <a href="./cases/tinyjoypad/"><img src="./cases/tinyjoypad/thumb.jpg" /><br>
+          TinyJoypad
+        </a>
+      </li>
+    </ul>
+
+    <h2>Other Implementations</h2>
+
+    <h3>LcdTap-Pico2 for ST7789</h3>
+    <p>
+      Simplified version 240x320 or 240x320 SPI LCDs.
+      See <a href="https://github.com/shapoco/lcdtap/blob/main/example/pico2_st7789">example/pico2_st7789</a>.
+    </p>
+
+    <h3>LcdTap-Pico2 for SSD1306</h3>
+    <p>
+      Simplified version for 128x64 monochrome OLEDs with SSD1306 controller.
+      See <a href="https://github.com/shapoco/lcdtap/blob/main/example/pico2_ssd1306">example/pico2_ssd1306</a>.
+    </p>
+
+    <h2>Recommended Header Pinout / Cable Color</h2>
+
+    <p>
+      <img src="./image/header-and-cable.jpg" class="large-img" />
+    </p>
+
+    <p>
+      <img src="./image/header-pinout.png" class="large-img" />
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Pin</th>
+          <th>Parallel Mode</th>
+          <th>SPI Mode</th>
+          <th>I2C Mode</th>
+          <th>Recommended Color</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>RST</td>
+          <td>RST</td>
+          <td></td>
+          <td>Violet or Brown</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>CS</td>
+          <td>CS</td>
+          <td></td>
+          <td>Yellow</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>WEN</td>
+          <td>SCLK</td>
+          <td></td>
+          <td>White</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>GND</td>
+          <td>GND</td>
+          <td></td>
+          <td>Black</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td>D1</td>
+          <td>DC</td>
+          <td></td>
+          <td>Blue</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>D0</td>
+          <td>MOSI</td>
+          <td></td>
+          <td>Green</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td>3V3</td>
+          <td>3V3</td>
+          <td>3V3</td>
+          <td>Red</td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td>D2</td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td>D5</td>
+          <td></td>
+          <td>SDA</td>
+          <td>Green</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td>D3</td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>11</td>
+          <td>D6</td>
+          <td></td>
+          <td>SCL</td>
+          <td>White</td>
+        </tr>
+        <tr>
+          <td>12</td>
+          <td>D4</td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>13</td>
+          <td>GND</td>
+          <td></td>
+          <td>GND</td>
+          <td>Black</td>
+        </tr>
+        <tr>
+          <td>14</td>
+          <td>D7</td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>15</td>
+          <td>VSYS</td>
+          <td></td>
+          <td>VSYS</td>
+          <td>Orange</td>
+        </tr>
+        <tr>
+          <td>16</td>
+          <td>DC</td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+
+  <footer>
+    <a href="/">LcdTap</a> by <a href="https://x.com/shapoco" target="_blank">@shapoco</a>
+  </footer>
+</body>
+
+</html>

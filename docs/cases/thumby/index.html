@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
+  <script>
+    var remoteHost = window.location.hostname;
+    if (remoteHost == "localhost") {
+      console.log(`Google Analytics disabled on: '${remoteHost}'`);
+    }
+    else {
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-KJ53WNQ22G');
+    }
+  </script>
+
+  <link rel="stylesheet" href="../../style.css">
+  <title>Thumby | LcdTap Use Cases</title>
+</head>
+
+<body>
+  <header>
+    <a href="../../"><img src="../../image/logo.png" class="logo" />LcdTap</a> |
+    <a href="../../#cases">Cases</a>
+  </header>
+  <main>
+    <h1 id="configuration-for-thumby">Configuration for Thumby</h1>
+    <p><img src="./thumb.jpg" class="large-img" /></p>
+    <p><img src="wiring.jpg" class="large-img" /></p>
+    <h2 id="using-lcdtap-pico2-universal">Using LcdTap-Pico2 Universal</h2>
+    <h3 id="connection">Connection</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>LcdTap (Pico2)</th>
+          <th>Connection</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GND</td>
+          <td>Thumby’s GND</td>
+        </tr>
+        <tr>
+          <td>GPIO0 (RST)</td>
+          <td>Thumby’s RST</td>
+        </tr>
+        <tr>
+          <td>GPIO1 (CS)</td>
+          <td>Thumby’s CS</td>
+        </tr>
+        <tr>
+          <td>GPIO2 (SCLK)</td>
+          <td>Thumby’s SCLK</td>
+        </tr>
+        <tr>
+          <td>GPIO3 (MOSI)</td>
+          <td>Thumby’s MOSI</td>
+        </tr>
+        <tr>
+          <td>GPIO4 (DC)</td>
+          <td>Thumby’s DC</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 id="configuration">Configuration</h3>
+    <ol type="1">
+      <li>Load preset for SSD1306.</li>
+      <li>Change the interface type to SPI.</li>
+    </ol>
+    <h2 id="using-lcdtap-pico2-for-ssd1306">Using LcdTap-Pico2 for SSD1306</h2>
+    <h3 id="connection-1">Connection</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>LcdTap (Pico2)</th>
+          <th>Connection</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GND</td>
+          <td>Thumby’s GND</td>
+        </tr>
+        <tr>
+          <td>GPIO0 (RST)</td>
+          <td>Thumby’s RST</td>
+        </tr>
+        <tr>
+          <td>GPIO1 (CS)</td>
+          <td>Thumby’s CS</td>
+        </tr>
+        <tr>
+          <td>GPIO2 (SCLK)</td>
+          <td>Thumby’s SCLK</td>
+        </tr>
+        <tr>
+          <td>GPIO3 (MOSI)</td>
+          <td>Thumby’s MOSI</td>
+        </tr>
+        <tr>
+          <td>GPIO4 (DC)</td>
+          <td>Thumby’s DC</td>
+        </tr>
+        <tr>
+          <td>GPIO20 (CFG_OUT_720P)</td>
+          <td>Select according to your display</td>
+        </tr>
+        <tr>
+          <td>GPIO21 (CFG_LCD_SIZE_SEL)</td>
+          <td>Open or 3V3 (128x64)</td>
+        </tr>
+        <tr>
+          <td>GPIO22 (CFG_IFACE_SEL)</td>
+          <td>GND (SPI)</td>
+        </tr>
+        <tr>
+          <td>GPIO27 (CFG_ROT[0])</td>
+          <td>Open or 3V3</td>
+        </tr>
+        <tr>
+          <td>GPIO28 (CFG_ROT[1])</td>
+          <td>GND (Rotate 180°)</td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+
+  <footer>
+    <a href="/">LcdTap</a> by <a href="https://x.com/shapoco" target="_blank">@shapoco</a>
+  </footer>
+</body>
+
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
+  
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
+  <script>
+    var remoteHost = window.location.hostname;
+    if (remoteHost == "localhost") {
+      console.log(`Google Analytics disabled on: '${remoteHost}'`);
+    }
+    else {
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-KJ53WNQ22G');
+    }
+  </script>
+
+  <link rel="stylesheet" href="../../style.css">
+  <title>J7-c | LcdTap Use Cases</title>
+</head>
+
+<body>
+  <header>
+    <a href="../../"><img src="../../image/logo.png" class="logo" />LcdTap</a> |
+    <a href="../../#cases">Cases</a>
+  </header>
+  <main>
+    <h1 id="configuration-for-j7-c">Configuration for J7-c</h1>
+    <p><img src="./thumb.jpg" class="large-img" /></p>
+    <p><img src="wiring.jpg" class="large-img" /></p>
+    <h2 id="using-lcdtap-pico2-universal">Using LcdTap-Pico2 Universal</h2>
+    <h3 id="connection">Connection</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>LcdTap (Pico2)</th>
+          <th>Connection</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GND</td>
+          <td>J7-c GND</td>
+        </tr>
+        <tr>
+          <td>GPIO0 (RST)</td>
+          <td>Open or 3V3</td>
+        </tr>
+        <tr>
+          <td>GPIO1 (CS)</td>
+          <td>J7-c CS (Pin 10)</td>
+        </tr>
+        <tr>
+          <td>GPIO2 (SCLK)</td>
+          <td>J7-c SCLK (Pin 9)</td>
+        </tr>
+        <tr>
+          <td>GPIO3 (MOSI)</td>
+          <td>J7-c MOSI (Pin 6)</td>
+        </tr>
+        <tr>
+          <td>GPIO4 (DC)</td>
+          <td>J7-c DC (Pin 2)</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 id="configuration">Configuration</h3>
+    <ol type="1">
+      <li>Load preset for ST7789.</li>
+      <li>Set resolution to 128x160.</li>
+      <li>Enable Swap R/B.</li>
+      <li>Set Output Rotation to 90°.</li>
+    </ol>
+  </main>
+
+  <footer>
+    <a href="/">LcdTap</a> by <a href="https://x.com/shapoco" target="_blank">@shapoco</a>
+  </footer>
+</body>
+
+</html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
+  <script>
+    var remoteHost = window.location.hostname;
+    if (remoteHost == "localhost") {
+      console.log(`Google Analytics disabled on: '${remoteHost}'`);
+    }
+    else {
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-KJ53WNQ22G');
+    }
+  </script>
+
+  <link rel="stylesheet" href="../../style.css">
+  <title>Picosystem | LcdTap Use Cases</title>
+</head>
+
+<body>
+  <header>
+    <a href="../../"><img src="../../image/logo.png" class="logo" />LcdTap</a> |
+    <a href="../../#cases">Cases</a>
+  </header>
+  <main>
+    <h1 id="configuration-for-picosystem">Configuration for PicoSystem</h1>
+    <p><img src="./thumb.jpg" class="large-img" /></p>
+    <h2 id="using-lcdtap-pico2-universal">Using LcdTap-Pico2 Universal</h2>
+    <h3 id="external-deserializer-is-required">External Deserializer is
+      Required</h3>
+    <p>The PicoSystem’s SPI is too fast for the LcdTap’s 4-Line SPI
+      interface, so an <a
+        href="https://github.com/shapoco/lcdtap/tree/main/example/pico2_universal#external-deserializer-for-high-speed-spi">external
+        deserializer</a> is required.</p>
+    <h3 id="connection">Connection</h3>
+    <p>To access the SPI bus on PicoSystem, you need to scrape off the
+      solder resist on the board and solder the wires.</p>
+    <p><img src="wiring.jpg" class="large-img" /></p>
+    <h3 id="configuration">Configuration</h3>
+    <ol type="1">
+      <li>Load preset for ST7789.</li>
+      <li>Set Interface to 8-bit Parallel.</li>
+      <li>Set LCD size to 240x240.</li>
+      <li>Set Output Rotation to 0°.</li>
+    </ol>
+  </main>
+
+  <footer>
+    <a href="/">LcdTap</a> by <a href="https://x.com/shapoco" target="_blank">@shapoco</a>
+  </footer>
+</body>
+
+</html>

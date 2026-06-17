@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
+  <script>
+    var remoteHost = window.location.hostname;
+    if (remoteHost == "localhost") {
+      console.log(`Google Analytics disabled on: '${remoteHost}'`);
+    }
+    else {
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-KJ53WNQ22G');
+    }
+  </script>
+
+  <link rel="stylesheet" href="../../style.css">
+  <title>M5Stack CoreS3 | LcdTap Use Cases</title>
+</head>
+
+<body>
+  <header>
+    <a href="../../"><img src="../../image/logo.png" class="logo" />LcdTap</a> |
+    <a href="../../#cases">Cases</a>
+  </header>
+  <main>
+    <h1 id="configuration-for-m5stack-cores3">Configuration for M5Stack
+      CoreS3</h1>
+    <p><img src="./thumb.jpg" class="large-img" /></p>
+    <p>See also: <a href="https://blog.shapoco.net/2026/0520-m5stack-with-large-monitor/">LcdTap:
+        M5Stack CoreS3 の画面をミラーリング/キャプチャする</a></p>
+    <h2 id="accessing-the-chip-select-signal">Accessing the Chip Select
+      Signal</h2>
+    <p>The M5Stack CoreS3 does not have the CS signal exposed on the
+      connector, so one of the following solutions is required.</p>
+    <h3 id="method1-route-cs-signal-to-m-bus">Method1: Route CS signal to
+      M-Bus</h3>
+    <p>Requires modifying <code>M5GFX.cpp</code> and recompiling, but no
+      hardware modification is needed.</p>
+    <pre>
+  void cs_control(bool flg) override
+  {
+    lgfx::Panel_ILI9342::cs_control(flg);
+
+<span style="background: #242; color: #cfc;">+   // GPIO5 を CS ピンに連動させる
++   lgfx::pinMode(GPIO_NUM_5, lgfx::pin_mode_t::output);
++   if (flg) {
++     lgfx::gpio_hi(GPIO_NUM_5);
++   } else {
++     lgfx::gpio_lo(GPIO_NUM_5);
++   }</span>
+
+    // CS操作時にGPIO35の役割を切り替える (MISO or D/C);
+
+    // FSPIQ_IN_IDX==FSPI MISO / SIG_GPIO_OUT_IDX==GPIO OUT
+    // *(volatile uint32_t*)GPIO_FUNC35_OUT_SEL_CFG_REG = flg ? FSPIQ_OUT_IDX : SIG_GPIO_OUT_IDX;
+
+    // CS HIGHの場合はGPIO出力を無効化し、MISO入力として機能させる。
+    // CS LOW の場合はGPIO出力を有効化し、D/Cとして機能させる。
+    *(volatile uint32_t*)( flg
+                           ? GPIO_ENABLE1_W1TC_REG
+                           : GPIO_ENABLE1_W1TS_REG
+                         ) = 1u &lt;&lt; (GPIO_NUM_35 &amp; 31);
+  }</pre>
+    <h3 id="method2-wire-directly">Method2: Wire directly</h3>
+    <p>Wire directly to R49 on the back of the board: Hardware modification
+      is required, but no software changes are needed.</p>
+    <p><img src="wiring.jpg" class="large-img" /></p>
+    <h2 id="using-lcdtap-pico2-universal">Using LcdTap-Pico2 Universal</h2>
+    <h3 id="connection">Connection</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>LcdTap (Pico2)</th>
+          <th>Connection</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GND</td>
+          <td>CoreS3’s GND</td>
+        </tr>
+        <tr>
+          <td>GPIO0 (RST)</td>
+          <td>Pico2’s 3V3</td>
+        </tr>
+        <tr>
+          <td>GPIO1 (CS)</td>
+          <td>(See above instructions)</td>
+        </tr>
+        <tr>
+          <td>GPIO2 (SCLK)</td>
+          <td>CoreS3’s SPI_SCLK</td>
+        </tr>
+        <tr>
+          <td>GPIO3 (MOSI)</td>
+          <td>CoreS3’s SPI_MOSI</td>
+        </tr>
+        <tr>
+          <td>GPIO4 (DC)</td>
+          <td>CoreS3’s SPI_MISO</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 id="configuration">Configuration</h3>
+    <ol type="1">
+      <li>Load preset for ST7789.</li>
+      <li>Set LCD size to 320x240.</li>
+      <li>Turn-on Swap R/B.</li>
+      <li>Set Output Rotation to 0°.</li>
+    </ol>
+    <h2 id="using-lcdtap-pico2-for-st7789">Using LcdTap-Pico2 for ST7789</h2>
+    <h3 id="connection-1">Connection</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>LcdTap (Pico2)</th>
+          <th>Connection</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GND</td>
+          <td>CoreS3’s GND</td>
+        </tr>
+        <tr>
+          <td>GPIO0 (RST)</td>
+          <td>3V3</td>
+        </tr>
+        <tr>
+          <td>GPIO1 (CS)</td>
+          <td>(See above instructions)</td>
+        </tr>
+        <tr>
+          <td>GPIO2 (SCLK)</td>
+          <td>CoreS3’s SPI_SCLK</td>
+        </tr>
+        <tr>
+          <td>GPIO3 (MOSI)</td>
+          <td>CoreS3’s SPI_MOSI</td>
+        </tr>
+        <tr>
+          <td>GPIO4 (DC)</td>
+          <td>CoreS3’s SPI_MISO</td>
+        </tr>
+        <tr>
+          <td>GPIO20 (CFG_OUT_720P)</td>
+          <td>Select according to your display</td>
+        </tr>
+        <tr>
+          <td>GPIO21 (CFG_LCD_SIZE_SEL)</td>
+          <td>GND (320x240)</td>
+        </tr>
+        <tr>
+          <td>GPIO22 (CFG_SWAP_RB)</td>
+          <td>GND (swap R/B)</td>
+        </tr>
+        <tr>
+          <td>GPIO26 (CFG_INVERTED)</td>
+          <td>GND (inverted)</td>
+        </tr>
+        <tr>
+          <td>GPIO27/28 (CFG_ROT[1:0])</td>
+          <td>Open or 3V3 (0°)</td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+
+  <footer>
+    <a href="/">LcdTap</a> by <a href="https://x.com/shapoco" target="_blank">@shapoco</a>
+  </footer>
+</body>
+
+</html>
