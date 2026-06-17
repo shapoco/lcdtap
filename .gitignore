@@ -4,6 +4,7 @@ tmp.*
 tmp.*/
 venv/
 __pycache__/
+*:Zone.Identifier
 
 # KiCad
 *-backups/

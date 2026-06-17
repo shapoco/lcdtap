@@ -72,13 +72,13 @@ Wire directly to R49 on the back of the board: Hardware modification is required
 |LcdTap (Pico2)|Connection|
 |:--|:--|
 |GND|CoreS3's GND|
-|GPIO0 (RST)|Pico2's 3V3|
+|GPIO0 (RST)|3V3|
 |GPIO1 (CS)|(See above instructions)|
 |GPIO2 (SCLK)|CoreS3's SPI_SCLK|
 |GPIO3 (MOSI)|CoreS3's SPI_MOSI|
 |GPIO4 (DC)|CoreS3's SPI_MISO|
 |GPIO20 (CFG_OUT_720P)|Select according to your display|
-|GPIO21 (CFG_LCD_SIZE_SEL)|Pico2's GND (320x240)|
-|GPIO22 (CFG_SWAP_RB)|Pico2's GND (swap R/B)|
-|GPIO26 (CFG_INVERTED)|Pico2's GND (inverted)|
-|GPIO27/28 (CFG_ROT\[1:0\])|Open or GND|
+|GPIO21 (CFG_LCD_SIZE_SEL)|GND (320x240)|
+|GPIO22 (CFG_SWAP_RB)|GND (swap R/B)|
+|GPIO26 (CFG_INVERTED)|GND (inverted)|
+|GPIO27/28 (CFG_ROT\[1:0\])|Open or 3V3 (0°)|

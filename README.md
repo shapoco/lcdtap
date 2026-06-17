@@ -47,13 +47,14 @@ See [Releases](https://github.com/shapoco/lcdtap/releases).
 
 Click the thumbnails to see configuration details.
 
-[<img src="./use_cases/arduboy/thumb.jpg" width="256">](./use_cases/arduboy/)
-[<img src="./use_cases/j7c/thumb.jpg" width="256">](./use_cases/j7c/)
-[<img src="./use_cases/m5stack_cores3/thumb.jpg" width="256">](./use_cases/m5stack_cores3/)
-[<img src="./use_cases/picosystem/thumb.jpg" width="256">](./use_cases/picosystem/)
-[<img src="./use_cases/soeks01m/thumb.jpg" width="256">](./use_cases/soeks01m/)
-[<img src="./use_cases/thumby/thumb.jpg" width="256">](./use_cases/thumby/)
-[<img src="./use_cases/tinyjoypad/thumb.jpg" width="256">](./use_cases/tinyjoypad/)
+[<img src="./use_cases/arduboy/thumb.jpg" width="256" alt="Arduboy">](./use_cases/arduboy/)
+[<img src="./use_cases/kws-x1/thumb.jpg" width="256" alt="KWS-X1">](./use_cases/kws-x1/)
+[<img src="./use_cases/j7c/thumb.jpg" width="256" alt="J7C">](./use_cases/j7c/)
+[<img src="./use_cases/m5stack_cores3/thumb.jpg" width="256" alt="M5Stack CoreS3">](./use_cases/m5stack_cores3/)
+[<img src="./use_cases/picosystem/thumb.jpg" width="256" alt="Picosystem">](./use_cases/picosystem/)
+[<img src="./use_cases/soeks01m/thumb.jpg" width="256" alt="Soeks01M">](./use_cases/soeks01m/)
+[<img src="./use_cases/thumby/thumb.jpg" width="256" alt="Thumby">](./use_cases/thumby/)
+[<img src="./use_cases/tinyjoypad/thumb.jpg" width="256" alt="TinyJoypad">](./use_cases/tinyjoypad/)
 
 ## Recommended Header Pinout / Cable Color
 
