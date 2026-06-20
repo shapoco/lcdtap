@@ -15,7 +15,7 @@ Supports multiple LCD controllers and interfaces, selectable at runtime via an O
 
 ### [LcdTap-Pico2 for ST7789](example/pico2_st7789/)
 
-Simplified version 240x320 or 240x320 SPI LCDs.
+Simplified version for 240x320 SPI LCDs with ST7789 or ILI9341 controller.
 
 ### [LcdTap-Pico2 for SSD1306](example/pico2_ssd1306/)
 

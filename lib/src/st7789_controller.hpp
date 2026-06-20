@@ -2,25 +2,14 @@
 
 #include <lcdtap/devices/st7789.hpp>
 
-#include "controller_base.hpp"
+#include "spi_display_base.hpp"
 
 namespace lcdtap {
 
-class St7789Controller final : public ControllerBase {
- public:
-  uint8_t madctl;
-  uint16_t hwColStart;  // CASET start (hardware column coordinate)
-  uint16_t hwColEnd;    // CASET end   (hardware column coordinate, inclusive)
-  uint16_t hwRowStart;  // RASET start (hardware row coordinate)
-  uint16_t hwRowEnd;    // RASET end   (hardware row coordinate, inclusive)
-
-  uint16_t logicalWidth() const override;
-  uint16_t logicalHeight() const override;
-  void updateWriteCache() override;
-  void softReset() override;
-  void dispatchCommand(uint8_t cmd) override;
-  void feedDataByte(uint8_t byte) override;
-  bool isRamWriteCommand() const override;
+class St7789Controller final : public SpiDisplayBase {
+ protected:
+  void onFeedDataByte(uint8_t byte) override;
+  InterfaceFormat colmodToFormat(uint8_t fmt) const override;
 };
 
 }  // namespace lcdtap

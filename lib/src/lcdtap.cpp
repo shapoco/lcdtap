@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "controller_base.hpp"
+#include "ili9341_controller.hpp"
 #include "ssd1306_controller.hpp"
 #include "ssd1331_controller.hpp"
 #include "st7789_controller.hpp"
@@ -47,6 +48,13 @@ void getDefaultConfig(ControllerFamily type, LcdTapConfig* cfg) {
       cfg->buffWidth = 96;
       cfg->buffHeight = 64;
       cfg->outputRotation = 2;
+      cfg->busInterface = BusType::SPI_4LINE;
+      break;
+    case ControllerFamily::ILI9341:
+      cfg->buffWidth = 240;
+      cfg->buffHeight = 320;
+      cfg->inverted = false;
+      cfg->outputRotation = 0;
       cfg->busInterface = BusType::SPI_4LINE;
       break;
   }
@@ -143,6 +151,7 @@ InterfaceFormat getDefaultInterfaceFormat(ControllerFamily type) {
     case ControllerFamily::ST7789: return InterfaceFormat::RGB565_BE;
     case ControllerFamily::SSD1306: return InterfaceFormat::GRAY1_VPACK8_H2L;
     case ControllerFamily::SSD1331: return InterfaceFormat::RGB332;
+    case ControllerFamily::ILI9341: return InterfaceFormat::RGB565_BE;
     default: return InterfaceFormat::RGB565_BE;
   }
 }
@@ -219,11 +228,11 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->name = "Swap Red/Blue";
       e->options = ON_OFF_NAMES;
 
-      // Swapping R/B only makes sense for color displays, so enable this config
-      // only when a color controller is selected.
+      // Enable for all color controllers (no-op for SSD1306).
       e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
-      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ST7789);
+      e->enableKeyValueMax =
+          static_cast<int16_t>(ControllerFamily::NUM_CONTROLLERS) - 1;
       break;
 
     // Force Power On
@@ -241,11 +250,11 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->min = -1;
       e->max = static_cast<int16_t>(InterfaceFormat::NUM_FORMATS) - 1;
 
-      // Format override only makes sense for color controllers, so enable this
-      // config only when a color controller is selected.
+      // Enable for all color controllers (no-op for SSD1306).
       e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
-      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ST7789);
+      e->enableKeyValueMax =
+          static_cast<int16_t>(ControllerFamily::NUM_CONTROLLERS) - 1;
       break;
 
     // Trimming Mode
@@ -805,6 +814,9 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
     case ControllerFamily::SSD1331:
       ctrl = new (std::nothrow) Ssd1331Controller();
       break;
+    case ControllerFamily::ILI9341:
+      ctrl = new (std::nothrow) Ili9341Controller();
+      break;
   }
   if (!ctrl) return;
 
@@ -1045,6 +1057,9 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
         break;
       case ControllerFamily::SSD1331:
         ctrl = new (std::nothrow) Ssd1331Controller();
+        break;
+      case ControllerFamily::ILI9341:
+        ctrl = new (std::nothrow) Ili9341Controller();
         break;
       default: return Status::OUT_OF_MEMORY;
     }

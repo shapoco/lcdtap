@@ -33,10 +33,12 @@ enum class ControllerFamily : uint8_t {
   ST7789,
   SSD1306,
   SSD1331,
+  ILI9341,
   NUM_CONTROLLERS,
 };
 
-static const char* CONTROLLER_NAMES[] = {"ST7789", "SSD1306", "SSD1331"};
+static const char* CONTROLLER_NAMES[] = {"ST7789", "SSD1306", "SSD1331",
+                                         "ILI9341"};
 static_assert(sizeof(CONTROLLER_NAMES) / sizeof(CONTROLLER_NAMES[0]) ==
                   static_cast<size_t>(ControllerFamily::NUM_CONTROLLERS),
               "CONTROLLER_NAMES size must match ControllerFamily enum");
