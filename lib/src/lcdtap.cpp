@@ -372,7 +372,9 @@ void setConfigValueById(LcdTapConfig* cfg, ConfigId id, int16_t value) {
       break;
     case ConfigId::TRIM_X: cfg->trimX = static_cast<uint16_t>(value); break;
     case ConfigId::TRIM_Y: cfg->trimY = static_cast<uint16_t>(value); break;
-    case ConfigId::TRIM_WIDTH: cfg->trimWidth = static_cast<uint16_t>(value); break;
+    case ConfigId::TRIM_WIDTH:
+      cfg->trimWidth = static_cast<uint16_t>(value);
+      break;
     case ConfigId::TRIM_HEIGHT:
       cfg->trimHeight = static_cast<uint16_t>(value);
       break;
@@ -552,7 +554,8 @@ void ControllerBase::expandTrimX(uint16_t x0, uint16_t x1) {
     config.trimWidth = static_cast<uint16_t>(x1 - x0 + 1);
   } else {
     config.trimX = std::min(config.trimX, x0);
-    config.trimWidth = std::max(config.trimWidth, (uint16_t)(x1 - config.trimX + 1));
+    config.trimWidth =
+        std::max(config.trimWidth, (uint16_t)(x1 - config.trimX + 1));
   }
   calcScaleParams();
 }
@@ -568,7 +571,8 @@ void ControllerBase::expandTrimY(uint16_t y0, uint16_t y1) {
     config.trimHeight = static_cast<uint16_t>(y1 - y0 + 1);
   } else {
     config.trimY = std::min(config.trimY, y0);
-    config.trimHeight = std::max(config.trimHeight, (uint16_t)(y1 - config.trimY + 1));
+    config.trimHeight =
+        std::max(config.trimHeight, (uint16_t)(y1 - config.trimY + 1));
   }
   calcScaleParams();
 }
@@ -1101,6 +1105,19 @@ bool LcdTap::isOutputSwapRB() const {
 uint16_t* LcdTap::getFramebuf() {
   if (!impl_) return nullptr;
   return static_cast<ControllerBase*>(impl_)->framebuf;
+}
+
+void LcdTap::getOutSrcRegion(uint16_t* x, uint16_t* y, uint16_t* w,
+                             uint16_t* h) const {
+  if (!impl_) {
+    *x = *y = *w = *h = 0;
+    return;
+  }
+  const ControllerBase* ctrl = static_cast<const ControllerBase*>(impl_);
+  *x = ctrl->outSrcX;
+  *y = ctrl->outSrcY;
+  *w = ctrl->outSrcW;
+  *h = ctrl->outSrcH;
 }
 
 void LcdTap::setWriteProtected(bool protect) {

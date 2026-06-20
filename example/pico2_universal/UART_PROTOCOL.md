@@ -177,14 +177,15 @@ Get the contents of the frame buffer.
 
     ```json
     {
-        "width": frame buffer width (integer),
-        "height": frame buffer height (integer),
+        "width": output source region width (integer),
+        "height": output source region height (integer),
         "format": "RGB565",
         "data": RGB565 image encoded as Base64 in little-endian byte order (string)
     }
     ```
 
-    - No scaling is applied, but rotation, brightness inversion, and R/B swapping are applied to match the appearance of the DVI output.
+    - Only the region specified by `outSrcX/Y/Width/Height` (the trim region) is sent, in pre-rotation physical buffer coordinates.
+    - Brightness inversion is applied if active. Rotation is not applied.
 
 ### dump_start
 

@@ -395,6 +395,11 @@ class LcdTap {
   //         (row-major RGB565, without MADCTL transform).
   uint16_t* getFramebuf();
 
+  // Returns the computed output source region in physical buffer coordinates
+  // (pre-rotation). These are the crop coordinates used by fillScanline().
+  void getOutSrcRegion(uint16_t* x, uint16_t* y, uint16_t* w,
+                       uint16_t* h) const;
+
   // Force-set the sleep/display-on state.
   // on=true: sets sleeping=false and displayOn=true, making fillScanline()
   // return non-black pixels. on=false: sets sleeping=true and returns a black

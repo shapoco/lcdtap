@@ -291,9 +291,12 @@ struct RespGen {
   uint16_t fbOutX = 0;
   uint16_t fbOutY = 0;
   uint16_t fbPhysW = 0;
-  uint16_t fbPhysH = 0;
   uint16_t fbOutW = 0;
   uint16_t fbOutH = 0;
+  uint16_t fbSrcX = 0;  // trim region origin X in physical buffer
+  uint16_t fbSrcY = 0;  // trim region origin Y in physical buffer
+  uint16_t fbSrcW = 0;  // trim region width  (pre-rotation)
+  uint16_t fbSrcH = 0;  // trim region height (pre-rotation)
   uint8_t fbRot = 0;
   bool fbInverted = false;
   const uint16_t* fbPtr = nullptr;
@@ -550,19 +553,32 @@ static void execCommand(const Parser& p) {
     lcdtap::LcdTapConfig cfg = gLcdTap->getConfig();
     uint16_t physW = cfg.buffWidth;
     uint16_t physH = cfg.buffHeight;
+
+    uint16_t srcX, srcY, srcW, srcH;
+    gLcdTap->getOutSrcRegion(&srcX, &srcY, &srcW, &srcH);
+    if (srcW == 0 || srcH == 0) {
+      srcX = 0;
+      srcY = 0;
+      srcW = physW;
+      srcH = physH;
+    }
+
     uint8_t rot = cfg.outputRotation & 3u;
 
     gResp.fbPhysW = physW;
-    gResp.fbPhysH = physH;
+    gResp.fbSrcX = srcX;
+    gResp.fbSrcY = srcY;
+    gResp.fbSrcW = srcW;
+    gResp.fbSrcH = srcH;
     gResp.fbRot = rot;
     gResp.fbInverted = gLcdTap->isOutputInverted();
     gResp.fbPtr = gLcdTap->getFramebuf();
     if ((rot & 1u) == 0u) {
-      gResp.fbOutW = physW;
-      gResp.fbOutH = physH;
+      gResp.fbOutW = srcW;
+      gResp.fbOutH = srcH;
     } else {
-      gResp.fbOutW = physH;
-      gResp.fbOutH = physW;
+      gResp.fbOutW = srcH;
+      gResp.fbOutH = srcW;
     }
     gResp.fbOutX = 0;
     gResp.fbOutY = 0;
@@ -644,17 +660,33 @@ static void execCommand(const Parser& p) {
 // Response flushing
 // =============================================================================
 
-// Map output pixel coordinate (dx, dy) to framebuf index.
-static inline uint32_t fbIndex(uint16_t dx, uint16_t dy, uint16_t physW,
-                               uint16_t physH, uint8_t rot) {
+// Map output pixel coordinate (dx, dy) to framebuf index within the trim
+// region (srcX, srcY, srcW, srcH), then to physical buffer index.
+static inline uint32_t fbIndexTrimmed(uint16_t dx, uint16_t dy, uint16_t srcX,
+                                      uint16_t srcY, uint16_t srcW,
+                                      uint16_t srcH, uint16_t physW,
+                                      uint8_t rot) {
+  uint32_t bx, by;
   switch (rot) {
     default:
-    case 0: return static_cast<uint32_t>(dy) * physW + dx;
-    case 1: return static_cast<uint32_t>(physH - 1u - dx) * physW + dy;
+    case 0:
+      bx = srcX + dx;
+      by = srcY + dy;
+      break;
+    case 1:
+      bx = srcX + dy;
+      by = srcY + srcH - 1u - dx;
+      break;
     case 2:
-      return static_cast<uint32_t>(physH - 1u - dy) * physW + (physW - 1u - dx);
-    case 3: return static_cast<uint32_t>(dx) * physW + (physW - 1u - dy);
+      bx = srcX + srcW - 1u - dx;
+      by = srcY + srcH - 1u - dy;
+      break;
+    case 3:
+      bx = srcX + srcW - 1u - dy;
+      by = srcY + dx;
+      break;
   }
+  return by * physW + bx;
 }
 
 // Feed one byte into the base64 accumulator; if a full 3-byte block is ready
@@ -742,8 +774,9 @@ static void respFlush() {
       while (gResp.fbOutY < gResp.fbOutH) {
         if (!b64DrainOut()) break;  // drain before reading next pixel
 
-        uint32_t idx = fbIndex(gResp.fbOutX, gResp.fbOutY, gResp.fbPhysW,
-                               gResp.fbPhysH, gResp.fbRot);
+        uint32_t idx = fbIndexTrimmed(gResp.fbOutX, gResp.fbOutY, gResp.fbSrcX,
+                                      gResp.fbSrcY, gResp.fbSrcW, gResp.fbSrcH,
+                                      gResp.fbPhysW, gResp.fbRot);
         uint16_t px = gResp.fbPtr[idx];
         if (gResp.fbInverted) px ^= 0xFFFFu;
 

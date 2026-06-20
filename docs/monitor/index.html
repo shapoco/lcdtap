@@ -296,6 +296,23 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
 
 .auto-reload-ctrl { display: flex; align-items: center; gap: 8px; }
 .auto-reload-ctrl label { font-size: 13px; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+#auto-reload-interval {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 5px 28px 5px 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b949e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  cursor: pointer;
+  min-width: 70px;
+}
+#auto-reload-interval:focus { outline: none; border-color: var(--accent); }
 
 .fb-container {
   background: var(--surface);
@@ -469,8 +486,15 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
           <input type="checkbox" id="auto-reload">
           <div class="toggle-track"></div>
         </div>
-        Auto Reload (5s)
+        Auto Reload
       </label>
+      <select id="auto-reload-interval">
+        <option value="200">0.2s</option>
+        <option value="500">0.5s</option>
+        <option value="1000">1s</option>
+        <option value="2000">2s</option>
+        <option value="5000" selected>5s</option>
+      </select>
     </div>
     <div class="auto-reload-ctrl">
       <label>
@@ -985,6 +1009,7 @@ document.getElementById('btn-save').addEventListener('click', () => {
 });
 
 const autoReloadCheck = document.getElementById('auto-reload');
+const autoReloadIntervalSel = document.getElementById('auto-reload-interval');
 
 function stopAutoReload() {
   if (autoReloadTimer) { clearInterval(autoReloadTimer); autoReloadTimer = null; }
@@ -993,9 +1018,16 @@ function stopAutoReload() {
 
 autoReloadCheck.addEventListener('change', () => {
   if (autoReloadCheck.checked) {
-    autoReloadTimer = setInterval(captureFramebuffer, 5000);
+    autoReloadTimer = setInterval(captureFramebuffer, parseInt(autoReloadIntervalSel.value));
   } else {
     stopAutoReload();
+  }
+});
+
+autoReloadIntervalSel.addEventListener('change', () => {
+  if (autoReloadCheck.checked) {
+    clearInterval(autoReloadTimer);
+    autoReloadTimer = setInterval(captureFramebuffer, parseInt(autoReloadIntervalSel.value));
   }
 });
 
