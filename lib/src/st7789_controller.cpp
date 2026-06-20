@@ -2,18 +2,23 @@
 
 namespace lcdtap {
 
+static constexpr uint8_t MADCTL_BGR = 0x08;
+static constexpr uint8_t MADCTL_MV = 0x20;
+static constexpr uint8_t MADCTL_MX = 0x40;
+static constexpr uint8_t MADCTL_MY = 0x80;
+
 uint16_t St7789Controller::logicalWidth() const {
-  return ((madctl >> 5) & 1) ? config.buffHeight : config.buffWidth;
+  return (madctl & MADCTL_MV) ? config.buffHeight : config.buffWidth;
 }
 
 uint16_t St7789Controller::logicalHeight() const {
-  return ((madctl >> 5) & 1) ? config.buffWidth : config.buffHeight;
+  return (madctl & MADCTL_MV) ? config.buffWidth : config.buffHeight;
 }
 
 void St7789Controller::updateWriteCache() {
-  bool mv = (madctl >> 5) & 1;
-  bool mx = (madctl >> 6) & 1;
-  bool my = (madctl >> 7) & 1;
+  bool mv = !!(madctl & MADCTL_MV);
+  bool mx = !!(madctl & MADCTL_MX);
+  bool my = !!(madctl & MADCTL_MY);
   // Map hardware window coordinates to logical coordinates used by physIndex().
   // When mv=true the fast axis is the hardware row and the slow axis is the
   // hardware column, so they must be swapped relative to the mv=false case.
@@ -28,7 +33,7 @@ void St7789Controller::updateWriteCache() {
     rasetYS = hwColStart;
     rasetYE = hwColEnd;
   }
-  cachedBGR = ((madctl >> 3) & 1) ^ config.swapRB;
+  cachedBGR = !!(madctl & MADCTL_BGR) ^ config.swapRB;
   int32_t W = static_cast<int32_t>(config.buffWidth);
   int32_t H = static_cast<int32_t>(config.buffHeight);
   if (!mv) {
@@ -133,7 +138,7 @@ void St7789Controller::feedDataByte(uint8_t byte) {
         case 0: ramwrBuf[0] = byte; break;
         case 1: {
           uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
-          if ((madctl & 0x20u) == 0) {
+          if (!(madctl & MADCTL_MV)) {
             hwColStart = LCDTAP_CLIP(0, config.buffWidth - 1, val);
           } else {
             hwRowStart = LCDTAP_CLIP(0, config.buffHeight - 1, val);
@@ -142,12 +147,22 @@ void St7789Controller::feedDataByte(uint8_t byte) {
         case 2: ramwrBuf[0] = byte; break;
         case 3: {
           uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
-          if ((madctl & 0x20u) == 0) {
+          if (!(madctl & MADCTL_MV)) {
             hwColEnd = LCDTAP_CLIP(hwColStart, config.buffWidth - 1, val);
-            expandTrimX(hwColStart, hwColEnd);
+            if (madctl & MADCTL_MX) {
+              uint16_t w = config.buffWidth;
+              expandTrimX(w - hwColEnd - 1, w - hwColStart - 1);
+            } else {
+              expandTrimX(hwColStart, hwColEnd);
+            }
           } else {
             hwRowEnd = LCDTAP_CLIP(hwRowStart, config.buffHeight - 1, val);
-            expandTrimY(hwRowStart, hwRowEnd);
+            if (madctl & MADCTL_MY) {
+              uint16_t h = config.buffHeight;
+              expandTrimY(h - hwRowEnd - 1, h - hwRowStart - 1);
+            } else {
+              expandTrimY(hwRowStart, hwRowEnd);
+            }
           }
         } break;
         default: break;
@@ -159,7 +174,7 @@ void St7789Controller::feedDataByte(uint8_t byte) {
         case 0: ramwrBuf[0] = byte; break;
         case 1: {
           uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
-          if ((madctl & 0x20u) == 0) {
+          if (!(madctl & MADCTL_MV)) {
             hwRowStart = LCDTAP_CLIP(0, config.buffHeight - 1, val);
           } else {
             hwColStart = LCDTAP_CLIP(0, config.buffWidth - 1, val);
@@ -168,12 +183,22 @@ void St7789Controller::feedDataByte(uint8_t byte) {
         case 2: ramwrBuf[0] = byte; break;
         case 3: {
           uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
-          if ((madctl & 0x20u) == 0) {
+          if (!(madctl & MADCTL_MV)) {
             hwRowEnd = LCDTAP_CLIP(hwRowStart, config.buffHeight - 1, val);
-            expandTrimY(hwRowStart, hwRowEnd);
+            if (madctl & MADCTL_MY) {
+              uint16_t h = config.buffHeight;
+              expandTrimY(h - hwRowEnd - 1, h - hwRowStart - 1);
+            } else {
+              expandTrimY(hwRowStart, hwRowEnd);
+            }
           } else {
             hwColEnd = LCDTAP_CLIP(hwColStart, config.buffWidth - 1, val);
-            expandTrimX(hwColStart, hwColEnd);
+            if (madctl & MADCTL_MX) {
+              uint16_t w = config.buffWidth;
+              expandTrimX(w - hwColEnd - 1, w - hwColStart - 1);
+            } else {
+              expandTrimX(hwColStart, hwColEnd);
+            }
           }
         } break;
         default: break;
