@@ -257,10 +257,10 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
           static_cast<int16_t>(ControllerFamily::NUM_CONTROLLERS) - 1;
       break;
 
-    // Trimming Mode
+    // Trim Mode
     case ConfigId::TRIM_MODE:
       e->type = ValueType::ENUM;
-      e->name = "Trimming Mode";
+      e->name = "Trim Mode";
       e->options = TRIM_MODE_NAMES;
       e->max = static_cast<int16_t>(TrimMode::NUM_MODES) - 1;
       break;
