@@ -215,10 +215,10 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->step = 8;
       break;
 
-    // Inversion
+    // Inverse
     case ConfigId::INVERSION:
       e->type = ValueType::BOOL;
-      e->name = "Inversion";
+      e->name = "Inverse";
       e->options = ON_OFF_NAMES;
       break;
 
@@ -942,7 +942,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   d += ctrl->outDestX;
 
   // Active area: horizontal scaling + brightness inversion + rotation
-  // Inversion: XOR all RGB565 bits → (31-R, 63-G, 31-B) inverts each channel
+  // Inverse: XOR all RGB565 bits → (31-R, 63-G, 31-B) inverts each channel
   const uint16_t inv = ctrl->inverted ? 0xFFFFu : 0u;
   const uint16_t* fb = ctrl->framebuf;
   const uint32_t stride = ctrl->config.buffWidth;
