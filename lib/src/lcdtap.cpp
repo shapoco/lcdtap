@@ -53,7 +53,8 @@ void getDefaultConfig(ControllerFamily type, LcdTapConfig* cfg) {
     case ControllerFamily::ILI9341:
       cfg->buffWidth = 240;
       cfg->buffHeight = 320;
-      cfg->inverted = false;
+      cfg->inverted = true;
+      cfg->swapRB = true;
       cfg->outputRotation = 0;
       cfg->busInterface = BusType::SPI_4LINE;
       break;
@@ -67,19 +68,21 @@ void getDefaultConfig(ControllerFamily type, LcdTapConfig* cfg) {
 
 void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
   switch (preset) {
+    case ConfigPreset::ILI9341:
+      getDefaultConfig(ControllerFamily::ILI9341, cfg);
+      break;
+
     case ConfigPreset::ILI9342:
-      getDefaultConfig(ControllerFamily::ST7789, cfg);
+    case ConfigPreset::M5STACK_CORES3:
+      getDefaultConfig(ControllerFamily::ILI9341, cfg);
       cfg->buffWidth = 320;
       cfg->buffHeight = 240;
-      cfg->inverted = true;
-      cfg->swapRB = true;
       break;
 
     case ConfigPreset::ILI9488:
-      getDefaultConfig(ControllerFamily::ST7789, cfg);
+      getDefaultConfig(ControllerFamily::ILI9341, cfg);
       cfg->buffWidth = 320;
       cfg->buffHeight = 480;
-      cfg->inverted = true;
       break;
 
     case ConfigPreset::SSD1306:
@@ -103,15 +106,6 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
     case ConfigPreset::ARDUBOY:
       getDefaultConfig(ControllerFamily::SSD1306, cfg);
       cfg->busInterface = BusType::SPI_4LINE;
-      break;
-
-    case ConfigPreset::M5STACK_CORES3:
-      getDefaultConfig(ControllerFamily::ST7789, cfg);
-      cfg->buffWidth = 320;
-      cfg->buffHeight = 240;
-      cfg->inverted = true;
-      cfg->swapRB = true;
-      cfg->outputRotation = 0;
       break;
 
     case ConfigPreset::THUMBY:
