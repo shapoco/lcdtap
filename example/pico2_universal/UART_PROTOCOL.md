@@ -40,7 +40,7 @@ Verify that LcdTap is connected to the serial port from the host side.
 
 ### getpresets
 
-Get the list of presets held by LcdTap as JSON.
+Get the list of all configuration presets held by LcdTap.
 
 - Command:
     
@@ -51,8 +51,10 @@ Get the list of presets held by LcdTap as JSON.
 - Response:
 
     ```json
-    {"presets": ["ST7789", "SSD1306", ...]}
+    {"presets": ["ILI9342", "ILI9488", "SSD1306", "SSD1331", "ST7735", "ST7789", "Arduboy", "M5Stack CoreS3", "Thumby", "TinyJoypad", "Xiamocon"]}
     ```
+
+    - The list is derived from the firmware's `CONFIG_PRESET_NAMES` table and may change across firmware versions.
 
 ### getparams
 
@@ -75,20 +77,25 @@ Get the list of configuration parameters held by LcdTap as JSON.
     {"params":[parameter list]}
     ```
 
+The `id` field of each parameter is `"cfg0"`, `"cfg1"`, ..., `"cfg14"`, corresponding to the `ConfigId` enum index in the firmware. Use the same ids as keys in `setparams`.
+
 Parameter list element types:
 
 - Integer:
 
     ```json
     {
-        "id": menu ID (string),
+        "id": "cfgN" (string),
         "type": "INTEGER",
         "name": item label (string),
         "unit": unit (string) or null,
         "min": minimum value (integer),
         "max": maximum value (integer),
         "step": step size (integer),
-        "value": current value (integer)
+        "value": current value (integer),
+        "enableKeyId": "cfgN" of the parameter that gates this item (string, omitted if always enabled),
+        "enableKeyValueMin": minimum value of the gate parameter that enables this item (integer, omitted if always enabled),
+        "enableKeyValueMax": maximum value of the gate parameter that enables this item (integer, omitted if always enabled)
     }
     ```
 
@@ -96,10 +103,13 @@ Parameter list element types:
 
     ```json
     {
-        "id": menu ID (string),
+        "id": "cfgN" (string),
         "type": "BOOLEAN",
         "name": item label (string),
-        "value": current value (boolean)
+        "value": current value (boolean),
+        "enableKeyId": "cfgN" (string, omitted if always enabled),
+        "enableKeyValueMin": integer (omitted if always enabled),
+        "enableKeyValueMax": integer (omitted if always enabled)
     }
     ```
 
@@ -107,7 +117,7 @@ Parameter list element types:
 
     ```json
     {
-        "id": menu ID (string),
+        "id": "cfgN" (string),
         "type": "ENUM",
         "name": item label (string),
         "unit": unit (string) or null,
@@ -117,7 +127,10 @@ Parameter list element types:
             "option3": value3 (integer),
             ...
         },
-        "value": current value (integer)
+        "value": current value (integer),
+        "enableKeyId": "cfgN" (string, omitted if always enabled),
+        "enableKeyValueMin": integer (omitted if always enabled),
+        "enableKeyValueMax": integer (omitted if always enabled)
     }
     ```
 
@@ -131,12 +144,15 @@ Set LcdTap configuration parameters in bulk from the host.
     {
         "command": "setparams",
         "params": {
-            "menuId1": value1 (integer/boolean),
-            "menuId2": value2 (integer/boolean),
+            "cfg0": value0 (integer/boolean),
+            "cfg1": value1 (integer/boolean),
             ...
         }
     }
     ```
+
+    - Keys are the `id` values returned by `getparams` (`"cfg0"` through `"cfg14"`).
+    - It is not necessary to include all parameters; omitted parameters retain their current values.
 
 - Response:
 

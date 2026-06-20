@@ -1,6 +1,7 @@
 #include "uart_if.hpp"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "pico/stdio.h"
@@ -535,10 +536,9 @@ struct RespGen {
   // getparams: preset config (used when paramUsePreset is true)
   bool paramUsePreset = false;
   lcdtap::LcdTapConfig paramPresetCfg;
-  lcdtap::BusType paramPresetIface = lcdtap::BusType::SPI_4LINE;
 
   // Per-call chunk buffer for formatted segments
-  char chunkBuf[256] = {};
+  char chunkBuf[512] = {};
   int chunkLen = 0;
   int chunkPos = 0;
 };
@@ -587,112 +587,89 @@ static void chunkFromStr(const char* s) {
 // getparams output helpers
 // =============================================================================
 
-static constexpr int NUM_PARAMS_OUT = 9;
-
-static const char* kControllerOptions[] = {"ST7789", "SSD1306", "SSD1331"};
-static const char* kIfaceOptions[] = {"I2C", "4-Line SPI", "3-Line SPI",
-                                      "8-bit Parallel"};
-static const char* kRotOptions[] = {"0", "90", "180", "270"};
-
-// Build the JSON fragment for parameter at index idx into chunkBuf.
+// Build the JSON fragment for ConfigId at index idx into chunkBuf.
 // Returns false when idx is out of range.
 static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
                             lcdtap::BusType iface) {
+  const int numConfigs = static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS);
+  if (idx < 0 || idx >= numConfigs) return false;
+
+  lcdtap::ConfigEntry e;
+  lcdtap::ConfigId cfgId = static_cast<lcdtap::ConfigId>(idx);
+  lcdtap::getConfigEntryById(cfgId, &e);
+
+  int16_t value;
+  if (cfgId == lcdtap::ConfigId::BUS_INTERFACE) {
+    value = static_cast<int16_t>(iface);
+  } else {
+    value = lcdtap::getConfigValueById(cfg, cfgId);
+  }
+
   char* buf = gResp.chunkBuf;
   int cap = static_cast<int>(sizeof(gResp.chunkBuf));
-  int n = 0;
-  bool first = (idx == 0);
-  bool last = (idx == NUM_PARAMS_OUT - 1);
-  const char* prefix = first ? "{\"params\":[" : "";
-  const char* suffix = last ? "]}\r\n" : ",";
+  int pos = 0;
 
-  switch (idx) {
-    case 0:  // controllerFamily ENUM
-      n = snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"controllerFamily\",\"type\":\"ENUM\","
-                   "\"name\":\"Controller Type\",\"unit\":null,"
-                   "\"options\":{\"ST7789\":0,\"SSD1306\":1,\"SSD1331\":2},"
-                   "\"value\":%d}%s",
-                   prefix, static_cast<int>(cfg.controllerFamily), suffix);
-      break;
-    case 1:  // interfaceType ENUM
-      n = snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"interfaceType\",\"type\":\"ENUM\","
-                   "\"name\":\"Interface Type\",\"unit\":null,"
-                   "\"options\":{\"I2C\":0,\"4-Line SPI\":1,"
-                   "\"3-Line SPI\":2,\"8-bit Parallel\":3},"
-                   "\"value\":%d}%s",
-                   prefix, static_cast<int>(iface), suffix);
-      (void)kIfaceOptions;
-      break;
-    case 2:  // lcdWidth INTEGER
-      n = snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"lcdWidth\",\"type\":\"INTEGER\","
-                   "\"name\":\"LCD Width\",\"unit\":\"px\","
-                   "\"min\":32,\"max\":480,\"step\":8,"
-                   "\"value\":%d}%s",
-                   prefix, static_cast<int>(cfg.buffWidth), suffix);
-      break;
-    case 3:  // lcdHeight INTEGER
-      n = snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"lcdHeight\",\"type\":\"INTEGER\","
-                   "\"name\":\"LCD Height\",\"unit\":\"px\","
-                   "\"min\":32,\"max\":480,\"step\":8,"
-                   "\"value\":%d}%s",
-                   prefix, static_cast<int>(cfg.buffHeight), suffix);
-      break;
-    case 4:  // inverted BOOLEAN
-      n = snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"inverted\",\"type\":\"BOOLEAN\","
-                   "\"name\":\"Inverted\","
-                   "\"value\":%s}%s",
-                   prefix, cfg.inverted ? "true" : "false", suffix);
-      break;
-    case 5:  // swapRB BOOLEAN
-      n = snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"swapRB\",\"type\":\"BOOLEAN\","
-                   "\"name\":\"Swap R/B\","
-                   "\"value\":%s}%s",
-                   prefix, cfg.swapRB ? "true" : "false", suffix);
-      break;
-    case 6:  // forcePowerOn BOOLEAN
-      n = snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"forcePowerOn\",\"type\":\"BOOLEAN\","
-                   "\"name\":\"Force Power On\","
-                   "\"value\":%s}%s",
-                   prefix, cfg.forcePowerOn ? "true" : "false", suffix);
-      break;
-    case 7: {  // interfaceFormatOverride ENUM
-      int pos =
-          snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"interfaceFormatOverride\",\"type\":\"ENUM\","
-                   "\"name\":\"Format Override\",\"unit\":null,"
-                   "\"options\":{\"Off\":-1",
-                   prefix);
-      for (int i = 0;
-           i < static_cast<int>(lcdtap::InterfaceFormat::NUM_FORMATS); ++i) {
-        pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), ",\"%s\":%d",
-                        lcdtap::getShortInterfaceFormatName(
-                            static_cast<lcdtap::InterfaceFormat>(i)),
-                        i);
-      }
-      n = pos + snprintf(buf + pos, static_cast<size_t>(cap - pos),
-                         "},\"value\":%d}%s",
-                         static_cast<int>(cfg.interfaceFormatOverride), suffix);
-      break;
-    }
-    case 8:  // outputRotation ENUM
-      n = snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"outputRotation\",\"type\":\"ENUM\","
-                   "\"name\":\"Output Rotation\",\"unit\":\"deg\","
-                   "\"options\":{\"0\":0,\"90\":1,\"180\":2,\"270\":3},"
-                   "\"value\":%d}%s",
-                   prefix, static_cast<int>(cfg.outputRotation), suffix);
-      (void)kRotOptions;
-      break;
-    default: (void)kControllerOptions; return false;
+  if (idx == 0) {
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "{\"params\":[");
   }
-  gResp.chunkLen = n < cap ? n : cap - 1;
+
+  const char* typeStr = (e.type == lcdtap::ValueType::INT16)  ? "INTEGER"
+                        : (e.type == lcdtap::ValueType::BOOL) ? "BOOLEAN"
+                                                              : "ENUM";
+  pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
+                  "{\"id\":\"cfg%d\",\"type\":\"%s\",\"name\":\"%s\",", idx,
+                  typeStr, e.name);
+
+  if (e.unit && e.unit[0] != '\0') {
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
+                    "\"unit\":\"%s\",", e.unit);
+  } else {
+    pos +=
+        snprintf(buf + pos, static_cast<size_t>(cap - pos), "\"unit\":null,");
+  }
+
+  if (e.type == lcdtap::ValueType::INT16) {
+    pos +=
+        snprintf(buf + pos, static_cast<size_t>(cap - pos),
+                 "\"min\":%d,\"max\":%d,\"step\":%d,", static_cast<int>(e.min),
+                 static_cast<int>(e.max), static_cast<int>(e.step));
+  } else if (e.type == lcdtap::ValueType::ENUM) {
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "\"options\":{");
+    for (int i = 0; i <= e.max - e.min; ++i) {
+      if (i > 0) {
+        pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), ",");
+      }
+      pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "\"%s\":%d",
+                      e.options[i], static_cast<int>(e.min) + i);
+    }
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "},");
+  }
+
+  if (e.type == lcdtap::ValueType::BOOL) {
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "\"value\":%s",
+                    value ? "true" : "false");
+  } else {
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "\"value\":%d",
+                    static_cast<int>(value));
+  }
+
+  if (e.enableKeyId >= 0) {
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
+                    ",\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":%d"
+                    ",\"enableKeyValueMax\":%d",
+                    static_cast<int>(e.enableKeyId),
+                    static_cast<int>(e.enableKeyValueMin),
+                    static_cast<int>(e.enableKeyValueMax));
+  }
+
+  pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "}");
+  if (idx == numConfigs - 1) {
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "]}\r\n");
+  } else {
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), ",");
+  }
+
+  gResp.chunkLen = pos < cap ? pos : cap - 1;
   gResp.chunkPos = 0;
   return true;
 }
@@ -701,23 +678,15 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
 // Preset config helper
 // =============================================================================
 
-static bool makePresetConfig(const char* name, lcdtap::LcdTapConfig* cfgOut,
-                             lcdtap::BusType* ifaceOut) {
-  lcdtap::ControllerFamily ct;
-  if (strcmp(name, "ST7789") == 0) {
-    ct = lcdtap::ControllerFamily::ST7789;
-    *ifaceOut = lcdtap::BusType::SPI_4LINE;
-  } else if (strcmp(name, "SSD1306") == 0) {
-    ct = lcdtap::ControllerFamily::SSD1306;
-    *ifaceOut = lcdtap::BusType::I2C;
-  } else if (strcmp(name, "SSD1331") == 0) {
-    ct = lcdtap::ControllerFamily::SSD1331;
-    *ifaceOut = lcdtap::BusType::SPI_4LINE;
-  } else {
-    return false;
+static bool makePresetConfig(const char* name, lcdtap::LcdTapConfig* cfgOut) {
+  for (int i = 0; i < static_cast<int>(lcdtap::ConfigPreset::NUM_PRESETS);
+       ++i) {
+    if (strcmp(name, lcdtap::CONFIG_PRESET_NAMES[i]) == 0) {
+      lcdtap::getPresetConfig(static_cast<lcdtap::ConfigPreset>(i), cfgOut);
+      return true;
+    }
   }
-  lcdtap::getDefaultConfig(ct, cfgOut);
-  return true;
+  return false;
 }
 
 // =============================================================================
@@ -740,7 +709,20 @@ static void execCommand(const Parser& p) {
 
   // ----- getpresets -----
   if (strcmp(cmd, "getpresets") == 0) {
-    respSetShort("{\"presets\":[\"ST7789\",\"SSD1306\",\"SSD1331\"]}\r\n");
+    char presetResp[256];
+    int pos = snprintf(presetResp, sizeof(presetResp), "{\"presets\":[");
+    for (int i = 0; i < static_cast<int>(lcdtap::ConfigPreset::NUM_PRESETS);
+         ++i) {
+      if (i > 0)
+        pos += snprintf(presetResp + pos,
+                        sizeof(presetResp) - static_cast<size_t>(pos), ",");
+      pos += snprintf(presetResp + pos,
+                      sizeof(presetResp) - static_cast<size_t>(pos), "\"%s\"",
+                      lcdtap::CONFIG_PRESET_NAMES[i]);
+    }
+    snprintf(presetResp + pos, sizeof(presetResp) - static_cast<size_t>(pos),
+             "]}\r\n");
+    respSetShort(presetResp);
     return;
   }
 
@@ -751,8 +733,7 @@ static void execCommand(const Parser& p) {
     gResp.chunkLen = 0;
     gResp.chunkPos = 0;
     if (p.preset[0] != '\0') {
-      gResp.paramUsePreset = makePresetConfig(p.preset, &gResp.paramPresetCfg,
-                                              &gResp.paramPresetIface);
+      gResp.paramUsePreset = makePresetConfig(p.preset, &gResp.paramPresetCfg);
     } else {
       gResp.paramUsePreset = false;
     }
@@ -762,29 +743,19 @@ static void execCommand(const Parser& p) {
   // ----- setparams -----
   if (strcmp(cmd, "setparams") == 0) {
     lcdtap::LcdTapConfig cfg = gLcdTap->getConfig();
-    lcdtap::BusType newIface = *gCurrentIface;
+    lcdtap::BusType oldIface = *gCurrentIface;
 
     for (int i = 0; i < p.numParams; i++) {
       const char* k = p.params[i].key;
       int32_t v = p.params[i].value;
-      if (strcmp(k, "controllerFamily") == 0) {
-        cfg.controllerFamily = static_cast<lcdtap::ControllerFamily>(v);
-      } else if (strcmp(k, "interfaceType") == 0) {
-        newIface = static_cast<lcdtap::BusType>(v);
-      } else if (strcmp(k, "lcdWidth") == 0) {
-        cfg.buffWidth = static_cast<uint16_t>(v);
-      } else if (strcmp(k, "lcdHeight") == 0) {
-        cfg.buffHeight = static_cast<uint16_t>(v);
-      } else if (strcmp(k, "inverted") == 0) {
-        cfg.inverted = (v != 0);
-      } else if (strcmp(k, "swapRB") == 0) {
-        cfg.swapRB = (v != 0);
-      } else if (strcmp(k, "outputRotation") == 0) {
-        cfg.outputRotation = static_cast<uint8_t>(v);
-      } else if (strcmp(k, "forcePowerOn") == 0) {
-        cfg.forcePowerOn = (v != 0);
-      } else if (strcmp(k, "interfaceFormatOverride") == 0) {
-        cfg.interfaceFormatOverride = static_cast<int8_t>(v);
+      // Accept "cfgN" keys and map to ConfigId by index.
+      if (k[0] == 'c' && k[1] == 'f' && k[2] == 'g' && k[3] != '\0') {
+        long idx = strtol(k + 3, nullptr, 10);
+        if (idx >= 0 &&
+            idx < static_cast<long>(lcdtap::ConfigId::NUM_CONFIGS)) {
+          lcdtap::setConfigValueById(&cfg, static_cast<lcdtap::ConfigId>(idx),
+                                     static_cast<int16_t>(v));
+        }
       }
     }
 
@@ -794,8 +765,8 @@ static void execCommand(const Parser& p) {
       return;
     }
 
-    if (newIface != *gCurrentIface) {
-      gSwitchIface(newIface);
+    if (cfg.busInterface != oldIface) {
+      gSwitchIface(cfg.busInterface);
     }
 
     ConfigFile toSave;
@@ -970,7 +941,7 @@ static void respFlush() {
       lcdtap::BusType iface;
       if (gResp.paramUsePreset) {
         cfg = gResp.paramPresetCfg;
-        iface = gResp.paramPresetIface;
+        iface = gResp.paramPresetCfg.busInterface;
       } else {
         cfg = gLcdTap->getConfig();
         iface = *gCurrentIface;

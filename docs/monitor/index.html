@@ -184,7 +184,7 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
   min-width: 140px;
   font-weight: 500;
 }
-.param-label small { display: block; color: var(--text-muted); font-size: 11px; font-weight: 400; }
+.param-row.param-disabled { opacity: 0.4; pointer-events: none; }
 
 .param-ctrl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
@@ -724,7 +724,24 @@ async function loadParams() {
   }
 }
 
+let paramElements = {};  // id → input/select element
+
+function updateParamEnables() {
+  for (const p of params) {
+    if (p.enableKeyId == null) continue;
+    const keyEl = paramElements[p.enableKeyId];
+    if (!keyEl) continue;
+    const keyVal = keyEl.type === 'checkbox'
+      ? (keyEl.checked ? 1 : 0)
+      : parseInt(keyEl.value, 10);
+    const enabled = keyVal >= p.enableKeyValueMin && keyVal <= p.enableKeyValueMax;
+    const row = paramElements[p.id]?.closest('.param-row');
+    if (row) row.classList.toggle('param-disabled', !enabled);
+  }
+}
+
 function buildParamUI(params) {
+  paramElements = {};
   const list = document.getElementById('param-list');
   list.innerHTML = '';
 
@@ -734,7 +751,7 @@ function buildParamUI(params) {
 
     const labelDiv = document.createElement('div');
     labelDiv.className = 'param-label';
-    labelDiv.innerHTML = `${escHtml(p.name)}<small>${escHtml(p.id)}</small>`;
+    labelDiv.textContent = p.name;
 
     const ctrlDiv = document.createElement('div');
     ctrlDiv.className = 'param-ctrl';
@@ -747,10 +764,18 @@ function buildParamUI(params) {
       ctrlDiv.appendChild(buildEnumCtrl(p));
     }
 
+    const el = ctrlDiv.querySelector('input[data-param-id], select[data-param-id]');
+    if (el) {
+      paramElements[p.id] = el;
+      el.addEventListener('change', updateParamEnables);
+    }
+
     row.appendChild(labelDiv);
     row.appendChild(ctrlDiv);
     list.appendChild(row);
   }
+
+  updateParamEnables();
 }
 
 function buildIntCtrl(p) {
@@ -778,11 +803,13 @@ function buildIntCtrl(p) {
     let v = parseInt(input.value, 10) - p.step;
     if (v < p.min) v = p.min;
     input.value = v;
+    input.dispatchEvent(new Event('change'));
   });
   btnPlus.addEventListener('click', () => {
     let v = parseInt(input.value, 10) + p.step;
     if (v > p.max) v = p.max;
     input.value = v;
+    input.dispatchEvent(new Event('change'));
   });
 
   wrap.appendChild(btnMinus);
