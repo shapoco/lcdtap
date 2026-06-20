@@ -18,7 +18,10 @@ add_subdirectory(../../example/pico2_common pico2_common)
 add_executable(lcdtap_pico2_universal
     src/main.cpp
     src/flash_config.cpp
-    src/uart_if.cpp
+    src/uart_trx.cpp
+    src/uart_b64.cpp
+    src/uart_lex.cpp
+    src/uart_intf.cpp
 )
 
 # Generate PIO headers for universal-only interface modes

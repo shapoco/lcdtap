@@ -24,7 +24,7 @@
 #include "flash_config.hpp"
 #include "parallel_8bit.pio.h"
 #include "spi_3line_mode0.pio.h"
-#include "uart_if.hpp"
+#include "uart_intf.hpp"
 
 static_assert(PIN_SPI_CS == SPI_CS_PIN,
               "PIN_SPI_CS mismatch with spi_4line_mode0.pio");

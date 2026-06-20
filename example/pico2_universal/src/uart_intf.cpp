@@ -1,11 +1,12 @@
-#include "uart_if.hpp"
+#include "uart_intf.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
-#include "pico/stdio.h"
-#include "tusb.h"
+#include "uart_b64.hpp"
+#include "uart_lex.hpp"
+#include "uart_trx.hpp"
 
 // =============================================================================
 // Module-level state
@@ -15,227 +16,6 @@ static lcdtap::LcdTap* gLcdTap = nullptr;
 static lcdtap::BusType* gCurrentIface = nullptr;
 static SwitchIfaceFn gSwitchIface = nullptr;
 static SaveConfigFn gSaveConfig = nullptr;
-
-// =============================================================================
-// Base64 encoder
-// =============================================================================
-
-static constexpr char kB64Table[] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-static void b64Encode3(const uint8_t in[3], char out[4]) {
-  out[0] = kB64Table[in[0] >> 2];
-  out[1] = kB64Table[((in[0] & 0x03u) << 4) | (in[1] >> 4)];
-  out[2] = kB64Table[((in[1] & 0x0Fu) << 2) | (in[2] >> 6)];
-  out[3] = kB64Table[in[2] & 0x3Fu];
-}
-
-// Encode a partial block (1 or 2 bytes) with padding.
-static void b64EncodePad(const uint8_t* in, int count, char out[4]) {
-  uint8_t buf[3] = {0, 0, 0};
-  for (int i = 0; i < count; i++) buf[i] = in[i];
-  b64Encode3(buf, out);
-  if (count == 1) {
-    out[2] = '=';
-    out[3] = '=';
-  } else if (count == 2) {
-    out[3] = '=';
-  }
-}
-
-// =============================================================================
-// Lexer
-// =============================================================================
-
-static constexpr int TOK_MAX_LEN = 64;
-
-enum class TokType {
-  NONE,
-  BRACE_OPEN,
-  BRACE_CLOSE,
-  COLON,
-  COMMA,
-  STRING,
-  INTEGER,
-  BOOL_TRUE,
-  BOOL_FALSE,
-  NULL_,
-};
-
-struct Token {
-  TokType type = TokType::NONE;
-  char buf[TOK_MAX_LEN + 1] = {};
-  int32_t intVal = 0;
-};
-
-enum class LexState {
-  IDLE,
-  IN_STRING,
-  IN_ESCAPE,
-  IN_LITERAL,
-};
-
-struct Lexer {
-  LexState state = LexState::IDLE;
-  char tokBuf[TOK_MAX_LEN + 1] = {};
-  int tokLen = 0;
-  bool tokenReady = false;
-  Token pending;
-  bool crReceived = false;
-  bool lineReady = false;  // CRLF received
-  char deferredChar = 0;   // delimiter deferred from end of literal token
-
-  void reset() {
-    state = LexState::IDLE;
-    tokLen = 0;
-    tokenReady = false;
-    crReceived = false;
-    lineReady = false;
-    deferredChar = 0;
-  }
-};
-
-// Flush the accumulated literal token and return true if a token was produced.
-static bool lexFlushLiteral(Lexer& lex) {
-  if (lex.tokLen == 0) return false;
-  lex.tokBuf[lex.tokLen] = '\0';
-
-  Token& t = lex.pending;
-  t = {};
-  if (strcmp(lex.tokBuf, "true") == 0) {
-    t.type = TokType::BOOL_TRUE;
-  } else if (strcmp(lex.tokBuf, "false") == 0) {
-    t.type = TokType::BOOL_FALSE;
-  } else if (strcmp(lex.tokBuf, "null") == 0) {
-    t.type = TokType::NULL_;
-  } else {
-    // Try integer
-    t.type = TokType::INTEGER;
-    int32_t val = 0;
-    bool neg = false;
-    int i = 0;
-    if (lex.tokBuf[0] == '-') {
-      neg = true;
-      i = 1;
-    }
-    for (; i < lex.tokLen; i++) {
-      char c = lex.tokBuf[i];
-      if (c < '0' || c > '9') {
-        t.type = TokType::NONE;
-        break;
-      }
-      val = val * 10 + (c - '0');
-    }
-    t.intVal = neg ? -val : val;
-  }
-  lex.tokLen = 0;
-  return t.type != TokType::NONE;
-}
-
-// Feed one character; returns true if a token is ready in lex.pending.
-static bool lexPush(Lexer& lex, char c) {
-  lex.tokenReady = false;
-
-  // Track CRLF for end-of-command detection
-  if (c == '\r') {
-    lex.crReceived = true;
-  } else if (c == '\n' && lex.crReceived) {
-    lex.crReceived = false;
-    lex.lineReady = true;
-    if (lex.state == LexState::IN_LITERAL) {
-      return lexFlushLiteral(lex);
-    }
-    return false;
-  } else {
-    lex.crReceived = false;
-  }
-
-  switch (lex.state) {
-    case LexState::IDLE:
-      if (c == '"') {
-        lex.state = LexState::IN_STRING;
-        lex.tokLen = 0;
-      } else if (c == '{') {
-        lex.pending = {};
-        lex.pending.type = TokType::BRACE_OPEN;
-        return true;
-      } else if (c == '}') {
-        lex.pending = {};
-        lex.pending.type = TokType::BRACE_CLOSE;
-        return true;
-      } else if (c == ':') {
-        lex.pending = {};
-        lex.pending.type = TokType::COLON;
-        return true;
-      } else if (c == ',') {
-        lex.pending = {};
-        lex.pending.type = TokType::COMMA;
-        return true;
-      } else if ((c >= '0' && c <= '9') || c == '-') {
-        lex.state = LexState::IN_LITERAL;
-        lex.tokLen = 0;
-        lex.tokBuf[lex.tokLen++] = c;
-      } else if (c == 't' || c == 'f' || c == 'n') {
-        lex.state = LexState::IN_LITERAL;
-        lex.tokLen = 0;
-        lex.tokBuf[lex.tokLen++] = c;
-      }
-      break;
-
-    case LexState::IN_STRING:
-      if (c == '\\') {
-        lex.state = LexState::IN_ESCAPE;
-      } else if (c == '"') {
-        lex.state = LexState::IDLE;
-        lex.tokBuf[lex.tokLen] = '\0';
-        lex.pending = {};
-        lex.pending.type = TokType::STRING;
-        memcpy(lex.pending.buf, lex.tokBuf,
-               static_cast<size_t>(lex.tokLen + 1));
-        lex.tokLen = 0;
-        return true;
-      } else {
-        if (lex.tokLen < TOK_MAX_LEN) lex.tokBuf[lex.tokLen++] = c;
-      }
-      break;
-
-    case LexState::IN_ESCAPE:
-      if (lex.tokLen < TOK_MAX_LEN) {
-        // Only handle basic escapes
-        switch (c) {
-          case '"':
-          case '\\':
-          case '/': lex.tokBuf[lex.tokLen++] = c; break;
-          case 'n': lex.tokBuf[lex.tokLen++] = '\n'; break;
-          case 'r': lex.tokBuf[lex.tokLen++] = '\r'; break;
-          case 't': lex.tokBuf[lex.tokLen++] = '\t'; break;
-          default: lex.tokBuf[lex.tokLen++] = c; break;
-        }
-      }
-      lex.state = LexState::IN_STRING;
-      break;
-
-    case LexState::IN_LITERAL: {
-      bool isLiteralChar = (c >= '0' && c <= '9') || c == '-' ||
-                           (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-      if (isLiteralChar) {
-        if (lex.tokLen < TOK_MAX_LEN) lex.tokBuf[lex.tokLen++] = c;
-      } else {
-        // End of literal — flush it; save the delimiter for next call to
-        // avoid overwriting lex.pending with the delimiter token.
-        lex.state = LexState::IDLE;
-        bool had = lexFlushLiteral(lex);
-        if (had) {
-          lex.deferredChar = c;
-          return true;
-        }
-        return lexPush(lex, c);
-      }
-      break;
-    }
-  }
-  return false;
-}
 
 // =============================================================================
 // Parser
@@ -545,28 +325,13 @@ struct RespGen {
 
 static RespGen gResp;
 
-// -----------------------------------------------------------------------------
-// USB CDC non-blocking write helpers
-// -----------------------------------------------------------------------------
-
-// Write as many bytes as CDC TX buffer has room for. Returns bytes written.
-static uint32_t cdcWrite(const char* buf, uint32_t len) {
-  if (!tud_cdc_connected()) return 0;
-  uint32_t avail = tud_cdc_write_available();
-  if (avail == 0) return 0;
-  uint32_t n = len < avail ? len : avail;
-  uint32_t written = tud_cdc_write(buf, n);
-  if (written > 0) tud_cdc_write_flush();
-  return written;
-}
-
 // Attempt to drain gResp.chunkBuf. Returns true when fully drained.
 static bool drainChunk() {
   while (gResp.chunkPos < gResp.chunkLen) {
-    uint32_t rem = static_cast<uint32_t>(gResp.chunkLen - gResp.chunkPos);
-    uint32_t sent = cdcWrite(gResp.chunkBuf + gResp.chunkPos, rem);
+    int rem = gResp.chunkLen - gResp.chunkPos;
+    int sent = trxWrite(gResp.chunkBuf + gResp.chunkPos, rem);
     if (sent == 0) return false;  // TX buffer full — retry next call
-    gResp.chunkPos += static_cast<int>(sent);
+    gResp.chunkPos += sent;
   }
   gResp.chunkLen = 0;
   gResp.chunkPos = 0;
@@ -909,10 +674,9 @@ static bool b64Feed(uint8_t byte) {
 // pending).
 static bool b64DrainOut() {
   while (gResp.b64OutPos < 4) {
-    uint32_t sent = cdcWrite(gResp.b64Out + gResp.b64OutPos,
-                             static_cast<uint32_t>(4 - gResp.b64OutPos));
+    int sent = trxWrite(gResp.b64Out + gResp.b64OutPos, 4 - gResp.b64OutPos);
     if (sent == 0) return false;
-    gResp.b64OutPos += static_cast<int>(sent);
+    gResp.b64OutPos += sent;
   }
   return true;
 }
@@ -1112,7 +876,7 @@ void uartIfInit(lcdtap::LcdTap* lcdtap, lcdtap::BusType* currentIface,
   gSwitchIface = switchIface;
   gSaveConfig = saveConfig;
 
-  stdio_init_all();
+  trxInit();
 
   gLex.reset();
   gParser.reset();
@@ -1120,13 +884,13 @@ void uartIfInit(lcdtap::LcdTap* lcdtap, lcdtap::BusType* currentIface,
 }
 
 void uartIfProcess() {
-  if (!tud_cdc_connected()) return;
+  if (!trxIsConnected()) return;
 
   // Receive up to a small burst of characters per call to avoid starving
   // other main-loop work.
   for (int i = 0; i < 64; i++) {
-    int c = getchar_timeout_us(0);
-    if (c == PICO_ERROR_TIMEOUT) break;
+    int c = trxGetChar();
+    if (c < 0) break;
     processRxChar(static_cast<char>(c));
   }
 
