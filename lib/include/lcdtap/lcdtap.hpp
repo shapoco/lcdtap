@@ -204,7 +204,7 @@ enum class ConfigId : uint8_t {
   TRIM_Y,
   TRIM_WIDTH,
   TRIM_HEIGHT,
-  INVERSION,
+  INVERSE,
   SWAP_RB,
   OUTPUT_ROT,
   SCALE_MODE,

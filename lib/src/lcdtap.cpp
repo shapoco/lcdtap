@@ -216,7 +216,7 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       break;
 
     // Inverse
-    case ConfigId::INVERSION:
+    case ConfigId::INVERSE:
       e->type = ValueType::BOOL;
       e->name = "Inverse";
       e->options = ON_OFF_NAMES;
@@ -340,7 +340,7 @@ int16_t getConfigValueById(const LcdTapConfig& cfg, ConfigId id) {
     case ConfigId::BUS_INTERFACE: return static_cast<int16_t>(cfg.busInterface);
     case ConfigId::BUFF_WIDTH: return static_cast<int16_t>(cfg.buffWidth);
     case ConfigId::BUFF_HEIGHT: return static_cast<int16_t>(cfg.buffHeight);
-    case ConfigId::INVERSION: return cfg.inverted ? 1 : 0;
+    case ConfigId::INVERSE: return cfg.inverted ? 1 : 0;
     case ConfigId::SWAP_RB: return cfg.swapRB ? 1 : 0;
     case ConfigId::FORCE_PWR_ON: return cfg.forcePowerOn ? 1 : 0;
     case ConfigId::INTF_FMT_OVR:
@@ -370,7 +370,7 @@ void setConfigValueById(LcdTapConfig* cfg, ConfigId id, int16_t value) {
     case ConfigId::BUFF_HEIGHT:
       cfg->buffHeight = static_cast<uint16_t>(value);
       break;
-    case ConfigId::INVERSION: cfg->inverted = (value != 0); break;
+    case ConfigId::INVERSE: cfg->inverted = (value != 0); break;
     case ConfigId::SWAP_RB: cfg->swapRB = (value != 0); break;
     case ConfigId::FORCE_PWR_ON: cfg->forcePowerOn = (value != 0); break;
     case ConfigId::INTF_FMT_OVR:
