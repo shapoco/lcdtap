@@ -1,7 +1,10 @@
 #include <lcdtap/lcdtap.hpp>
 
+#include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <new>
+#include <utility>
 
 #include "controller_base.hpp"
 #include "ssd1306_controller.hpp"
@@ -15,10 +18,10 @@ namespace lcdtap {
 //=============================================================================
 DumpConfig getDefaultDumpConfig() { return {}; }
 
-void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
+void getDefaultConfig(ControllerFamily type, LcdTapConfig* cfg) {
   *cfg = {};
   memset(cfg, 0, sizeof(*cfg));
-  cfg->controller = type;
+  cfg->controllerFamily = type;
   cfg->forcePowerOn = false;
   cfg->interfaceFormatOverride = -1;
   cfg->dviWidth = 640;
@@ -27,30 +30,119 @@ void getDefaultConfig(ControllerType type, LcdTapConfig* cfg) {
   cfg->inverted = false;
   cfg->swapRB = false;
   switch (type) {
-    case ControllerType::ST7789:
-      cfg->lcdWidth = 240;
-      cfg->lcdHeight = 320;
+    case ControllerFamily::ST7789:
+      cfg->buffWidth = 240;
+      cfg->buffHeight = 320;
       cfg->inverted = true;
-      cfg->outputRotation = 3;
+      cfg->outputRotation = 0;
+      cfg->busInterface = BusType::SPI_4LINE;
       break;
-    case ControllerType::SSD1306:
-      cfg->lcdWidth = 128;
-      cfg->lcdHeight = 64;
+    case ControllerFamily::SSD1306:
+      cfg->buffWidth = 128;
+      cfg->buffHeight = 64;
       cfg->outputRotation = 2;
+      cfg->busInterface = BusType::I2C;
       break;
-    case ControllerType::SSD1331:
-      cfg->lcdWidth = 96;
-      cfg->lcdHeight = 64;
+    case ControllerFamily::SSD1331:
+      cfg->buffWidth = 96;
+      cfg->buffHeight = 64;
       cfg->outputRotation = 2;
+      cfg->busInterface = BusType::SPI_4LINE;
       break;
+  }
+  cfg->trimMode = TrimMode::OFF;
+  cfg->trimX = 0;
+  cfg->trimY = 0;
+  cfg->trimWidth = cfg->buffWidth;
+  cfg->trimHeight = cfg->buffHeight;
+}
+
+void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
+  switch (preset) {
+    case ConfigPreset::ILI9342:
+      getDefaultConfig(ControllerFamily::ST7789, cfg);
+      cfg->buffWidth = 320;
+      cfg->buffHeight = 240;
+      cfg->inverted = true;
+      cfg->swapRB = true;
+      break;
+
+    case ConfigPreset::ILI9488:
+      getDefaultConfig(ControllerFamily::ST7789, cfg);
+      cfg->buffWidth = 320;
+      cfg->buffHeight = 480;
+      cfg->inverted = true;
+      break;
+
+    case ConfigPreset::SSD1306:
+      getDefaultConfig(ControllerFamily::SSD1306, cfg);
+      break;
+
+    case ConfigPreset::SSD1331:
+      getDefaultConfig(ControllerFamily::SSD1331, cfg);
+      break;
+
+    case ConfigPreset::ST7735:
+      getDefaultConfig(ControllerFamily::ST7789, cfg);
+      cfg->buffWidth = 128;
+      cfg->buffHeight = 160;
+      break;
+
+    case ConfigPreset::ST7789:
+      getDefaultConfig(ControllerFamily::ST7789, cfg);
+      break;
+
+    case ConfigPreset::ARDUBOY:
+      getDefaultConfig(ControllerFamily::SSD1306, cfg);
+      cfg->busInterface = BusType::SPI_4LINE;
+      break;
+
+    case ConfigPreset::M5STACK_CORES3:
+      getDefaultConfig(ControllerFamily::ST7789, cfg);
+      cfg->buffWidth = 320;
+      cfg->buffHeight = 240;
+      cfg->inverted = true;
+      cfg->swapRB = true;
+      cfg->outputRotation = 0;
+      break;
+
+    case ConfigPreset::THUMBY:
+      getDefaultConfig(ControllerFamily::SSD1306, cfg);
+      cfg->busInterface = BusType::SPI_4LINE;
+      cfg->trimMode = TrimMode::CUSTOM;
+      cfg->trimX = 28;
+      cfg->trimY = 24;
+      cfg->trimWidth = 72;
+      cfg->trimHeight = 40;
+      break;
+
+    case ConfigPreset::TINYJOYPAD:
+      getDefaultConfig(ControllerFamily::SSD1306, cfg);
+      cfg->busInterface = BusType::I2C;
+      break;
+
+    case ConfigPreset::XIAMOCON:
+      getDefaultConfig(ControllerFamily::ST7789, cfg);
+      cfg->buffWidth = 240;
+      cfg->buffHeight = 240;
+      break;
+
+    default: break;
+  }
+
+  if (cfg->trimMode != TrimMode::CUSTOM) {
+    cfg->trimX = 0;
+    cfg->trimY = 0;
+    cfg->trimWidth = cfg->buffWidth;
+    cfg->trimHeight = cfg->buffHeight;
   }
 }
 
-InterfaceFormat getDefaultInterfaceFormat(ControllerType type) {
+InterfaceFormat getDefaultInterfaceFormat(ControllerFamily type) {
   switch (type) {
-    case ControllerType::ST7789: return InterfaceFormat::RGB565_BE;
-    case ControllerType::SSD1306: return InterfaceFormat::GRAY1_VPACK8_H2L;
-    case ControllerType::SSD1331: return InterfaceFormat::RGB332;
+    case ControllerFamily::ST7789: return InterfaceFormat::RGB565_BE;
+    case ControllerFamily::SSD1306: return InterfaceFormat::GRAY1_VPACK8_H2L;
+    case ControllerFamily::SSD1331: return InterfaceFormat::RGB332;
     default: return InterfaceFormat::RGB565_BE;
   }
 }
@@ -68,53 +160,357 @@ const char* getShortInterfaceFormatName(InterfaceFormat fmt) {
   }
 }
 
+void getConfigEntryById(ConfigId id, ConfigEntry* e) {
+  memset(e, 0, sizeof(*e));
+  e->unit = "";
+  e->step = 1;
+  e->max = 1;
+  e->enableKeyId = -1;
+
+  switch (id) {
+    // Controller Family
+    case ConfigId::CTRL_FAMILY:
+      e->type = ValueType::ENUM;
+      e->name = "Controller Family";
+      e->options = CONTROLLER_NAMES;
+      e->max = static_cast<int16_t>(ControllerFamily::NUM_CONTROLLERS) - 1;
+      break;
+
+    // Bus Interface
+    case ConfigId::BUS_INTERFACE:
+      e->type = ValueType::ENUM;
+      e->name = "Bus Interface";
+      e->options = INTERFACE_NAMES;
+      e->max = static_cast<int16_t>(BusType::NUM_INTERFACES) - 1;
+      break;
+
+    // Frame Buffer Width
+    case ConfigId::BUFF_WIDTH:
+      e->type = ValueType::INT16;
+      e->name = "Buffer Width";
+      e->unit = "px";
+      e->options = nullptr;
+      e->min = 32;
+      e->max = 480;
+      e->step = 8;
+      break;
+
+    // Frame Buffer Height
+    case ConfigId::BUFF_HEIGHT:
+      e->type = ValueType::INT16;
+      e->name = "Buffer Height";
+      e->unit = "px";
+      e->options = nullptr;
+      e->min = 32;
+      e->max = 480;
+      e->step = 8;
+      break;
+
+    // Inversion
+    case ConfigId::INVERSION:
+      e->type = ValueType::BOOL;
+      e->name = "Inversion";
+      e->options = ON_OFF_NAMES;
+      break;
+
+    // Swap Red/Blue
+    case ConfigId::SWAP_RB:
+      e->type = ValueType::BOOL;
+      e->name = "Swap Red/Blue";
+      e->options = ON_OFF_NAMES;
+
+      // Swapping R/B only makes sense for color displays, so enable this config
+      // only when a color controller is selected.
+      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
+      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ST7789);
+      break;
+
+    // Force Power On
+    case ConfigId::FORCE_PWR_ON:
+      e->type = ValueType::BOOL;
+      e->name = "Force Power On";
+      e->options = ON_OFF_NAMES;
+      break;
+
+    // Format Override
+    case ConfigId::INTF_FMT_OVR:
+      e->type = ValueType::ENUM;
+      e->name = "Format Override";
+      e->options = INTERFACE_FORMAT_NAMES;
+      e->min = -1;
+      e->max = static_cast<int16_t>(InterfaceFormat::NUM_FORMATS) - 1;
+
+      // Format override only makes sense for color controllers, so enable this
+      // config only when a color controller is selected.
+      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
+      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ST7789);
+      break;
+
+    // Trimming Mode
+    case ConfigId::TRIM_MODE:
+      e->type = ValueType::ENUM;
+      e->name = "Trimming Mode";
+      e->options = TRIM_MODE_NAMES;
+      e->max = static_cast<int16_t>(TrimMode::NUM_MODES) - 1;
+      break;
+
+    // Offset X
+    case ConfigId::TRIM_X:
+      e->type = ValueType::INT16;
+      e->name = "Trim Offset X";
+      e->unit = "px";
+      e->max = 480;
+
+      e->enableKeyId = static_cast<int16_t>(ConfigId::TRIM_MODE);
+      e->enableKeyValueMin = static_cast<int16_t>(TrimMode::CUSTOM);
+      e->enableKeyValueMax = static_cast<int16_t>(TrimMode::CUSTOM);
+      break;
+
+    // Offset Y
+    case ConfigId::TRIM_Y:
+      e->type = ValueType::INT16;
+      e->name = "Trim Offset Y";
+      e->unit = "px";
+      e->max = 480;
+
+      e->enableKeyId = static_cast<int16_t>(ConfigId::TRIM_MODE);
+      e->enableKeyValueMin = static_cast<int16_t>(TrimMode::CUSTOM);
+      e->enableKeyValueMax = static_cast<int16_t>(TrimMode::CUSTOM);
+      break;
+
+    // Trim Width
+    case ConfigId::TRIM_WIDTH:
+      e->type = ValueType::INT16;
+      e->name = "Trim Width";
+      e->unit = "px";
+      e->max = 480;
+
+      e->enableKeyId = static_cast<int16_t>(ConfigId::TRIM_MODE);
+      e->enableKeyValueMin = static_cast<int16_t>(TrimMode::CUSTOM);
+      e->enableKeyValueMax = static_cast<int16_t>(TrimMode::CUSTOM);
+      break;
+
+    // Trim Height
+    case ConfigId::TRIM_HEIGHT:
+      e->type = ValueType::INT16;
+      e->name = "Trim Height";
+      e->unit = "px";
+      e->max = 480;
+
+      e->enableKeyId = static_cast<int16_t>(ConfigId::TRIM_MODE);
+      e->enableKeyValueMin = static_cast<int16_t>(TrimMode::CUSTOM);
+      e->enableKeyValueMax = static_cast<int16_t>(TrimMode::CUSTOM);
+      break;
+
+    // Output Rotation
+    case ConfigId::OUTPUT_ROT:
+      e->type = ValueType::ENUM;
+      e->name = "Output Rotation";
+      e->unit = "deg";
+      e->options = ROTATION_NAMES;
+      e->max = 3;
+      break;
+
+    // Output Scaling
+    case ConfigId::SCALE_MODE:
+      e->type = ValueType::ENUM;
+      e->name = "Output Scaling";
+      e->options = SCALE_MODE_NAMES;
+      e->max = static_cast<int16_t>(ScaleMode::NUM_MODES) - 1;
+      break;
+    default: break;
+  }
+}
+
+int16_t getConfigValueById(const LcdTapConfig& cfg, ConfigId id) {
+  switch (id) {
+    case ConfigId::CTRL_FAMILY:
+      return static_cast<int16_t>(cfg.controllerFamily);
+    case ConfigId::BUS_INTERFACE: return static_cast<int16_t>(cfg.busInterface);
+    case ConfigId::BUFF_WIDTH: return static_cast<int16_t>(cfg.buffWidth);
+    case ConfigId::BUFF_HEIGHT: return static_cast<int16_t>(cfg.buffHeight);
+    case ConfigId::INVERSION: return cfg.inverted ? 1 : 0;
+    case ConfigId::SWAP_RB: return cfg.swapRB ? 1 : 0;
+    case ConfigId::FORCE_PWR_ON: return cfg.forcePowerOn ? 1 : 0;
+    case ConfigId::INTF_FMT_OVR:
+      return static_cast<int16_t>(cfg.interfaceFormatOverride);
+    case ConfigId::TRIM_MODE: return static_cast<int16_t>(cfg.trimMode);
+    case ConfigId::TRIM_X: return static_cast<int16_t>(cfg.trimX);
+    case ConfigId::TRIM_Y: return static_cast<int16_t>(cfg.trimY);
+    case ConfigId::TRIM_WIDTH: return static_cast<int16_t>(cfg.trimWidth);
+    case ConfigId::TRIM_HEIGHT: return static_cast<int16_t>(cfg.trimHeight);
+    case ConfigId::OUTPUT_ROT: return static_cast<int16_t>(cfg.outputRotation);
+    case ConfigId::SCALE_MODE: return static_cast<int16_t>(cfg.scaleMode);
+    default: return 0;
+  }
+}
+
+void setConfigValueById(LcdTapConfig* cfg, ConfigId id, int16_t value) {
+  switch (id) {
+    case ConfigId::CTRL_FAMILY:
+      cfg->controllerFamily = static_cast<ControllerFamily>(value);
+      break;
+    case ConfigId::BUS_INTERFACE:
+      cfg->busInterface = static_cast<BusType>(value);
+      break;
+    case ConfigId::BUFF_WIDTH:
+      cfg->buffWidth = static_cast<uint16_t>(value);
+      break;
+    case ConfigId::BUFF_HEIGHT:
+      cfg->buffHeight = static_cast<uint16_t>(value);
+      break;
+    case ConfigId::INVERSION: cfg->inverted = (value != 0); break;
+    case ConfigId::SWAP_RB: cfg->swapRB = (value != 0); break;
+    case ConfigId::FORCE_PWR_ON: cfg->forcePowerOn = (value != 0); break;
+    case ConfigId::INTF_FMT_OVR:
+      cfg->interfaceFormatOverride = static_cast<int8_t>(value);
+      break;
+    case ConfigId::TRIM_MODE:
+      cfg->trimMode = static_cast<TrimMode>(value);
+      break;
+    case ConfigId::TRIM_X: cfg->trimX = static_cast<uint16_t>(value); break;
+    case ConfigId::TRIM_Y: cfg->trimY = static_cast<uint16_t>(value); break;
+    case ConfigId::TRIM_WIDTH: cfg->trimWidth = static_cast<uint16_t>(value); break;
+    case ConfigId::TRIM_HEIGHT:
+      cfg->trimHeight = static_cast<uint16_t>(value);
+      break;
+    case ConfigId::OUTPUT_ROT:
+      cfg->outputRotation = static_cast<uint8_t>(value & 3u);
+      break;
+    case ConfigId::SCALE_MODE:
+      cfg->scaleMode = static_cast<ScaleMode>(value);
+      break;
+    default: break;
+  }
+}
+
+void formatConfigValue(char* buf, int bufLen, const ConfigEntry& item) {
+  switch (item.type) {
+    case ValueType::BOOL:
+    case ValueType::ENUM:
+      if (item.options && item.value >= item.min && item.value <= item.max) {
+        snprintf(buf, static_cast<size_t>(bufLen), "%s",
+                 item.options[item.value - item.min]);
+      } else {
+        snprintf(buf, static_cast<size_t>(bufLen), "---");
+      }
+      break;
+    case ValueType::INT16:
+      snprintf(buf, static_cast<size_t>(bufLen), "%d",
+               static_cast<int>(item.value));
+      break;
+    default: buf[0] = '\0'; break;
+  }
+}
+
 //=============================================================================
 // ControllerBase common implementation
 //=============================================================================
 
 void ControllerBase::calcScaleParams() {
-  uint16_t dviW = config.dviWidth;
-  uint16_t dviH = config.dviHeight;
+  uint16_t videoW = config.dviWidth;
+  uint16_t videoH = config.dviHeight;
+
+  uint16_t buffW = config.buffWidth;
+  uint16_t buffH = config.buffHeight;
+
+  int16_t trimW = buffW;
+  int16_t trimH = buffH;
+  if (config.trimMode != TrimMode::OFF) {
+    trimW = config.trimWidth;
+    trimH = config.trimHeight;
+  }
+
+  int16_t trimX = 0;
+  int16_t trimY = 0;
+  if (config.trimMode != TrimMode::OFF) {
+    trimX = config.trimX;
+    trimY = config.trimY;
+  }
+
+  // Trim area must be within the buffer area
+  int16_t srcW = trimW;
+  int16_t srcH = trimH;
+  if (trimX < 0) {
+    srcW += trimX;
+    trimX = 0;
+  } else if (trimX + srcW > buffW) {
+    srcW = buffW - trimX;
+  }
+  if (trimY < 0) {
+    srcH += trimY;
+    trimY = 0;
+  } else if (trimY + srcH > buffH) {
+    srcH = buffH - trimY;
+  }
+
+  if (srcW <= 0 || srcH <= 0) {
+    // No valid trim area; disable scaling and output
+    outDestX = 0;
+    outDestY = 0;
+    outDestW = 0;
+    outDestH = 0;
+    outSrcX = 0;
+    outSrcY = 0;
+    outSrcW = 0;
+    outSrcH = 0;
+    outSrcStepH = 0;
+    outSrcStepV = 0;
+    return;
+  }
+
   // rot=1,3: LCD width and height appear swapped
-  uint16_t lcdW = ((outputRotation & 1) ? config.lcdHeight : config.lcdWidth);
-  uint16_t lcdH = ((outputRotation & 1) ? config.lcdWidth : config.lcdHeight);
+  if ((config.outputRotation & 1) != 0) {
+    std::swap(buffW, buffH);
+    std::swap(srcW, srcH);
+  }
 
   switch (config.scaleMode) {
     case ScaleMode::STRETCH:
-      displayX = 0;
-      displayY = 0;
-      displayW = dviW;
-      displayH = dviH;
+      // Fill the entire video area (ignore aspect ratio)
+      outDestX = 0;
+      outDestY = 0;
+      outDestW = videoW;
+      outDestH = videoH;
       break;
 
     case ScaleMode::FIT:
-      // lcdW/lcdH > dviW/dviH (landscape LCD) ↔ lcdW*dviH > dviW*lcdH
-      if ((uint32_t)lcdW * dviH > (uint32_t)dviW * lcdH) {
-        displayW = dviW;
-        displayH = (uint16_t)((uint32_t)dviW * lcdH / lcdW);
+      // Scale to fit the video area while preserving aspect ratio; add black
+      // padding if needed
+      if ((uint32_t)srcW * videoH > (uint32_t)videoW * srcH) {
+        outDestW = videoW;
+        outDestH = (uint16_t)((uint32_t)videoW * srcH / srcW);
       } else {
-        displayH = dviH;
-        displayW = (uint16_t)((uint32_t)dviH * lcdW / lcdH);
+        outDestH = videoH;
+        outDestW = (uint16_t)((uint32_t)videoH * srcW / srcH);
       }
-      displayX = (dviW - displayW) / 2;
-      displayY = (dviH - displayH) / 2;
+      outDestX = (videoW - outDestW) / 2;
+      outDestY = (videoH - outDestH) / 2;
       break;
 
     case ScaleMode::PIXEL_PERFECT: {
-      uint16_t scaleH = dviW / lcdW;
-      uint16_t scaleV = dviH / lcdH;
+      // Scale by the largest integer factor that fits in the video area; add
+      // black padding if needed
+      uint16_t scaleH = videoW / srcW;
+      uint16_t scaleV = videoH / srcH;
       uint16_t scale = scaleH < scaleV ? scaleH : scaleV;
       if (scale == 0) scale = 1;
-      displayW = lcdW * scale;
-      displayH = lcdH * scale;
-      displayX = (dviW - displayW) / 2;
-      displayY = (dviH - displayH) / 2;
+      outDestW = srcW * scale;
+      outDestH = srcH * scale;
+      outDestX = (videoW - outDestW) / 2;
+      outDestY = (videoH - outDestH) / 2;
       break;
     }
   }
 
-  hStep = ((uint32_t)lcdW << 16) / displayW;
-  vStep = ((uint32_t)lcdH << 16) / displayH;
+  outSrcX = static_cast<uint16_t>(trimX);
+  outSrcY = static_cast<uint16_t>(trimY);
+  outSrcW = static_cast<uint16_t>(trimW);
+  outSrcH = static_cast<uint16_t>(trimH);
+  outSrcStepH = ((uint32_t)srcW << 16) / outDestW;
+  outSrcStepV = ((uint32_t)srcH << 16) / outDestH;
 }
 
 void ControllerBase::log(const char* msg) const {
@@ -126,17 +522,55 @@ void ControllerBase::resetCommon() {
   displayOn = false;
   inverted = false;
   cachedLittleEndian = false;
-  interfaceFormat = getDefaultInterfaceFormat(config.controller);
+  interfaceFormat = getDefaultInterfaceFormat(config.controllerFamily);
   currentCmd = 0x00;
   cmdDataLen = 0;
   casetXS = 0;
-  casetXE = config.lcdWidth - 1;
+  casetXE = config.buffWidth - 1;
   rasetYS = 0;
-  rasetYE = config.lcdHeight - 1;
+  rasetYE = config.buffHeight - 1;
   ramwrX = 0;
   ramwrY = 0;
   ramwrBufLen = 0;
+  if (config.trimMode == TrimMode::AUTO) {
+    config.trimX = 0;
+    config.trimY = 0;
+    config.trimWidth = 0;
+    config.trimHeight = 0;
+  }
   updateWriteCache();
+}
+
+// Expand the trim area to include the specified rectangle (logical coordinates)
+void ControllerBase::expandTrimX(uint16_t x0, uint16_t x1) {
+  if (config.trimMode != TrimMode::AUTO) return;
+  if (x0 >= x1) return;                // empty rectangle
+  if (x1 >= config.buffWidth) return;  // out of bounds
+  if (config.trimWidth == 0) {
+    // No trim area yet; set to the new rectangle
+    config.trimX = x0;
+    config.trimWidth = static_cast<uint16_t>(x1 - x0 + 1);
+  } else {
+    config.trimX = std::min(config.trimX, x0);
+    config.trimWidth = std::max(config.trimWidth, (uint16_t)(x1 - config.trimX + 1));
+  }
+  calcScaleParams();
+}
+
+// Expand the trim area to include the specified rectangle (logical coordinates)
+void ControllerBase::expandTrimY(uint16_t y0, uint16_t y1) {
+  if (config.trimMode != TrimMode::AUTO) return;
+  if (y0 >= y1) return;                 // empty rectangle
+  if (y1 >= config.buffHeight) return;  // out of bounds
+  if (config.trimHeight == 0) {
+    // No trim area yet; set to the new rectangle
+    config.trimY = y0;
+    config.trimHeight = static_cast<uint16_t>(y1 - y0 + 1);
+  } else {
+    config.trimY = std::min(config.trimY, y0);
+    config.trimHeight = std::max(config.trimHeight, (uint16_t)(y1 - config.trimY + 1));
+  }
+  calcScaleParams();
 }
 
 // Process all RAMWR data at once (moves switch(interfaceFormat) outside the
@@ -357,14 +791,14 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
   if (!host.alloc || !host.free) return;
 
   ControllerBase* ctrl = nullptr;
-  switch (config.controller) {
-    case ControllerType::ST7789:
+  switch (config.controllerFamily) {
+    case ControllerFamily::ST7789:
       ctrl = new (std::nothrow) St7789Controller();
       break;
-    case ControllerType::SSD1306:
+    case ControllerFamily::SSD1306:
       ctrl = new (std::nothrow) Ssd1306Controller();
       break;
-    case ControllerType::SSD1331:
+    case ControllerFamily::SSD1331:
       ctrl = new (std::nothrow) Ssd1331Controller();
       break;
   }
@@ -377,14 +811,15 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
   ctrl->framebuf = nullptr;
   ctrl->outputRotation = config.outputRotation & 3u;
 
-  if (config.lcdWidth == 0 || config.lcdHeight == 0 || config.dviWidth == 0 ||
+  if (config.buffWidth == 0 || config.buffHeight == 0 || config.dviWidth == 0 ||
       config.dviHeight == 0) {
     ctrl->status = Status::INVALID_PARAM;
     impl_ = ctrl;
     return;
   }
 
-  size_t fbSize = (size_t)config.lcdWidth * config.lcdHeight * sizeof(uint16_t);
+  size_t fbSize =
+      (size_t)config.buffWidth * config.buffHeight * sizeof(uint16_t);
   ctrl->framebuf = static_cast<uint16_t*>(host.alloc(fbSize));
   if (!ctrl->framebuf) {
     ctrl->status = Status::OUT_OF_MEMORY;
@@ -474,85 +909,91 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   // Display off, sleeping, or in the vertical black border region
   bool powerOff =
       !ctrl->config.forcePowerOn && (ctrl->sleeping || !ctrl->displayOn);
-  if (powerOff || dviLine < ctrl->displayY ||
-      dviLine >= ctrl->displayY + ctrl->displayH) {
+  if (powerOff || dviLine < ctrl->outDestY ||
+      dviLine >= ctrl->outDestY + ctrl->outDestH) {
     memset(dst, 0, dviW * sizeof(uint16_t));
     return;
   }
 
   // Vertical mapping: compute LCD row via fixed-point multiply
   const uint32_t lcdRowOut =
-      ((uint32_t)(dviLine - ctrl->displayY) * ctrl->vStep) >> 16;
+      (((uint32_t)(dviLine - ctrl->outDestY) * ctrl->outSrcStepV) >> 16);
 
   uint16_t* d = dst;
 
   // Left black border
-  memset(d, 0, (size_t)ctrl->displayX * sizeof(uint16_t));
-  d += ctrl->displayX;
+  memset(d, 0, (size_t)ctrl->outDestX * sizeof(uint16_t));
+  d += ctrl->outDestX;
 
   // Active area: horizontal scaling + brightness inversion + rotation
   // Inversion: XOR all RGB565 bits → (31-R, 63-G, 31-B) inverts each channel
   const uint16_t inv = ctrl->inverted ? 0xFFFFu : 0u;
   const uint16_t* fb = ctrl->framebuf;
-  const uint32_t physW = ctrl->config.lcdWidth;
-  const uint32_t physH = ctrl->config.lcdHeight;
+  const uint32_t stride = ctrl->config.buffWidth;
+  const uint32_t srcX = ctrl->outSrcX;
+  const uint32_t srcY = ctrl->outSrcY;
+  const uint32_t srcW = ctrl->outSrcW;
+  const uint32_t srcH = ctrl->outSrcH;
+  const uint32_t srcR = srcX + srcW - 1;
+  const uint32_t srcB = srcY + srcH - 1;
   uint32_t hAccum = 0;
 
   switch (ctrl->outputRotation) {
     default:
     case 0: {
       // rot=0: normal (row-major readout)
-      const uint16_t* srcRow = fb + (uint32_t)lcdRowOut * physW;
-      for (uint16_t x = 0; x < ctrl->displayW; ++x) {
+      const uint16_t* srcRow = fb + (lcdRowOut + srcY) * stride;
+      hAccum += srcX << 16;  // start at the left of the trim area
+      for (uint16_t x = 0; x < ctrl->outDestW; ++x) {
         *d++ = srcRow[hAccum >> 16] ^ inv;
-        hAccum += ctrl->hStep;
+        hAccum += ctrl->outSrcStepH;
       }
       break;
     }
     case 1: {
-      // rot=1: 90° CW  — (lcdRowOut, lcdColOut) → ((physH-1-lcdColOut),
-      // lcdRowOut)
+      // rot=1: 90° CW  — (focusSrcY, lcdColOut) → ((trimH-1-lcdColOut),
+      // focusSrcY)
       // Use a running pointer to avoid per-pixel multiply: start at the top of
-      // the source column and step backward by physW as lcdColOut increases.
+      // the source column and step backward by stride as lcdColOut increases.
       uint32_t prevCol = 0;
-      const uint16_t* cur = fb + (uint32_t)(physH - 1u) * physW + lcdRowOut;
-      for (uint16_t x = 0; x < ctrl->displayW; ++x) {
+      const uint16_t* cur = fb + srcB * stride + srcX + lcdRowOut;
+      for (uint16_t x = 0; x < ctrl->outDestW; ++x) {
         uint32_t lcdColOut = hAccum >> 16;
         while (prevCol < lcdColOut) {
-          cur -= physW;
+          cur -= stride;
           ++prevCol;
         }
         *d++ = *cur ^ inv;
-        hAccum += ctrl->hStep;
+        hAccum += ctrl->outSrcStepH;
       }
       break;
     }
     case 2: {
-      // rot=2: 180° — (lcdRowOut, lcdColOut) → ((physH-1-lcdRowOut),
-      // (physW-1-lcdColOut))
-      const uint16_t* srcRow = fb + (uint32_t)(physH - 1u - lcdRowOut) * physW;
-      for (uint16_t x = 0; x < ctrl->displayW; ++x) {
-        uint16_t lcdColOut = static_cast<uint16_t>(hAccum >> 16);
-        *d++ = srcRow[physW - 1u - lcdColOut] ^ inv;
-        hAccum += ctrl->hStep;
+      // rot=2: 180° — (focusSrcY, lcdColOut) → ((trimH-1-focusSrcY),
+      // (trimW-1-lcdColOut))
+      const uint16_t* srcRow = fb + (uint32_t)(srcB - lcdRowOut) * stride;
+      hAccum += (srcR << 16) + 0xFFFF;  // start at the right of the trim area
+      for (uint16_t x = 0; x < ctrl->outDestW; ++x) {
+        *d++ = srcRow[hAccum >> 16] ^ inv;
+        hAccum -= ctrl->outSrcStepH;
       }
       break;
     }
     case 3: {
-      // rot=3: 270° CW — (lcdRowOut, lcdColOut) → (lcdColOut,
-      // (physW-1-lcdRowOut))
+      // rot=3: 270° CW — (focusSrcY, lcdColOut) → (lcdColOut,
+      // (physW-1-focusSrcY))
       // Use a running pointer to avoid per-pixel multiply: start at the bottom
       // of the source column and step forward by physW as lcdColOut increases.
       uint32_t prevCol = 0;
-      const uint16_t* cur = fb + (physW - 1u - lcdRowOut);
-      for (uint16_t x = 0; x < ctrl->displayW; ++x) {
+      const uint16_t* cur = fb + srcY * stride + (srcR - lcdRowOut);
+      for (uint16_t x = 0; x < ctrl->outDestW; ++x) {
         uint32_t lcdColOut = hAccum >> 16;
         while (prevCol < lcdColOut) {
-          cur += physW;
+          cur += stride;
           ++prevCol;
         }
         *d++ = *cur ^ inv;
-        hAccum += ctrl->hStep;
+        hAccum += ctrl->outSrcStepH;
       }
       break;
     }
@@ -560,7 +1001,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
 
   // Right black border
   memset(d, 0,
-         (size_t)(dviW - ctrl->displayX - ctrl->displayW) * sizeof(uint16_t));
+         (size_t)(dviW - ctrl->outDestX - ctrl->outDestW) * sizeof(uint16_t));
 }
 
 LcdTapConfig LcdTap::getConfig() const {
@@ -576,7 +1017,7 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK) return ctrl->status;
 
-  if (cfg.lcdWidth == 0 || cfg.lcdHeight == 0 || cfg.dviWidth == 0 ||
+  if (cfg.buffWidth == 0 || cfg.buffHeight == 0 || cfg.dviWidth == 0 ||
       cfg.dviHeight == 0) {
     return Status::INVALID_PARAM;
   }
@@ -585,20 +1026,20 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   // one.  The new controller starts from a clean state (sleeping/displayOn are
   // not preserved because the new controller has not yet received any
   // commands).
-  if (cfg.controller != ctrl->config.controller) {
+  if (cfg.controllerFamily != ctrl->config.controllerFamily) {
     HostInterface host = ctrl->host;
     if (ctrl->framebuf) host.free(ctrl->framebuf);
     delete ctrl;
     impl_ = nullptr;
 
-    switch (cfg.controller) {
-      case ControllerType::ST7789:
+    switch (cfg.controllerFamily) {
+      case ControllerFamily::ST7789:
         ctrl = new (std::nothrow) St7789Controller();
         break;
-      case ControllerType::SSD1306:
+      case ControllerFamily::SSD1306:
         ctrl = new (std::nothrow) Ssd1306Controller();
         break;
-      case ControllerType::SSD1331:
+      case ControllerFamily::SSD1331:
         ctrl = new (std::nothrow) Ssd1331Controller();
         break;
       default: return Status::OUT_OF_MEMORY;
@@ -611,7 +1052,7 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
     ctrl->framebuf = nullptr;
     impl_ = ctrl;
 
-    size_t fbSize = (size_t)cfg.lcdWidth * cfg.lcdHeight * sizeof(uint16_t);
+    size_t fbSize = (size_t)cfg.buffWidth * cfg.buffHeight * sizeof(uint16_t);
     ctrl->framebuf = static_cast<uint16_t*>(host.alloc(fbSize));
     if (!ctrl->framebuf) return Status::OUT_OF_MEMORY;
 
@@ -624,9 +1065,9 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
 
   // Same controller type: update config in-place.
   // Allocate new framebuffer before freeing the old one.
-  size_t currFbSize =
-      (size_t)ctrl->config.lcdWidth * ctrl->config.lcdHeight * sizeof(uint16_t);
-  size_t newFbSize = (size_t)cfg.lcdWidth * cfg.lcdHeight * sizeof(uint16_t);
+  size_t currFbSize = (size_t)ctrl->config.buffWidth * ctrl->config.buffHeight *
+                      sizeof(uint16_t);
+  size_t newFbSize = (size_t)cfg.buffWidth * cfg.buffHeight * sizeof(uint16_t);
   if (newFbSize > currFbSize) {
     uint16_t* newFb = static_cast<uint16_t*>(ctrl->host.alloc(newFbSize));
     if (!newFb) return Status::OUT_OF_MEMORY;

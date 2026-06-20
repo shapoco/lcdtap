@@ -4,15 +4,15 @@
 
 namespace lcdtap {
 
-uint16_t Ssd1306Controller::logicalWidth() const { return config.lcdWidth; }
+uint16_t Ssd1306Controller::logicalWidth() const { return config.buffWidth; }
 
-uint16_t Ssd1306Controller::logicalHeight() const { return config.lcdHeight; }
+uint16_t Ssd1306Controller::logicalHeight() const { return config.buffHeight; }
 
 void Ssd1306Controller::updateWriteCache() {
   cachedHOffset = 0;
   cachedHStep = 1;
   cachedVOffset = 0;
-  cachedVStep = config.lcdWidth;
+  cachedVStep = config.buffWidth;
 }
 
 void Ssd1306Controller::softReset() {
@@ -26,9 +26,9 @@ void Ssd1306Controller::softReset() {
   sleeping = false;  // SSD1306 has no sleep mode
   interfaceFormat = InterfaceFormat::GRAY1_VPACK8_H2L;
   casetXS = 0;
-  casetXE = static_cast<uint16_t>(config.lcdWidth - 1);
+  casetXE = static_cast<uint16_t>(config.buffWidth - 1);
   rasetYS = 0;
-  rasetYE = static_cast<uint16_t>(config.lcdHeight - 1);
+  rasetYE = static_cast<uint16_t>(config.buffHeight - 1);
   ramwrX = 0;
   ramwrY = 0;
 }
@@ -47,20 +47,32 @@ void Ssd1306Controller::dispatchCommand(uint8_t cmd) {
         break;
       case CMD_SET_COL_ADDR:
         if (cmdDataLen == 0) {
-          casetXS = LCDTAP_CLIP(0, config.lcdWidth - 1, cmd);
+          casetXS = LCDTAP_CLIP(0, config.buffWidth - 1, cmd);
           ramwrX = casetXS;
         } else {
-          casetXE = LCDTAP_CLIP(casetXS, config.lcdWidth - 1, cmd);
+          casetXE = LCDTAP_CLIP(casetXS, config.buffWidth - 1, cmd);
+          if (ssdSegmentRemap) {
+            expandTrimX(config.buffWidth - 1 - casetXE,
+                        config.buffWidth - 1 - casetXS);
+          } else {
+            expandTrimX(casetXS, casetXE);
+          }
           log("SSD1306: SET_COL_ADDR");
         }
         break;
       case CMD_SET_PAGE_ADDR:
         if (cmdDataLen == 0) {
-          rasetYS = LCDTAP_CLIP(0, config.lcdHeight - 1, (uint16_t)cmd * 8u);
+          rasetYS = LCDTAP_CLIP(0, config.buffHeight - 1, (uint16_t)cmd * 8u);
           ramwrY = rasetYS;
         } else {
-          rasetYE = LCDTAP_CLIP(rasetYS, config.lcdHeight - 1,
+          rasetYE = LCDTAP_CLIP(rasetYS, config.buffHeight - 1,
                                 (uint16_t)cmd * 8u + 7u);
+          if (ssdComFlip) {
+            expandTrimY(config.buffHeight - 1 - rasetYE,
+                        config.buffHeight - 1 - rasetYS);
+          } else {
+            expandTrimY(rasetYS, rasetYE);
+          }
           log("SSD1306: SET_PAGE_ADDR");
         }
         break;
@@ -166,8 +178,8 @@ bool Ssd1306Controller::isRamWriteCommand() const { return true; }
 // GRAY1_VPACK8_H2L: 1 byte = 8 vertical pixels (bit0=top, bit7=bottom)
 void Ssd1306Controller::processRamwrData(const uint8_t* data, uint32_t numElems,
                                          uint32_t stride) {
-  const uint16_t lcdW = config.lcdWidth;
-  const uint16_t lcdH = config.lcdHeight;
+  const uint16_t lcdW = config.buffWidth;
+  const uint16_t lcdH = config.buffHeight;
   const uint32_t byteLen = numElems * stride;
 
   for (uint32_t i = 0; i < byteLen; i += stride) {
@@ -213,8 +225,8 @@ void Ssd1306Controller::processRamwrData(const uint8_t* data, uint32_t numElems,
 
 void Ssd1306Controller::applyPageModeCol() {
   ramwrX = static_cast<uint16_t>(pageColHigh | pageColLow);
-  if (ramwrX >= config.lcdWidth)
-    ramwrX = static_cast<uint16_t>(config.lcdWidth - 1u);
+  if (ramwrX >= config.buffWidth)
+    ramwrX = static_cast<uint16_t>(config.buffWidth - 1u);
 }
 
 }  // namespace lcdtap

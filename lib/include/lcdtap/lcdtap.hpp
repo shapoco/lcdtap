@@ -27,13 +27,37 @@ enum class Status : int {
 };
 
 //=============================================================================
-// LCD controller type
+// LCD controller families
 //=============================================================================
-enum class ControllerType : uint8_t {
+enum class ControllerFamily : uint8_t {
   ST7789,
   SSD1306,
   SSD1331,
+  NUM_CONTROLLERS,
 };
+
+static const char* CONTROLLER_NAMES[] = {"ST7789", "SSD1306", "SSD1331"};
+static_assert(sizeof(CONTROLLER_NAMES) / sizeof(CONTROLLER_NAMES[0]) ==
+                  static_cast<size_t>(ControllerFamily::NUM_CONTROLLERS),
+              "CONTROLLER_NAMES size must match ControllerFamily enum");
+
+//=============================================================================
+// Bus types (physical interface between host and LCD controller)
+//=============================================================================
+
+enum class BusType : uint8_t {
+  I2C,
+  SPI_4LINE,
+  SPI_3LINE,
+  PARALLEL,
+  NUM_INTERFACES,
+};
+
+static const char* INTERFACE_NAMES[] = {"I2C", "4-Line SPI", "3-Line SPI",
+                                        "Parallel"};
+static_assert(sizeof(INTERFACE_NAMES) / sizeof(INTERFACE_NAMES[0]) ==
+                  static_cast<size_t>(BusType::NUM_INTERFACES),
+              "INTERFACE_NAMES size must match lcdtap::BusType enum");
 
 //=============================================================================
 // Interface Pixel format (SPI/I2C input side)
@@ -68,23 +92,82 @@ enum class InterfaceFormat : uint8_t {
   NUM_FORMATS,
 };
 
+static const char* INTERFACE_FORMAT_NAMES[] = {
+    "Off",    "GRAY1",  "RGB111",    "RGB332",
+    "RGB444", "RGB565", "RGB666-LA", "RGB666-RA"};
+static_assert(
+    sizeof(INTERFACE_FORMAT_NAMES) / sizeof(INTERFACE_FORMAT_NAMES[0]) ==
+        static_cast<size_t>(InterfaceFormat::NUM_FORMATS) + 1,
+    "INTERFACE_FORMAT_NAMES size must match InterfaceFormat enum + 1");
+
 //=============================================================================
-// Scaling mode (when LCD resolution differs from DVI active area)
+// Trim mode (cropping of framebuffer content before scaling to DVI output)
 //=============================================================================
+
+enum class TrimMode : uint8_t {
+  OFF,
+  AUTO,
+  CUSTOM,
+  NUM_MODES,
+};
+
+static const char* TRIM_MODE_NAMES[] = {"Off", "Auto", "Custom"};
+static_assert(sizeof(TRIM_MODE_NAMES) / sizeof(TRIM_MODE_NAMES[0]) ==
+                  static_cast<size_t>(TrimMode::NUM_MODES),
+              "TRIM_MODE_NAMES size must match TrimMode enum");
+
+//=============================================================================
+// Scale mode (scaling of framebuffer content to DVI output)
+//=============================================================================
+
 enum class ScaleMode : uint8_t {
   STRETCH,        // Stretch to fill the full DVI area (ignores aspect ratio)
   FIT,            // Letterbox/pillarbox to preserve aspect ratio
   PIXEL_PERFECT,  // Scale by integer factor; black padding around the image
+  NUM_MODES,
 };
+
+static const char* SCALE_MODE_NAMES[] = {"Stretch", "Fit", "Dot-by-Dot"};
+static_assert(sizeof(SCALE_MODE_NAMES) / sizeof(SCALE_MODE_NAMES[0]) ==
+                  static_cast<size_t>(ScaleMode::NUM_MODES),
+              "SCALE_MODE_NAMES size must match ScaleMode enum");
+
+//=============================================================================
+// Configuration presets (predefined controller configs for common devices)
+//=============================================================================
+
+enum class ConfigPreset : uint8_t {
+  ILI9342,
+  ILI9488,
+  SSD1306,
+  SSD1331,
+  ST7735,
+  ST7789,
+  ARDUBOY,
+  M5STACK_CORES3,
+  THUMBY,
+  TINYJOYPAD,
+  XIAMOCON,
+  NUM_PRESETS,
+};
+
+static const char* CONFIG_PRESET_NAMES[] = {
+    "ILI9342", "ILI9488",        "SSD1306", "SSD1331",    "ST7735",   "ST7789",
+    "Arduboy", "M5Stack CoreS3", "Thumby",  "TinyJoypad", "Xiamocon",
+};
+static_assert(sizeof(CONFIG_PRESET_NAMES) / sizeof(CONFIG_PRESET_NAMES[0]) ==
+                  static_cast<size_t>(ConfigPreset::NUM_PRESETS),
+              "CONFIG_PRESET_NAMES size must match ConfigPreset enum");
 
 //=============================================================================
 // Configuration structure
 //=============================================================================
 struct LcdTapConfig {
-  ControllerType controller;
+  ControllerFamily controllerFamily;
+  BusType busInterface;
 
-  uint16_t lcdWidth;
-  uint16_t lcdHeight;
+  uint16_t buffWidth;
+  uint16_t buffHeight;
 
   bool inverted;  // true: INVON→non-inverted / INVOFF→inverted
   bool swapRB;    // true: invert cachedBGR (swap R and B channels)
@@ -97,11 +180,63 @@ struct LcdTapConfig {
   // 0..NUM_FORMATS-1 = forced pixel format regardless of COLMOD/SETREMAP.
   int8_t interfaceFormatOverride;
 
+  TrimMode trimMode;
+  uint16_t trimX;
+  uint16_t trimY;
+  uint16_t trimWidth;
+  uint16_t trimHeight;
+
   uint16_t dviWidth;   // DVI active area width (pixels)
   uint16_t dviHeight;  // DVI active area height (lines)
   ScaleMode scaleMode;
   uint8_t outputRotation;  // 0:none, 1:90°CW, 2:180°, 3:270°CW
 };
+
+enum class ConfigId : uint8_t {
+  CTRL_FAMILY,
+  BUS_INTERFACE,
+  BUFF_WIDTH,
+  BUFF_HEIGHT,
+  TRIM_MODE,
+  TRIM_X,
+  TRIM_Y,
+  TRIM_WIDTH,
+  TRIM_HEIGHT,
+  INVERSION,
+  SWAP_RB,
+  OUTPUT_ROT,
+  SCALE_MODE,
+  FORCE_PWR_ON,
+  INTF_FMT_OVR,
+  NUM_CONFIGS,
+};
+
+enum class ValueType : uint8_t {
+  INT16,
+  BOOL,
+  ENUM,
+};
+
+struct ConfigEntry {
+  ValueType type;        // Value type
+  const char* name;      // Item label
+  const char* unit;      // Unit string shown after the value (e.g. "px", "deg")
+  const char** options;  // Display strings for ENUM type (nullptr otherwise)
+  int16_t min;           // Minimum value (INTEGER / ENUM index)
+  int16_t max;           // Maximum value (INTEGER / ENUM index)
+  int16_t step;          // Increment per key press (INTEGER / ENUM)
+  int16_t value;         // Current value; for ACTION: OSD_ACTION_XXX
+  int16_t enableKeyId;
+  int16_t enableKeyValueMin;
+  int16_t enableKeyValueMax;
+};
+
+//=============================================================================
+// Common string tables
+//=============================================================================
+
+static const char* ON_OFF_NAMES[] = {"Off", "On"};
+static const char* ROTATION_NAMES[] = {"0", "90", "180", "270"};
 
 //=============================================================================
 // Host interface
@@ -127,12 +262,31 @@ struct HostInterface {
 // Writes default values for the specified controller into cfg.
 // Override fields as needed before passing to the LcdTap constructor.
 //=============================================================================
-void getDefaultConfig(ControllerType type, LcdTapConfig* cfg);
+void getDefaultConfig(ControllerFamily type, LcdTapConfig* cfg);
 
-InterfaceFormat getDefaultInterfaceFormat(ControllerType type);
+//=============================================================================
+// Get configuration preset
+// Writes a predefined configuration for a common device into cfg.
+//=============================================================================
+void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg);
 
+//=============================================================================
+// Get default interface format for a given controller family
+//=============================================================================
+InterfaceFormat getDefaultInterfaceFormat(ControllerFamily type);
+
+//=============================================================================
 // Returns a short display name for the given InterfaceFormat (e.g. "RGB565").
+//=============================================================================
 const char* getShortInterfaceFormatName(InterfaceFormat fmt);
+
+//=============================================================================
+// Configuration entry access
+//=============================================================================
+void getConfigEntryById(ConfigId id, ConfigEntry* e);
+int16_t getConfigValueById(const LcdTapConfig& cfg, ConfigId id);
+void setConfigValueById(LcdTapConfig* cfg, ConfigId id, int16_t value);
+void formatConfigValue(char* buf, int bufLen, const ConfigEntry& item);
 
 //=============================================================================
 // Command dump

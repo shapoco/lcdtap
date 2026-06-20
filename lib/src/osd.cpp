@@ -7,24 +7,6 @@
 namespace lcdtap {
 
 //=============================================================================
-// File-scope lookup tables
-//=============================================================================
-
-static const char* kControllerNames[] = {"ST7789", "SSD1306", "SSD1331"};
-static constexpr int kNumControllers = 3;
-
-static const char* kOnOffNames[] = {"OFF", "ON"};
-
-static const char* kRotationNames[] = {"0", "90", "180", "270"};
-
-static const char* kScaleModeNames[] = {"STRETCH", "FIT", "PIXEL_PERF"};
-static constexpr int kNumScaleModes = 3;
-
-static const char*
-    kIfFmtOvrNames[1 + static_cast<int>(InterfaceFormat::NUM_FORMATS)];
-static bool kIfFmtOvrNamesInited = false;
-
-//=============================================================================
 // getDefaultOsdConfig
 //=============================================================================
 
@@ -46,8 +28,7 @@ void Osd::init(const OsdConfig& cfg) {
   state_ = OsdState::HIDDEN;
   blinkOn_ = true;
   lastInput_ = 0;
-  keyPressMs_ = 0;
-  lastRepeatMs_ = 0;
+  nextRepeatMs_ = 0;
   lastBlinkMs_ = 0;
   dumpScrollOffset_ = 0;
   lastDumpState_ = DumpState::WAIT;
@@ -73,161 +54,224 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
   uint8_t newKeys = static_cast<uint8_t>(input & ~lastInput_);
   if (newKeys) {
     activeKeys = newKeys;
-    keyPressMs_ = nowMs;
-    lastRepeatMs_ = nowMs;
-  } else if (input && (nowMs - keyPressMs_ >= KEY_REPEAT_DELAY_MS) &&
-             (nowMs - lastRepeatMs_ >= KEY_REPEAT_PERIOD_MS)) {
+    repeatPeriodMs_ = KEY_REPEAT_PERIOD_INIT_MS;
+    nextRepeatMs_ = nowMs + KEY_REPEAT_DELAY_MS;
+  } else if (input && nowMs >= nextRepeatMs_) {
     activeKeys = input;
-    lastRepeatMs_ = nowMs;
+    repeatPeriodMs_ = repeatPeriodMs_ * 31 / 32;
+    if (repeatPeriodMs_ < KEY_REPEAT_PERIOD_MIN_MS) {
+      repeatPeriodMs_ = KEY_REPEAT_PERIOD_MIN_MS;
+    }
+    nextRepeatMs_ = nowMs + repeatPeriodMs_;
   }
   lastInput_ = input;
 
+  switch (state_) {
+    case OsdState::HIDDEN: return updateHidden(lcdtap, nowMs, activeKeys);
+    case OsdState::PRESET: return updatePresetList(lcdtap, nowMs, activeKeys);
+    case OsdState::MAIN_MENU: return updateMainMenu(lcdtap, nowMs, activeKeys);
+    case OsdState::DUMP_VIEW: return updateDumpView(lcdtap, nowMs, activeKeys);
+    default: return OSD_ACTION_NONE;
+  }
+}
+
+uint8_t Osd::updateHidden(LcdTap& lcdtap, uint64_t nowMs, uint8_t activeKeys) {
+  uint8_t action = OSD_ACTION_NONE;
+  // Quick rotation: Left/Right cycle output rotation without opening OSD
+  if (activeKeys & (OSD_KEY_LEFT | OSD_KEY_RIGHT)) {
+    LcdTapConfig cfg = lcdtap.getConfig();
+    if (activeKeys & OSD_KEY_LEFT) {
+      cfg.outputRotation = (cfg.outputRotation + 3u) & 3u;
+    } else {
+      cfg.outputRotation = (cfg.outputRotation + 1u) & 3u;
+    }
+    lcdtap.setOutputRotation(cfg.outputRotation);
+    action = OSD_ACTION_APPLY;
+  }
+  // Show OSD on Enter
+  if (activeKeys & OSD_KEY_ENTER) {
+    initMenuItems(lcdtap);
+    if (cfg_.onMenuOpen) cfg_.onMenuOpen(this, cfg_.userData);
+    state_ = OsdState::MAIN_MENU;
+    blinkOn_ = true;
+    lastBlinkMs_ = nowMs;
+  }
+  return action;
+}
+
+uint8_t Osd::updateMainMenu(LcdTap& lcdtap, uint64_t nowMs,
+                            uint8_t activeKeys) {
   uint8_t action = OSD_ACTION_NONE;
 
-  if (state_ == OsdState::HIDDEN) {
-    // Quick rotation: Left/Right cycle output rotation without opening OSD
-    if (activeKeys & (OSD_KEY_LEFT | OSD_KEY_RIGHT)) {
-      LcdTapConfig cfg = lcdtap.getConfig();
-      if (activeKeys & OSD_KEY_LEFT) {
-        cfg.outputRotation = (cfg.outputRotation + 3u) & 3u;
-      } else {
-        cfg.outputRotation = (cfg.outputRotation + 1u) & 3u;
-      }
-      lcdtap.setOutputRotation(cfg.outputRotation);
-      action = OSD_ACTION_APPLY;
-    }
-    // Show OSD on Enter
-    if (activeKeys & OSD_KEY_ENTER) {
-      initMenuItems(lcdtap);
-      if (cfg_.onMenuOpen) cfg_.onMenuOpen(this, cfg_.userData);
-      state_ = OsdState::MAIN_MENU;
-      blinkOn_ = true;
-      lastBlinkMs_ = nowMs;
-    }
-  } else if (state_ == OsdState::MAIN_MENU) {
-    // Navigate up/down
-    if (activeKeys & OSD_KEY_UP) {
+  // Navigate up/down
+  if (activeKeys & OSD_KEY_UP) {
+    // Skip disabled items when navigating
+    do {
       selectedItem_ =
           (selectedItem_ == 0) ? (numItems_ - 1) : (selectedItem_ - 1);
-      updateScroll();
-    }
-    if (activeKeys & OSD_KEY_DOWN) {
+    } while (!items_[selectedItem_].isEnabled);
+    updateScroll();
+  }
+  if (activeKeys & OSD_KEY_DOWN) {
+    // Skip disabled items when navigating
+    do {
       selectedItem_ =
           (selectedItem_ == numItems_ - 1) ? 0 : (selectedItem_ + 1);
-      updateScroll();
-    }
+    } while (!items_[selectedItem_].isEnabled);
+    updateScroll();
+  }
 
-    OsdMenuItem& sel = items_[selectedItem_];
+  OsdMenuItem& sel = items_[selectedItem_];
+  ConfigEntry& cfg = sel.config;
 
-    if (sel.type == OsdMenuType::ACTION) {
-      if (activeKeys & OSD_KEY_ENTER) {
-        if (sel.id == OSD_ITEM_ID_VIEW_DUMP) {
-          state_ = OsdState::DUMP_VIEW;
-          dumpScrollOffset_ = 0;
-          lastDumpState_ = lcdtap.dumpGetState();
-          lastDumpSize_ = lcdtap.dumpGetSize();
-          renderDumpView(lcdtap);
-        } else {
-          bool stayOpen = false;
-          if (cfg_.onActionActivated) {
-            stayOpen =
-                cfg_.onActionActivated(this, &sel, lcdtap, cfg_.userData);
-          }
-          if (!stayOpen) {
-            action = static_cast<uint8_t>(sel.value);
-            if (action == OSD_ACTION_APPLY) {
-              applyConfig(lcdtap);
-            }
-            state_ = OsdState::HIDDEN;
-          }
-        }
-      }
-    } else {
-      // Adjust value with left/right
-      if (activeKeys & OSD_KEY_LEFT) {
-        switch (sel.type) {
-          case OsdMenuType::INTEGER:
-            if (sel.value - sel.step >= sel.min)
-              sel.value = static_cast<int16_t>(sel.value - sel.step);
-            else
-              sel.value = sel.min;
-            break;
-          case OsdMenuType::BOOL: sel.value = (~sel.value) & 1; break;
-          case OsdMenuType::ENUM:
-            sel.value = static_cast<int16_t>(sel.value - sel.step);
-            if (sel.value < sel.min) sel.value = sel.max;
-            break;
-          default: break;
-        }
-      }
-      if (activeKeys & OSD_KEY_RIGHT) {
-        switch (sel.type) {
-          case OsdMenuType::INTEGER:
-            if (sel.value + sel.step <= sel.max)
-              sel.value = static_cast<int16_t>(sel.value + sel.step);
-            else
-              sel.value = sel.max;
-            break;
-          case OsdMenuType::BOOL: sel.value = (~sel.value) & 1; break;
-          case OsdMenuType::ENUM:
-            sel.value = static_cast<int16_t>(sel.value + sel.step);
-            if (sel.value > sel.max) sel.value = sel.min;
-            break;
-          default: break;
-        }
-      }
-      if (activeKeys & OSD_KEY_ENTER) {
-        setSelectedIndex(getItemIndexById(OSD_ITEM_ID_APPLY));
-        renderAll();
-      }
-    }
-
-    if (state_ == OsdState::MAIN_MENU) renderAll();
-  } else if (state_ == OsdState::DUMP_VIEW) {
-    bool needsRender = dumpViewDirty_;
-
-    if (activeKeys & OSD_KEY_LEFT) {
-      state_ = OsdState::MAIN_MENU;
-      renderAll();
-      return OSD_ACTION_NONE;
-    }
+  if (sel.isAction) {
     if (activeKeys & OSD_KEY_ENTER) {
-      lcdtap.dumpStart(getDefaultDumpConfig());
-      lcdtap.dumpForceTrigger();
-      needsRender = true;
+      if (cfg.value == OSD_ACTION_PRESET) {
+        state_ = OsdState::PRESET;
+        renderPresetList();
+      } else if (sel.id == OSD_ITEM_ID_VIEW_DUMP) {
+        state_ = OsdState::DUMP_VIEW;
+        dumpScrollOffset_ = 0;
+        lastDumpState_ = lcdtap.dumpGetState();
+        lastDumpSize_ = lcdtap.dumpGetSize();
+        renderDumpView(lcdtap);
+      } else {
+        bool stayOpen = false;
+        if (cfg_.onActionActivated) {
+          stayOpen = cfg_.onActionActivated(this, &sel, lcdtap, cfg_.userData);
+        }
+        if (!stayOpen) {
+          action = static_cast<uint8_t>(cfg.value);
+          if (action == OSD_ACTION_APPLY) {
+            applyConfig(lcdtap);
+          }
+          state_ = OsdState::HIDDEN;
+        }
+      }
+    }
+  } else {
+    // Adjust value with left/right
+    bool changed = false;
+    if (activeKeys & OSD_KEY_LEFT) {
+      changed = true;
+      switch (cfg.type) {
+        case ValueType::INT16:
+          if (cfg.value - cfg.step >= cfg.min)
+            cfg.value = static_cast<int16_t>(cfg.value - cfg.step);
+          else
+            cfg.value = cfg.min;
+
+          break;
+        case ValueType::BOOL: cfg.value = (~cfg.value) & 1; break;
+        case ValueType::ENUM:
+          cfg.value = static_cast<int16_t>(cfg.value - cfg.step);
+          if (cfg.value < cfg.min) cfg.value = cfg.max;
+          break;
+        default: break;
+      }
     }
     if (activeKeys & OSD_KEY_RIGHT) {
-      lcdtap.dumpAbort();
-      needsRender = true;
-    }
-    if (activeKeys & OSD_KEY_UP) {
-      if (dumpScrollOffset_ > 0) {
-        --dumpScrollOffset_;
-        needsRender = true;
+      changed = true;
+      switch (cfg.type) {
+        case ValueType::INT16:
+          if (cfg.value + cfg.step <= cfg.max)
+            cfg.value = static_cast<int16_t>(cfg.value + cfg.step);
+          else
+            cfg.value = cfg.max;
+          break;
+        case ValueType::BOOL: cfg.value = (~cfg.value) & 1; break;
+        case ValueType::ENUM:
+          cfg.value = static_cast<int16_t>(cfg.value + cfg.step);
+          if (cfg.value > cfg.max) cfg.value = cfg.min;
+          break;
+        default: break;
       }
     }
-    if (activeKeys & OSD_KEY_DOWN) {
-      constexpr int MAX_SCROLL = LcdTap::DUMP_BUFFER_SIZE / 16 - (ROWS - 3);
-      if (dumpScrollOffset_ < MAX_SCROLL) {
-        ++dumpScrollOffset_;
-        needsRender = true;
-      }
+    if (changed) {
+      updateItemEnables();
     }
-
-    DumpState curState = lcdtap.dumpGetState();
-    uint16_t curSize = lcdtap.dumpGetSize();
-    if (curState != lastDumpState_ || curSize != lastDumpSize_) {
-      needsRender = true;
-      lastDumpState_ = curState;
-      lastDumpSize_ = curSize;
-    }
-    if (needsRender) {
-      renderDumpView(lcdtap);
-      dumpViewDirty_ = false;
+    if (activeKeys & OSD_KEY_ENTER) {
+      setSelectedIndex(getItemIndexById(OSD_ITEM_ID_APPLY));
+      renderAll();
     }
   }
 
+  if (state_ == OsdState::MAIN_MENU) renderAll();
+
   return action;
+}
+
+uint8_t Osd::updatePresetList(LcdTap& lcdtap, uint64_t nowMs,
+                              uint8_t activeKeys) {
+  int numPresets = static_cast<int>(ConfigPreset::NUM_PRESETS);
+  if (activeKeys & OSD_KEY_LEFT) {
+    state_ = OsdState::MAIN_MENU;
+    renderAll();
+  }
+  if (activeKeys & OSD_KEY_ENTER) {
+    // Load the selected preset
+    LcdTapConfig cfg;
+    getPresetConfig(static_cast<ConfigPreset>(presetSelectedIndex_), &cfg);
+    loadConfig(cfg);
+    state_ = OsdState::MAIN_MENU;
+    setSelectedIndex(getItemIndexById(OSD_ITEM_ID_APPLY));
+    renderAll();
+  }
+  if (activeKeys & OSD_KEY_UP) {
+    presetSelectedIndex_ = (presetSelectedIndex_ + numPresets - 1) % numPresets;
+    renderPresetList();
+  }
+  if (activeKeys & OSD_KEY_DOWN) {
+    presetSelectedIndex_ = (presetSelectedIndex_ + 1) % numPresets;
+    renderPresetList();
+  }
+  return OSD_ACTION_NONE;
+}
+
+uint8_t Osd::updateDumpView(LcdTap& lcdtap, uint64_t nowMs,
+                            uint8_t activeKeys) {
+  bool needsRender = dumpViewDirty_;
+
+  if (activeKeys & OSD_KEY_LEFT) {
+    state_ = OsdState::MAIN_MENU;
+    renderAll();
+    return OSD_ACTION_NONE;
+  }
+  if (activeKeys & OSD_KEY_ENTER) {
+    lcdtap.dumpStart(getDefaultDumpConfig());
+    lcdtap.dumpForceTrigger();
+    needsRender = true;
+  }
+  if (activeKeys & OSD_KEY_RIGHT) {
+    lcdtap.dumpAbort();
+    needsRender = true;
+  }
+  if (activeKeys & OSD_KEY_UP) {
+    if (dumpScrollOffset_ > 0) {
+      --dumpScrollOffset_;
+      needsRender = true;
+    }
+  }
+  if (activeKeys & OSD_KEY_DOWN) {
+    constexpr int MAX_SCROLL = LcdTap::DUMP_BUFFER_SIZE / 16 - (ROWS - 3);
+    if (dumpScrollOffset_ < MAX_SCROLL) {
+      ++dumpScrollOffset_;
+      needsRender = true;
+    }
+  }
+
+  DumpState curState = lcdtap.dumpGetState();
+  uint16_t curSize = lcdtap.dumpGetSize();
+  if (curState != lastDumpState_ || curSize != lastDumpSize_) {
+    needsRender = true;
+    lastDumpState_ = curState;
+    lastDumpSize_ = curSize;
+  }
+  if (needsRender) {
+    renderDumpView(lcdtap);
+    dumpViewDirty_ = false;
+  }
+  return OSD_ACTION_NONE;
 }
 
 //=============================================================================
@@ -263,6 +307,49 @@ void Osd::fillScanline(uint16_t line, uint16_t* dst) const {
   }
 }
 
+void Osd::makeItemById(uint16_t id, OsdMenuItem* item) {
+  memset(item, 0, sizeof(*item));
+  item->id = id;
+
+  switch (id) {
+    case OSD_ITEM_ID_PRESET:
+      item->isAction = true;
+      item->config.name = "Load Preset";
+      item->config.value = OSD_ACTION_PRESET;
+      break;
+
+    // Command Dump
+    case OSD_ITEM_ID_VIEW_DUMP:
+      item->isAction = true;
+      item->config.name = "Command Dump";
+      item->config.value = OSD_ACTION_NONE;
+      break;
+
+    // Apply
+    case OSD_ITEM_ID_APPLY:
+      item->isAction = true;
+      item->config.name = "Apply";
+      item->config.value = OSD_ACTION_APPLY;
+      break;
+
+    // Cancel
+    case OSD_ITEM_ID_CANCEL:
+      item->isAction = true;
+      item->config.name = "Cancel";
+      item->config.value = OSD_ACTION_CANCEL;
+      break;
+
+    default:
+      uint16_t numConfigs = static_cast<uint16_t>(ConfigId::NUM_CONFIGS);
+      if (OSD_ITEM_ID_SYS_BASE <= id &&
+          id < OSD_USER_ITEM_ID_BASE + numConfigs) {
+        getConfigEntryById(static_cast<ConfigId>(id - OSD_ITEM_ID_SYS_BASE),
+                           &item->config);
+      }
+      break;
+  }
+}
+
 //=============================================================================
 // Osd::initMenuItems
 //=============================================================================
@@ -271,182 +358,43 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
   LcdTapConfig cfg = lcdtap.getConfig();
   numItems_ = 0;
 
-  if (!kIfFmtOvrNamesInited) {
-    kIfFmtOvrNames[0] = "Off";
-    for (int i = 0; i < static_cast<int>(InterfaceFormat::NUM_FORMATS); ++i) {
-      kIfFmtOvrNames[i + 1] =
-          getShortInterfaceFormatName(static_cast<InterfaceFormat>(i));
-    }
-    kIfFmtOvrNamesInited = true;
-  }
-
-  // Helper lambda to append an item and assign its ID
-  auto add = [this](uint16_t id) -> OsdMenuItem& {
+  for (uint16_t id = 1; id < OSD_NUM_SYSTEM_ITEMS; ++id) {
     OsdMenuItem& it = items_[numItems_++];
-    it.id = id;
-    return it;
-  };
-
-  // Controller Type
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_CONTROLLER);
-    it.type = OsdMenuType::ENUM;
-    it.name = "Controller Type";
-    it.unit = "";
-    it.options = kControllerNames;
-    it.min = 0;
-    it.max = static_cast<int16_t>(kNumControllers - 1);
-    it.step = 1;
-    it.value = static_cast<int16_t>(cfg.controller);
+    makeItemById(id, &it);
+    if (!it.isAction) {
+      it.config.value = getConfigValueById(
+          cfg, static_cast<ConfigId>(id - OSD_ITEM_ID_SYS_BASE));
+      if (it.config.enableKeyId >= 0) {
+        it.config.enableKeyId += OSD_ITEM_ID_SYS_BASE;
+      }
+    }
   }
 
-  // LCD Width
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_LCD_WIDTH);
-    it.type = OsdMenuType::INTEGER;
-    it.name = "LCD Width";
-    it.unit = "px";
-    it.options = nullptr;
-    it.min = 32;
-    it.max = 480;
-    it.step = 8;
-    it.value = static_cast<int16_t>(cfg.lcdWidth);
-  }
-
-  // LCD Height
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_LCD_HEIGHT);
-    it.type = OsdMenuType::INTEGER;
-    it.name = "LCD Height";
-    it.unit = "px";
-    it.options = nullptr;
-    it.min = 32;
-    it.max = 480;
-    it.step = 8;
-    it.value = static_cast<int16_t>(cfg.lcdHeight);
-  }
-
-  // Inversion
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_INVERSION);
-    it.type = OsdMenuType::BOOL;
-    it.name = "Inversion";
-    it.unit = "";
-    it.options = kOnOffNames;
-    it.min = 0;
-    it.max = 1;
-    it.step = 1;
-    it.value = cfg.inverted ? 1 : 0;
-  }
-
-  // Swap Red/Blue
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_SWAP_RB);
-    it.type = OsdMenuType::BOOL;
-    it.name = "Swap Red/Blue";
-    it.unit = "";
-    it.options = kOnOffNames;
-    it.min = 0;
-    it.max = 1;
-    it.step = 1;
-    it.value = cfg.swapRB ? 1 : 0;
-  }
-
-  // Force Power On
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_FORCE_PWR_ON);
-    it.type = OsdMenuType::BOOL;
-    it.name = "Force Power On";
-    it.unit = "";
-    it.options = kOnOffNames;
-    it.min = 0;
-    it.max = 1;
-    it.step = 1;
-    it.value = cfg.forcePowerOn ? 1 : 0;
-  }
-
-  // Format Override
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_IF_FMT_OVR);
-    it.type = OsdMenuType::ENUM;
-    it.name = "Format Override";
-    it.unit = "";
-    it.options = kIfFmtOvrNames;
-    it.min = -1;
-    it.max = static_cast<int16_t>(
-        static_cast<int>(InterfaceFormat::NUM_FORMATS) - 1);
-    it.step = 1;
-    it.value = static_cast<int16_t>(cfg.interfaceFormatOverride);
-  }
-
-  // Output Rotation
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_OUTPUT_ROT);
-    it.type = OsdMenuType::ENUM;
-    it.name = "Output Rotation";
-    it.unit = "deg";
-    it.options = kRotationNames;
-    it.min = 0;
-    it.max = 3;
-    it.step = 1;
-    it.value = static_cast<int16_t>(cfg.outputRotation & 3u);
-  }
-
-  // Output Scaling
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_SCALE_MODE);
-    it.type = OsdMenuType::ENUM;
-    it.name = "Output Scaling";
-    it.unit = "";
-    it.options = kScaleModeNames;
-    it.min = 0;
-    it.max = static_cast<int16_t>(kNumScaleModes - 1);
-    it.step = 1;
-    it.value = static_cast<int16_t>(cfg.scaleMode);
-  }
-
-  // Command Dump
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_VIEW_DUMP);
-    it.type = OsdMenuType::ACTION;
-    it.name = "Command Dump";
-    it.unit = "";
-    it.options = nullptr;
-    it.min = 0;
-    it.max = 0;
-    it.step = 0;
-    it.value = OSD_ACTION_NONE;
-  }
-
-  // Apply
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_APPLY);
-    it.type = OsdMenuType::ACTION;
-    it.name = "Apply";
-    it.unit = "";
-    it.options = nullptr;
-    it.min = 0;
-    it.max = 0;
-    it.step = 0;
-    it.value = OSD_ACTION_APPLY;
-  }
-
-  // Cancel
-  {
-    OsdMenuItem& it = add(OSD_ITEM_ID_CANCEL);
-    it.type = OsdMenuType::ACTION;
-    it.name = "Cancel";
-    it.unit = "";
-    it.options = nullptr;
-    it.min = 0;
-    it.max = 0;
-    it.step = 0;
-    it.value = OSD_ACTION_CANCEL;
-  }
+  updateItemEnables();
 
   selectedItem_ = 0;
   scrollOffset_ = 0;
   renderAll();
+}
+
+void Osd::updateItemEnables() {
+  for (int i = 0; i < numItems_; ++i) {
+    OsdMenuItem& item = items_[i];
+    bool isEnabled = true;
+    if (item.config.enableKeyId >= 0) {
+      const OsdMenuItem* enableKeyItem = nullptr;
+      getItemById(static_cast<uint16_t>(item.config.enableKeyId),
+                  &enableKeyItem);
+      if (enableKeyItem) {
+        const int16_t enableKeyValue = enableKeyItem->config.value;
+        if (enableKeyValue < item.config.enableKeyValueMin ||
+            enableKeyValue > item.config.enableKeyValueMax) {
+          isEnabled = false;
+        }
+      }
+    }
+    item.isEnabled = isEnabled;
+  }
 }
 
 //=============================================================================
@@ -476,17 +424,23 @@ void Osd::renderItem(int idx, int row) {
   const OsdMenuItem& item = items_[idx];
   const bool isSel = (idx == selectedItem_);
 
-  fillRowColor(row, isSel
-                        ? static_cast<uint8_t>((PAL_WHITE << 4) | PAL_SKY_BLUE)
-                        : static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK));
+  uint8_t col = static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK);
+  if (isSel) {
+    col = static_cast<uint8_t>((PAL_WHITE << 4) | PAL_SKY_BLUE);
+  } else if (!item.isEnabled) {
+    col = static_cast<uint8_t>((PAL_DARK_GRAY << 4) | PAL_BLACK);
+  }
+
+  fillRowColor(row, col);
 
   // Name field
-  writeStr(row, COL_NAME_START, item.name, COL_NAME_END - COL_NAME_START + 1);
+  writeStr(row, COL_NAME_START, item.config.name,
+           COL_NAME_END - COL_NAME_START + 1);
 
   // Separator
   writeChar(row, COL_SEP, ':');
 
-  if (item.type == OsdMenuType::ACTION) {
+  if (item.isAction) {
     // "Hit Enter" centered in columns COL_IND_LEFT..COL_IND_RIGHT when
     // selected and blinking
     if (isSel && blinkOn_) {
@@ -505,12 +459,12 @@ void Osd::renderItem(int idx, int row) {
 
     // Value
     char valBuf[12];
-    formatValue(valBuf, static_cast<int>(sizeof(valBuf)), item);
+    formatConfigValue(valBuf, static_cast<int>(sizeof(valBuf)), item.config);
     writeStr(row, COL_VAL_START, valBuf, COL_VAL_END - COL_VAL_START + 1);
 
     // Unit
-    if (item.unit && item.unit[0]) {
-      writeStr(row, COL_UNIT_START, item.unit,
+    if (item.config.unit && item.config.unit[0]) {
+      writeStr(row, COL_UNIT_START, item.config.unit,
                COL_UNIT_END - COL_UNIT_START + 1);
     }
   }
@@ -521,29 +475,25 @@ void Osd::renderItem(int idx, int row) {
 //=============================================================================
 
 LcdTapConfig Osd::buildConfig() const {
-  auto get = [this](uint16_t id, int16_t def) -> int16_t {
-    const OsdMenuItem* it = nullptr;
-    getItemById(id, &it);
-    return it ? it->value : def;
-  };
-
-  ControllerType controller =
-      static_cast<ControllerType>(get(OSD_ITEM_ID_CONTROLLER, 0));
+  const OsdMenuItem* ctrlItem;
+  getItemById(
+      OSD_ITEM_ID_SYS_BASE + static_cast<uint16_t>(ConfigId::CTRL_FAMILY),
+      &ctrlItem);
+  ControllerFamily controller =
+      static_cast<ControllerFamily>(ctrlItem ? ctrlItem->config.value : 0);
 
   LcdTapConfig cfg;
   getDefaultConfig(controller, &cfg);
 
-  cfg.lcdWidth = static_cast<uint16_t>(get(OSD_ITEM_ID_LCD_WIDTH, 240));
-  cfg.lcdHeight = static_cast<uint16_t>(get(OSD_ITEM_ID_LCD_HEIGHT, 320));
-  cfg.inverted = (get(OSD_ITEM_ID_INVERSION, 0) != 0);
-  cfg.swapRB = (get(OSD_ITEM_ID_SWAP_RB, 0) != 0);
-  // dviWidth / dviHeight: not set here; preserved by applyConfig()
-  cfg.outputRotation =
-      static_cast<uint8_t>(get(OSD_ITEM_ID_OUTPUT_ROT, 0) & 3u);
-  cfg.scaleMode = static_cast<ScaleMode>(get(OSD_ITEM_ID_SCALE_MODE, 0));
-  cfg.forcePowerOn = (get(OSD_ITEM_ID_FORCE_PWR_ON, 0) != 0);
-  cfg.interfaceFormatOverride =
-      static_cast<int8_t>(get(OSD_ITEM_ID_IF_FMT_OVR, -1));
+  uint16_t numConfigs = static_cast<uint16_t>(lcdtap::ConfigId::NUM_CONFIGS);
+  for (uint16_t cfgId = 0; cfgId < numConfigs; ++cfgId) {
+    const OsdMenuItem* item = nullptr;
+    getItemById(OSD_ITEM_ID_SYS_BASE + cfgId, &item);
+    if (item) {
+      setConfigValueById(&cfg, static_cast<ConfigId>(cfgId),
+                         item->config.value);
+    }
+  }
 
   return cfg;
 }
@@ -611,22 +561,44 @@ void Osd::writeChar(int row, int col, char c) {
   textBuf_[row * COLS + col] = c;
 }
 
-void Osd::formatValue(char* buf, int bufLen, const OsdMenuItem& item) const {
-  switch (item.type) {
-    case OsdMenuType::BOOL:
-    case OsdMenuType::ENUM:
-      if (item.options && item.value >= item.min && item.value <= item.max) {
-        snprintf(buf, static_cast<size_t>(bufLen), "%s",
-                 item.options[item.value - item.min]);
-      } else {
-        snprintf(buf, static_cast<size_t>(bufLen), "---");
-      }
-      break;
-    case OsdMenuType::INTEGER:
-      snprintf(buf, static_cast<size_t>(bufLen), "%d",
-               static_cast<int>(item.value));
-      break;
-    default: buf[0] = '\0'; break;
+//=============================================================================
+// Osd::renderPresetList
+//=============================================================================
+void Osd::renderPresetList() {
+  // Clear background to avoid main-menu color bleed-through
+  memset(textCol_, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK),
+         sizeof(textCol_));
+
+  drawTitleBar("Load Preset");
+
+  // --- Row 1: key hint ---
+  fillRow(1, ' ');
+  fillRowColor(1, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK));
+  writeStr(1, 0, "\x84:Back \x86:Load \x82\x83:Scroll");
+
+  // --- Rows 2-: data rows ---
+  constexpr int HEADER_ROWS = 2;
+  constexpr int VISIBLE_ROWS = ROWS - HEADER_ROWS;
+
+  int numPresets = static_cast<int>(ConfigPreset::NUM_PRESETS);
+  for (int slot = 0; slot < VISIBLE_ROWS; ++slot) {
+    char buff[COLS + 1];
+    LcdTapConfig preset;
+    int i = presetScrollOffset_ + slot;
+    uint8_t col = static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK);
+    if (i == presetSelectedIndex_) {
+      col = static_cast<uint8_t>((PAL_WHITE << 4) | PAL_SKY_BLUE);
+    }
+    fillRow(slot + HEADER_ROWS, ' ');
+    fillRowColor(slot + HEADER_ROWS, col);
+    if (0 <= i && i < numPresets) {
+      getPresetConfig(static_cast<ConfigPreset>(i), &preset);
+      int row = HEADER_ROWS + slot;
+      int iCtrl = static_cast<int>(preset.controllerFamily);
+      snprintf(buff, sizeof(buff), "%-20s %-8s %dx%d", CONFIG_PRESET_NAMES[i],
+               CONTROLLER_NAMES[iCtrl], preset.trimWidth, preset.trimHeight);
+      writeStr(row, 0, buff, COLS);
+    }
   }
 }
 
@@ -810,33 +782,23 @@ void Osd::insertItem(int index, const OsdMenuItem& item) {
 }
 
 void Osd::loadConfig(const LcdTapConfig& cfg) {
-  auto set = [this](uint16_t id, int16_t value) {
-    for (int i = 0; i < numItems_; ++i) {
-      if (items_[i].id == id) {
-        items_[i].value = value;
-        return;
-      }
+  uint16_t numConfigs = static_cast<uint16_t>(lcdtap::ConfigId::NUM_CONFIGS);
+  for (uint16_t cfgId = 0; cfgId < numConfigs; ++cfgId) {
+    const OsdMenuItem* item = nullptr;
+    getItemById(OSD_ITEM_ID_SYS_BASE + cfgId, &item);
+    if (item) {
+      setItemValue(item->id,
+                   getConfigValueById(cfg, static_cast<ConfigId>(cfgId)));
     }
-  };
-
-  set(OSD_ITEM_ID_CONTROLLER, static_cast<int16_t>(cfg.controller));
-  set(OSD_ITEM_ID_LCD_WIDTH, static_cast<int16_t>(cfg.lcdWidth));
-  set(OSD_ITEM_ID_LCD_HEIGHT, static_cast<int16_t>(cfg.lcdHeight));
-  set(OSD_ITEM_ID_INVERSION, cfg.inverted ? 1 : 0);
-  set(OSD_ITEM_ID_SWAP_RB, cfg.swapRB ? 1 : 0);
-  set(OSD_ITEM_ID_OUTPUT_ROT, static_cast<int16_t>(cfg.outputRotation & 3u));
-  set(OSD_ITEM_ID_SCALE_MODE, static_cast<int16_t>(cfg.scaleMode));
-  set(OSD_ITEM_ID_FORCE_PWR_ON, cfg.forcePowerOn ? 1 : 0);
-  set(OSD_ITEM_ID_IF_FMT_OVR,
-      static_cast<int16_t>(cfg.interfaceFormatOverride));
-
+  }
+  updateItemEnables();
   renderAll();
 }
 
 void Osd::setItemValue(uint16_t id, int16_t value) {
   for (int i = 0; i < numItems_; ++i) {
     if (items_[i].id == id) {
-      items_[i].value = value;
+      items_[i].config.value = value;
       int row = i - scrollOffset_ + 1;
       if (row >= 1 && row < ROWS) renderItem(i, row);
       return;

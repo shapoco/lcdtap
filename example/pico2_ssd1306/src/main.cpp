@@ -146,9 +146,9 @@ int main() {
   const uint16_t lcdH = useSz2 ? LCDTAP_LCD_SIZE2_H : LCDTAP_LCD_SIZE1_H;
 
   lcdtap::LcdTapConfig cfg;
-  lcdtap::getDefaultConfig(lcdtap::ControllerType::SSD1306, &cfg);
-  cfg.lcdWidth = lcdW;
-  cfg.lcdHeight = lcdH;
+  lcdtap::getDefaultConfig(lcdtap::ControllerFamily::SSD1306, &cfg);
+  cfg.buffWidth = lcdW;
+  cfg.buffHeight = lcdH;
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
   cfg.inverted = false;  // fixed
   cfg.dviWidth = static_cast<uint16_t>(dviW);

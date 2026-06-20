@@ -7,11 +7,11 @@
 namespace lcdtap {
 
 uint16_t Ssd1331Controller::logicalWidth() const {
-  return (remap & ssd1331::REMAP_ADDR_INC) ? config.lcdHeight : config.lcdWidth;
+  return (remap & ssd1331::REMAP_ADDR_INC) ? config.buffHeight : config.buffWidth;
 }
 
 uint16_t Ssd1331Controller::logicalHeight() const {
-  return (remap & ssd1331::REMAP_ADDR_INC) ? config.lcdWidth : config.lcdHeight;
+  return (remap & ssd1331::REMAP_ADDR_INC) ? config.buffWidth : config.buffHeight;
 }
 
 // Map SETREMAP bits to write-cache offsets and steps (mirrors ST7789 MADCTL
@@ -38,17 +38,17 @@ void Ssd1331Controller::updateWriteCache() {
   ramwrX = casetXS;
   ramwrY = rasetYS;
   cachedBGR = ((remap & ssd1331::REMAP_BGR) != 0) ^ config.swapRB;
-  int32_t W = static_cast<int32_t>(config.lcdWidth);
-  int32_t H = static_cast<int32_t>(config.lcdHeight);
+  int32_t W = static_cast<int32_t>(config.buffWidth);
+  int32_t H = static_cast<int32_t>(config.buffHeight);
   if (!mv) {
-    cachedHOffset = mx ? (config.lcdWidth - 1) : 0;
+    cachedHOffset = mx ? (config.buffWidth - 1) : 0;
     cachedHStep = mx ? -1 : +1;
-    cachedVOffset = my ? (config.lcdHeight - 1) * W : 0;
+    cachedVOffset = my ? (config.buffHeight - 1) * W : 0;
     cachedVStep = my ? -W : +W;
   } else {
-    cachedHOffset = my ? (config.lcdHeight - 1) * W : 0;
+    cachedHOffset = my ? (config.buffHeight - 1) * W : 0;
     cachedHStep = my ? -W : +W;
-    cachedVOffset = mx ? (config.lcdWidth - 1) : 0;
+    cachedVOffset = mx ? (config.buffWidth - 1) : 0;
     cachedVStep = mx ? -1 : +1;
   }
   if (framebuf) writePtr = framebuf + physIndex(ramwrX, ramwrY);
@@ -57,9 +57,9 @@ void Ssd1331Controller::updateWriteCache() {
 void Ssd1331Controller::softReset() {
   remap = 0;
   hwColStart = 0;
-  hwColEnd = static_cast<uint8_t>(config.lcdWidth - 1);
+  hwColEnd = static_cast<uint8_t>(config.buffWidth - 1);
   hwRowStart = 0;
-  hwRowEnd = static_cast<uint8_t>(config.lcdHeight - 1);
+  hwRowEnd = static_cast<uint8_t>(config.buffHeight - 1);
   fillEnabled = false;
   expectedParams = 0;
   cmdBufLen = 0;
@@ -143,12 +143,14 @@ void Ssd1331Controller::execCommand() {
     case CMD_SETCOLUMN:
       if ((remap & ssd1331::REMAP_ADDR_INC) == 0) {
         // mv=0: SETCOLUMN = column address, clip to lcdWidth
-        hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, cmdBuf[0]);
-        hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, cmdBuf[1]);
+        hwColStart = LCDTAP_CLIP(0, config.buffWidth - 1, cmdBuf[0]);
+        hwColEnd = LCDTAP_CLIP(hwColStart, config.buffWidth - 1, cmdBuf[1]);
+        expandTrimX(hwColStart, hwColEnd);
       } else {
         // mv=1: SETCOLUMN = row address, clip to lcdHeight
-        hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, cmdBuf[0]);
-        hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, cmdBuf[1]);
+        hwRowStart = LCDTAP_CLIP(0, config.buffHeight - 1, cmdBuf[0]);
+        hwRowEnd = LCDTAP_CLIP(hwRowStart, config.buffHeight - 1, cmdBuf[1]);
+        expandTrimY(hwRowStart, hwRowEnd);
       }
       // casetXS/XE and ramwrX are set in updateWriteCache() when CMD_SETROW
       // arrives
@@ -158,12 +160,14 @@ void Ssd1331Controller::execCommand() {
     case CMD_SETROW:
       if ((remap & ssd1331::REMAP_ADDR_INC) == 0) {
         // mv=0: SETROW = row address, clip to lcdHeight
-        hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, cmdBuf[0]);
-        hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, cmdBuf[1]);
+        hwRowStart = LCDTAP_CLIP(0, config.buffHeight - 1, cmdBuf[0]);
+        hwRowEnd = LCDTAP_CLIP(hwRowStart, config.buffHeight - 1, cmdBuf[1]);
+        expandTrimY(hwRowStart, hwRowEnd);
       } else {
         // mv=1: SETROW = column address, clip to lcdWidth
-        hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, cmdBuf[0]);
-        hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, cmdBuf[1]);
+        hwColStart = LCDTAP_CLIP(0, config.buffWidth - 1, cmdBuf[0]);
+        hwColEnd = LCDTAP_CLIP(hwColStart, config.buffWidth - 1, cmdBuf[1]);
+        expandTrimX(hwColStart, hwColEnd);
       }
       ramwrBufLen = 0;
       updateWriteCache();

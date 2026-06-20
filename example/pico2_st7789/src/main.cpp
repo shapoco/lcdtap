@@ -142,9 +142,9 @@ int main() {
   // 5. LcdTap init
   // -------------------------------------------------------------------------
   lcdtap::LcdTapConfig cfg;
-  lcdtap::getDefaultConfig(lcdtap::ControllerType::ST7789, &cfg);
-  cfg.lcdWidth = lcdW;
-  cfg.lcdHeight = lcdH;
+  lcdtap::getDefaultConfig(lcdtap::ControllerFamily::ST7789, &cfg);
+  cfg.buffWidth = lcdW;
+  cfg.buffHeight = lcdH;
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
   cfg.inverted = inverted;
   cfg.swapRB = swapRB;

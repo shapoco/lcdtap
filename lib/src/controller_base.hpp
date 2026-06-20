@@ -46,14 +46,18 @@ class ControllerBase {
   uint8_t ramwrBufLen;
 
   // Scaling parameters (computed in the constructor)
-  uint16_t displayX;  // LCD display area start X on DVI
-  uint16_t displayY;  // LCD display area start Y on DVI
-  uint16_t displayW;  // LCD display area width on DVI
-  uint16_t displayH;  // LCD display area height on DVI
+  uint16_t outDestX;  // LCD display area start X on DVI
+  uint16_t outDestY;  // LCD display area start Y on DVI
+  uint16_t outDestW;  // LCD display area width on DVI
+  uint16_t outDestH;  // LCD display area height on DVI
+  uint16_t outSrcX; // LCD framebuffer start X for scaling (logical coordinate)
+  uint16_t outSrcY; // LCD framebuffer start Y for scaling (logical coordinate)
+  uint16_t outSrcW; // LCD framebuffer width for scaling (logical coordinate)
+  uint16_t outSrcH; // LCD framebuffer height for scaling (logical coordinate)
   uint32_t
-      hStep;  // horizontal fixed-point step (16.16 format: lcdW<<16 / displayW)
+      outSrcStepH;  // horizontal fixed-point step (16.16 format: lcdW<<16 / outDestW)
   uint32_t
-      vStep;  // vertical   fixed-point step (16.16 format: lcdH<<16 / displayH)
+      outSrcStepV;  // vertical   fixed-point step (16.16 format: lcdH<<16 / outDestH)
   uint8_t outputRotation;  // output rotation 0..3 (0:none, 1:90°CW, 2:180°,
                            // 3:270°CW)
 
@@ -102,6 +106,12 @@ class ControllerBase {
 
   // Reset common fields (called from the derived class softReset())
   void resetCommon();
+
+  // Expand the trim area to include the specified rectangle (logical coordinates)
+  void expandTrimX(uint16_t x0, uint16_t x1);
+
+  // Expand the trim area to include the specified rectangle (logical coordinates)
+  void expandTrimY(uint16_t y0, uint16_t y1);
 
   // Write one RGB565 pixel to the framebuffer (respects MADCTL BGR)
   LCDTAP_INLINE void writePixelRgb565(uint_fast16_t px) {

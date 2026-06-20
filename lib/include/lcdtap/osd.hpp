@@ -24,50 +24,32 @@ static constexpr uint8_t OSD_KEY_ENTER = (1u << 4);
 // Action codes returned by Osd::update()
 //=============================================================================
 static constexpr uint8_t OSD_ACTION_NONE = 0;
-static constexpr uint8_t OSD_ACTION_CANCEL = 1;
-static constexpr uint8_t OSD_ACTION_APPLY = 2;
+static constexpr uint8_t OSD_ACTION_PRESET = 1;
+static constexpr uint8_t OSD_ACTION_CANCEL = 2;
+static constexpr uint8_t OSD_ACTION_APPLY = 3;
 
 // Internal item IDs (< OSD_USER_ITEM_ID_BASE)
-static constexpr uint16_t OSD_ITEM_ID_CONTROLLER = 1u;
-static constexpr uint16_t OSD_ITEM_ID_LCD_WIDTH = 3u;
-static constexpr uint16_t OSD_ITEM_ID_LCD_HEIGHT = 4u;
-static constexpr uint16_t OSD_ITEM_ID_INVERSION = 5u;
-static constexpr uint16_t OSD_ITEM_ID_SWAP_RB = 6u;
-static constexpr uint16_t OSD_ITEM_ID_OUTPUT_ROT = 7u;
-static constexpr uint16_t OSD_ITEM_ID_SCALE_MODE = 8u;
-static constexpr uint16_t OSD_ITEM_ID_FORCE_PWR_ON = 9u;
-static constexpr uint16_t OSD_ITEM_ID_IF_FMT_OVR = 10u;
-static constexpr uint16_t OSD_ITEM_ID_VIEW_DUMP = 12u;
-static constexpr uint16_t OSD_ITEM_ID_APPLY = 13u;
-static constexpr uint16_t OSD_ITEM_ID_CANCEL = 14u;
+static constexpr uint16_t OSD_ITEM_ID_NONE = 0;
+static constexpr uint16_t OSD_ITEM_ID_PRESET = 1;
+static constexpr uint16_t OSD_ITEM_ID_SYS_BASE = OSD_ITEM_ID_PRESET + 1;
+static constexpr uint16_t OSD_ITEM_ID_VIEW_DUMP =
+    OSD_ITEM_ID_SYS_BASE + static_cast<uint16_t>(ConfigId::NUM_CONFIGS);
+static constexpr uint16_t OSD_ITEM_ID_APPLY = OSD_ITEM_ID_VIEW_DUMP + 1;
+static constexpr uint16_t OSD_ITEM_ID_CANCEL = OSD_ITEM_ID_APPLY + 1;
+static constexpr uint16_t OSD_NUM_SYSTEM_ITEMS = OSD_ITEM_ID_CANCEL + 1;
 
 // User-defined item IDs must be >= this value. IDs below are reserved for
 // built-in items managed internally by the Osd class.
 static constexpr uint16_t OSD_USER_ITEM_ID_BASE = 0x8000u;
 
 //=============================================================================
-// Menu item type
-//=============================================================================
-enum class OsdMenuType : uint8_t {
-  ACTION,   // Triggers an action on Enter
-  INTEGER,  // Numeric value (clamped at min/max)
-  BOOL,     // Boolean: toggle
-  ENUM,     // String selection (wraps around)
-};
-
-//=============================================================================
 // Menu item descriptor
 //=============================================================================
 struct OsdMenuItem {
   uint16_t id;  // Unique identifier; 0 = unassigned
-  OsdMenuType type;
-  const char* name;      // Item label
-  const char* unit;      // Unit string shown after the value (e.g. "px", "deg")
-  const char** options;  // Display strings for ENUM type (nullptr otherwise)
-  int16_t min;           // Minimum value (INTEGER / ENUM index)
-  int16_t max;           // Maximum value (INTEGER / ENUM index)
-  int16_t step;          // Increment per key press (INTEGER / ENUM)
-  int16_t value;         // Current value; for ACTION: OSD_ACTION_XXX
+  bool isAction;
+  bool isEnabled;
+  ConfigEntry config;
 };
 
 //=============================================================================
@@ -76,6 +58,7 @@ struct OsdMenuItem {
 enum class OsdState : uint8_t {
   HIDDEN,     // OSD not visible
   MAIN_MENU,  // configuration menu
+  PRESET,     // reset confirmation prompt
   DUMP_VIEW,  // command dump viewer
 };
 
@@ -146,7 +129,8 @@ class Osd {
 
   // Key repeat timing (ms)
   static constexpr uint64_t KEY_REPEAT_DELAY_MS = 500;
-  static constexpr uint64_t KEY_REPEAT_PERIOD_MS = 200;
+  static constexpr uint64_t KEY_REPEAT_PERIOD_INIT_MS = 200;
+  static constexpr uint64_t KEY_REPEAT_PERIOD_MIN_MS = 50;
 
   // Blink timing (ms; half-period → toggles at 1 Hz)
   static constexpr uint64_t BLINK_PERIOD_MS = 500;
@@ -194,11 +178,15 @@ class Osd {
   bool blinkOn_;
 
   uint8_t lastInput_;
-  uint64_t keyPressMs_;
-  uint64_t lastRepeatMs_;
+  uint64_t nextRepeatMs_;
+  uint32_t repeatPeriodMs_;
   uint64_t lastBlinkMs_;
 
   OsdConfig cfg_;
+
+  // Preset list state
+  int presetScrollOffset_ = 0;
+  int presetSelectedIndex_ = 0;
 
   // Dump view state
   int dumpScrollOffset_ = 0;
@@ -206,13 +194,26 @@ class Osd {
   uint16_t lastDumpSize_ = 0;
   bool dumpViewDirty_ = true;
 
+  static void makeItemById(uint16_t id, OsdMenuItem* item);
+
   // Populate items_[] from the current LcdTap config.
   void initMenuItems(const LcdTap& lcdtap);
+
+  // Update the isEnabled field of all items based on their enableKeyId.
+  void updateItemEnables();
+
+  uint8_t updateHidden(LcdTap& lcdtap, uint64_t nowMs, uint8_t activeKeys);
+  uint8_t updateMainMenu(LcdTap& lcdtap, uint64_t nowMs, uint8_t activeKeys);
+  uint8_t updatePresetList(LcdTap& lcdtap, uint64_t nowMs, uint8_t activeKeys);
+  uint8_t updateDumpView(LcdTap& lcdtap, uint64_t nowMs, uint8_t activeKeys);
 
   // Rebuild the entire text buffer from items_ and display state.
   void renderAll();
   void renderTitle();
   void renderItem(int idx, int row);
+
+  // Render the preset selection menu into textBuf_/textCol_.
+  void renderPresetList();
 
   // Render the dump viewer into textBuf_/textCol_.
   void renderDumpView(LcdTap& lcdtap);
@@ -247,9 +248,6 @@ class Osd {
 
   // Write a single character.
   void writeChar(int row, int col, char c);
-
-  // Format the current value of item as a string into buf.
-  void formatValue(char* buf, int bufLen, const OsdMenuItem& item) const;
 };
 
 }  // namespace lcdtap

@@ -11,7 +11,7 @@
 // =============================================================================
 
 static lcdtap::LcdTap* gLcdTap = nullptr;
-static InterfaceType* gCurrentIface = nullptr;
+static lcdtap::BusType* gCurrentIface = nullptr;
 static SwitchIfaceFn gSwitchIface = nullptr;
 static SaveConfigFn gSaveConfig = nullptr;
 
@@ -535,7 +535,7 @@ struct RespGen {
   // getparams: preset config (used when paramUsePreset is true)
   bool paramUsePreset = false;
   lcdtap::LcdTapConfig paramPresetCfg;
-  InterfaceType paramPresetIface = InterfaceType::SPI_4LINE;
+  lcdtap::BusType paramPresetIface = lcdtap::BusType::SPI_4LINE;
 
   // Per-call chunk buffer for formatted segments
   char chunkBuf[256] = {};
@@ -597,7 +597,7 @@ static const char* kRotOptions[] = {"0", "90", "180", "270"};
 // Build the JSON fragment for parameter at index idx into chunkBuf.
 // Returns false when idx is out of range.
 static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
-                            InterfaceType iface) {
+                            lcdtap::BusType iface) {
   char* buf = gResp.chunkBuf;
   int cap = static_cast<int>(sizeof(gResp.chunkBuf));
   int n = 0;
@@ -607,13 +607,13 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
   const char* suffix = last ? "]}\r\n" : ",";
 
   switch (idx) {
-    case 0:  // controller ENUM
+    case 0:  // controllerFamily ENUM
       n = snprintf(buf, static_cast<size_t>(cap),
-                   "%s{\"id\":\"controller\",\"type\":\"ENUM\","
+                   "%s{\"id\":\"controllerFamily\",\"type\":\"ENUM\","
                    "\"name\":\"Controller Type\",\"unit\":null,"
                    "\"options\":{\"ST7789\":0,\"SSD1306\":1,\"SSD1331\":2},"
                    "\"value\":%d}%s",
-                   prefix, static_cast<int>(cfg.controller), suffix);
+                   prefix, static_cast<int>(cfg.controllerFamily), suffix);
       break;
     case 1:  // interfaceType ENUM
       n = snprintf(buf, static_cast<size_t>(cap),
@@ -631,7 +631,7 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
                    "\"name\":\"LCD Width\",\"unit\":\"px\","
                    "\"min\":32,\"max\":480,\"step\":8,"
                    "\"value\":%d}%s",
-                   prefix, static_cast<int>(cfg.lcdWidth), suffix);
+                   prefix, static_cast<int>(cfg.buffWidth), suffix);
       break;
     case 3:  // lcdHeight INTEGER
       n = snprintf(buf, static_cast<size_t>(cap),
@@ -639,7 +639,7 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
                    "\"name\":\"LCD Height\",\"unit\":\"px\","
                    "\"min\":32,\"max\":480,\"step\":8,"
                    "\"value\":%d}%s",
-                   prefix, static_cast<int>(cfg.lcdHeight), suffix);
+                   prefix, static_cast<int>(cfg.buffHeight), suffix);
       break;
     case 4:  // inverted BOOLEAN
       n = snprintf(buf, static_cast<size_t>(cap),
@@ -702,17 +702,17 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
 // =============================================================================
 
 static bool makePresetConfig(const char* name, lcdtap::LcdTapConfig* cfgOut,
-                             InterfaceType* ifaceOut) {
-  lcdtap::ControllerType ct;
+                             lcdtap::BusType* ifaceOut) {
+  lcdtap::ControllerFamily ct;
   if (strcmp(name, "ST7789") == 0) {
-    ct = lcdtap::ControllerType::ST7789;
-    *ifaceOut = InterfaceType::SPI_4LINE;
+    ct = lcdtap::ControllerFamily::ST7789;
+    *ifaceOut = lcdtap::BusType::SPI_4LINE;
   } else if (strcmp(name, "SSD1306") == 0) {
-    ct = lcdtap::ControllerType::SSD1306;
-    *ifaceOut = InterfaceType::I2C;
+    ct = lcdtap::ControllerFamily::SSD1306;
+    *ifaceOut = lcdtap::BusType::I2C;
   } else if (strcmp(name, "SSD1331") == 0) {
-    ct = lcdtap::ControllerType::SSD1331;
-    *ifaceOut = InterfaceType::SPI_4LINE;
+    ct = lcdtap::ControllerFamily::SSD1331;
+    *ifaceOut = lcdtap::BusType::SPI_4LINE;
   } else {
     return false;
   }
@@ -762,19 +762,19 @@ static void execCommand(const Parser& p) {
   // ----- setparams -----
   if (strcmp(cmd, "setparams") == 0) {
     lcdtap::LcdTapConfig cfg = gLcdTap->getConfig();
-    InterfaceType newIface = *gCurrentIface;
+    lcdtap::BusType newIface = *gCurrentIface;
 
     for (int i = 0; i < p.numParams; i++) {
       const char* k = p.params[i].key;
       int32_t v = p.params[i].value;
-      if (strcmp(k, "controller") == 0) {
-        cfg.controller = static_cast<lcdtap::ControllerType>(v);
+      if (strcmp(k, "controllerFamily") == 0) {
+        cfg.controllerFamily = static_cast<lcdtap::ControllerFamily>(v);
       } else if (strcmp(k, "interfaceType") == 0) {
-        newIface = static_cast<InterfaceType>(v);
+        newIface = static_cast<lcdtap::BusType>(v);
       } else if (strcmp(k, "lcdWidth") == 0) {
-        cfg.lcdWidth = static_cast<uint16_t>(v);
+        cfg.buffWidth = static_cast<uint16_t>(v);
       } else if (strcmp(k, "lcdHeight") == 0) {
-        cfg.lcdHeight = static_cast<uint16_t>(v);
+        cfg.buffHeight = static_cast<uint16_t>(v);
       } else if (strcmp(k, "inverted") == 0) {
         cfg.inverted = (v != 0);
       } else if (strcmp(k, "swapRB") == 0) {
@@ -800,7 +800,6 @@ static void execCommand(const Parser& p) {
 
     ConfigFile toSave;
     toSave.libConfig = gLcdTap->getConfig();
-    toSave.interfaceType = newIface;
     gSaveConfig(toSave);
 
     respSetShort("{\"response\":\"ok\"}\r\n");
@@ -813,8 +812,8 @@ static void execCommand(const Parser& p) {
     if (p.writeProtected) gLcdTap->setWriteProtected(true);
 
     lcdtap::LcdTapConfig cfg = gLcdTap->getConfig();
-    uint16_t physW = cfg.lcdWidth;
-    uint16_t physH = cfg.lcdHeight;
+    uint16_t physW = cfg.buffWidth;
+    uint16_t physH = cfg.buffHeight;
     uint8_t rot = cfg.outputRotation & 3u;
 
     gResp.fbPhysW = physW;
@@ -968,7 +967,7 @@ static void respFlush() {
     case RespPhase::PARAMS: {
       if (!drainChunk()) break;
       lcdtap::LcdTapConfig cfg;
-      InterfaceType iface;
+      lcdtap::BusType iface;
       if (gResp.paramUsePreset) {
         cfg = gResp.paramPresetCfg;
         iface = gResp.paramPresetIface;
@@ -1135,7 +1134,7 @@ static void processRxChar(char c) {
 // Public API
 // =============================================================================
 
-void uartIfInit(lcdtap::LcdTap* lcdtap, InterfaceType* currentIface,
+void uartIfInit(lcdtap::LcdTap* lcdtap, lcdtap::BusType* currentIface,
                 SwitchIfaceFn switchIface, SaveConfigFn saveConfig) {
   gLcdTap = lcdtap;
   gCurrentIface = currentIface;

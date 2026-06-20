@@ -71,7 +71,7 @@ static uint32_t i2cRingBuf[I2C_RING_BUF_WORDS];
 // =============================================================================
 // Interface selection
 // =============================================================================
-static InterfaceType gCurrentIface = InterfaceType::SPI_4LINE;
+static lcdtap::BusType gCurrentIface = lcdtap::BusType::SPI_4LINE;
 static bool gIfaceActive = false;
 
 // =============================================================================
@@ -100,76 +100,13 @@ static lcdtap::pico2::DviOutState gDvi;
 // =============================================================================
 // OSD user items
 // =============================================================================
-static constexpr uint16_t OSD_USER_ITEM_ID_PRESET_ST7789 =
-    lcdtap::OSD_USER_ITEM_ID_BASE;
-static constexpr uint16_t OSD_USER_ITEM_ID_PRESET_SSD1306 =
-    lcdtap::OSD_USER_ITEM_ID_BASE + 1u;
-static constexpr uint16_t OSD_USER_ITEM_ID_PRESET_SSD1331 =
-    lcdtap::OSD_USER_ITEM_ID_BASE + 2u;
-static constexpr uint16_t OSD_USER_ITEM_ID_INTERFACE =
-    lcdtap::OSD_USER_ITEM_ID_BASE + 3u;
 
-static const char *kInterfaceNames[] = {"I2C", "4Line SPI", "3Line SPI",
-                                        "Parallel"};
-
-static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
-  lcdtap::OsdMenuItem p = {};
-  p.type = lcdtap::OsdMenuType::ACTION;
-  p.unit = "";
-  p.options = nullptr;
-  p.value = 0;
-
-  p.id = OSD_USER_ITEM_ID_PRESET_ST7789;
-  p.name = "Preset:ST7789";
-  osd->insertItem(0, p);
-
-  p.id = OSD_USER_ITEM_ID_PRESET_SSD1306;
-  p.name = "Preset:SSD1306";
-  osd->insertItem(1, p);
-
-  p.id = OSD_USER_ITEM_ID_PRESET_SSD1331;
-  p.name = "Preset:SSD1331";
-  osd->insertItem(2, p);
-
-  lcdtap::OsdMenuItem item = {};
-  item.id = OSD_USER_ITEM_ID_INTERFACE;
-  item.type = lcdtap::OsdMenuType::ENUM;
-  item.name = "Interface";
-  item.unit = "";
-  item.options = kInterfaceNames;
-  item.min = 0;
-  item.max = 3;
-  item.step = 1;
-  item.value = static_cast<int16_t>(gCurrentIface);
-  osd->insertItem(3, item);
-
-  osd->setSelectedIndex(0);
-}
+static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {}
 
 static bool onOsdActionActivated(lcdtap::Osd *osd,
                                  const lcdtap::OsdMenuItem *item,
                                  lcdtap::LcdTap &lcdtap, void * /*userData*/) {
-  lcdtap::ControllerType ct;
-  InterfaceType iface;
-  if (item->id == OSD_USER_ITEM_ID_PRESET_ST7789) {
-    ct = lcdtap::ControllerType::ST7789;
-    iface = InterfaceType::SPI_4LINE;
-  } else if (item->id == OSD_USER_ITEM_ID_PRESET_SSD1306) {
-    ct = lcdtap::ControllerType::SSD1306;
-    iface = InterfaceType::I2C;
-  } else if (item->id == OSD_USER_ITEM_ID_PRESET_SSD1331) {
-    ct = lcdtap::ControllerType::SSD1331;
-    iface = InterfaceType::SPI_4LINE;
-  } else {
-    return false;  // default handling
-  }
-  lcdtap::LcdTapConfig preset;
-  lcdtap::getDefaultConfig(ct, &preset);
-  preset.dviWidth = lcdtap.getConfig().dviWidth;
-  preset.dviHeight = lcdtap.getConfig().dviHeight;
-  osd->loadConfig(preset);
-  osd->setItemValue(OSD_USER_ITEM_ID_INTERFACE, static_cast<int16_t>(iface));
-  return true;  // keep OSD open
+  return false;
 }
 
 // =============================================================================
@@ -242,9 +179,9 @@ static void __not_in_flash_func(gpioIrqHandler)(uint gpio, uint32_t events) {
 // Interface switching (teardown current, setup new)
 // Also used as a callback from uartIfInit().
 // =============================================================================
-static void switchInterface(InterfaceType newIface) {
+static void switchInterface(lcdtap::BusType newIface) {
   if (gIfaceActive) {
-    if (gCurrentIface == InterfaceType::I2C) {
+    if (gCurrentIface == lcdtap::BusType::I2C) {
       lcdtap::pico2::i2cSlaveDeinit(&gI2c);
     } else {
       lcdtap::pico2::spiSlaveDeinit(&gSpi);
@@ -257,7 +194,7 @@ static void switchInterface(InterfaceType newIface) {
   gIfaceActive = true;
 
   switch (newIface) {
-    case InterfaceType::I2C: {
+    case lcdtap::BusType::I2C: {
       lcdtap::pico2::I2cSlaveConfig i2cCfg = {i2c0, PIN_I2C_SDA, PIN_I2C_SCL,
                                               I2C_SLAVE_ADDR};
       lcdtap::pico2::i2cSlaveInit(&gI2c, i2cCfg, i2cRingBuf,
@@ -265,7 +202,7 @@ static void switchInterface(InterfaceType newIface) {
       gI2c.inst = gInst;
       break;
     }
-    case InterfaceType::SPI_4LINE: {
+    case lcdtap::BusType::SPI_4LINE: {
       lcdtap::pico2::SpiSlaveConfig spiCfg = {
           SPI_PIO,      SPI_SM,     PIN_SPI_CS,       PIN_SPI_SCLK,
           PIN_SPI_MOSI, PIN_SPI_DC, SPI_RING_BUF_LOG2};
@@ -275,7 +212,7 @@ static void switchInterface(InterfaceType newIface) {
       lcdtap::pico2::spiSlaveRegisterIrq(&gSpi);
       break;
     }
-    case InterfaceType::SPI_3LINE: {
+    case lcdtap::BusType::SPI_3LINE: {
       gSpi.progOffset = pio_add_program(SPI_PIO, &spi_3line_mode0_program);
       gSpi.pioProgram = &spi_3line_mode0_program;
       spi3lineSlaveInit(gSpi.progOffset);
@@ -283,7 +220,7 @@ static void switchInterface(InterfaceType newIface) {
       gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
       break;
     }
-    case InterfaceType::PARALLEL: {
+    case lcdtap::BusType::PARALLEL: {
       gSpi.progOffset = pio_add_program(SPI_PIO, &parallel_8bit_program);
       gSpi.pioProgram = &parallel_8bit_program;
       parSlaveInit(gSpi.progOffset);
@@ -310,7 +247,7 @@ static void saveConfigSafe(const ConfigFile &cfg) {
 // Dispatch to the active ring buffer processor
 // =============================================================================
 static void processInputBuf() {
-  if (gCurrentIface == InterfaceType::I2C)
+  if (gCurrentIface == lcdtap::BusType::I2C)
     lcdtap::pico2::i2cSlaveProcess(&gI2c);
   else
     lcdtap::pico2::spiSlaveProcess(&gSpi);
@@ -412,9 +349,9 @@ int main() {
   // 6. LcdTap init
   // -------------------------------------------------------------------------
   lcdtap::LcdTapConfig cfg;
-  lcdtap::getDefaultConfig(lcdtap::ControllerType::ST7789, &cfg);
-  cfg.lcdWidth = lcdW;
-  cfg.lcdHeight = lcdH;
+  lcdtap::getDefaultConfig(lcdtap::ControllerFamily::ST7789, &cfg);
+  cfg.buffWidth = lcdW;
+  cfg.buffHeight = lcdH;
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
   cfg.dviWidth = static_cast<uint16_t>(dviW);
   cfg.dviHeight = static_cast<uint16_t>(dviH);
@@ -423,7 +360,7 @@ int main() {
     savedCfg.libConfig.dviWidth = cfg.dviWidth;
     savedCfg.libConfig.dviHeight = cfg.dviHeight;
     cfg = savedCfg.libConfig;
-    gCurrentIface = savedCfg.interfaceType;
+    gCurrentIface = cfg.busInterface;
   }
 
   lcdtap::HostInterface host;
@@ -502,14 +439,15 @@ int main() {
       uint8_t action = gOsd.update(nowMs, *gInst, readKeys());
       if (action == lcdtap::OSD_ACTION_APPLY) {
         const lcdtap::OsdMenuItem *ifaceItem = nullptr;
-        gOsd.getItemById(OSD_USER_ITEM_ID_INTERFACE, &ifaceItem);
-        InterfaceType newIface =
-            ifaceItem ? static_cast<InterfaceType>(ifaceItem->value)
+        uint16_t id = lcdtap::OSD_ITEM_ID_SYS_BASE +
+                      static_cast<uint16_t>(lcdtap::ConfigId::BUS_INTERFACE);
+        gOsd.getItemById(id, &ifaceItem);
+        lcdtap::BusType newIface =
+            ifaceItem ? static_cast<lcdtap::BusType>(ifaceItem->config.value)
                       : gCurrentIface;
 
         ConfigFile toSave;
         toSave.libConfig = gInst->getConfig();
-        toSave.interfaceType = newIface;
         saveConfigSafe(toSave);
 
         if (newIface != gCurrentIface) {

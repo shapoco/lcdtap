@@ -3,11 +3,11 @@
 namespace lcdtap {
 
 uint16_t St7789Controller::logicalWidth() const {
-  return ((madctl >> 5) & 1) ? config.lcdHeight : config.lcdWidth;
+  return ((madctl >> 5) & 1) ? config.buffHeight : config.buffWidth;
 }
 
 uint16_t St7789Controller::logicalHeight() const {
-  return ((madctl >> 5) & 1) ? config.lcdWidth : config.lcdHeight;
+  return ((madctl >> 5) & 1) ? config.buffWidth : config.buffHeight;
 }
 
 void St7789Controller::updateWriteCache() {
@@ -29,17 +29,17 @@ void St7789Controller::updateWriteCache() {
     rasetYE = hwColEnd;
   }
   cachedBGR = ((madctl >> 3) & 1) ^ config.swapRB;
-  int32_t W = static_cast<int32_t>(config.lcdWidth);
-  int32_t H = static_cast<int32_t>(config.lcdHeight);
+  int32_t W = static_cast<int32_t>(config.buffWidth);
+  int32_t H = static_cast<int32_t>(config.buffHeight);
   if (!mv) {
-    cachedHOffset = mx ? (config.lcdWidth - 1) : 0;
+    cachedHOffset = mx ? (config.buffWidth - 1) : 0;
     cachedHStep = mx ? -1 : +1;
-    cachedVOffset = my ? (config.lcdHeight - 1) * W : 0;
+    cachedVOffset = my ? (config.buffHeight - 1) * W : 0;
     cachedVStep = my ? -W : +W;
   } else {
-    cachedHOffset = my ? (config.lcdHeight - 1) * W : 0;
+    cachedHOffset = my ? (config.buffHeight - 1) * W : 0;
     cachedHStep = my ? -W : +W;
-    cachedVOffset = mx ? (config.lcdWidth - 1) : 0;
+    cachedVOffset = mx ? (config.buffWidth - 1) : 0;
     cachedVStep = mx ? -1 : +1;
   }
   if (framebuf) writePtr = framebuf + physIndex(ramwrX, ramwrY);
@@ -48,9 +48,9 @@ void St7789Controller::updateWriteCache() {
 void St7789Controller::softReset() {
   madctl = 0;
   hwColStart = 0;
-  hwColEnd = config.lcdWidth - 1;
+  hwColEnd = config.buffWidth - 1;
   hwRowStart = 0;
-  hwRowEnd = config.lcdHeight - 1;
+  hwRowEnd = config.buffHeight - 1;
   resetCommon();
 }
 
@@ -134,18 +134,20 @@ void St7789Controller::feedDataByte(uint8_t byte) {
         case 1: {
           uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
           if ((madctl & 0x20u) == 0) {
-            hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, val);
+            hwColStart = LCDTAP_CLIP(0, config.buffWidth - 1, val);
           } else {
-            hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, val);
+            hwRowStart = LCDTAP_CLIP(0, config.buffHeight - 1, val);
           }
         } break;
         case 2: ramwrBuf[0] = byte; break;
         case 3: {
           uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
           if ((madctl & 0x20u) == 0) {
-            hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, val);
+            hwColEnd = LCDTAP_CLIP(hwColStart, config.buffWidth - 1, val);
+            expandTrimX(hwColStart, hwColEnd);
           } else {
-            hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, val);
+            hwRowEnd = LCDTAP_CLIP(hwRowStart, config.buffHeight - 1, val);
+            expandTrimY(hwRowStart, hwRowEnd);
           }
         } break;
         default: break;
@@ -158,18 +160,20 @@ void St7789Controller::feedDataByte(uint8_t byte) {
         case 1: {
           uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
           if ((madctl & 0x20u) == 0) {
-            hwRowStart = LCDTAP_CLIP(0, config.lcdHeight - 1, val);
+            hwRowStart = LCDTAP_CLIP(0, config.buffHeight - 1, val);
           } else {
-            hwColStart = LCDTAP_CLIP(0, config.lcdWidth - 1, val);
+            hwColStart = LCDTAP_CLIP(0, config.buffWidth - 1, val);
           }
         } break;
         case 2: ramwrBuf[0] = byte; break;
         case 3: {
           uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
           if ((madctl & 0x20u) == 0) {
-            hwRowEnd = LCDTAP_CLIP(hwRowStart, config.lcdHeight - 1, val);
+            hwRowEnd = LCDTAP_CLIP(hwRowStart, config.buffHeight - 1, val);
+            expandTrimY(hwRowStart, hwRowEnd);
           } else {
-            hwColEnd = LCDTAP_CLIP(hwColStart, config.lcdWidth - 1, val);
+            hwColEnd = LCDTAP_CLIP(hwColStart, config.buffWidth - 1, val);
+            expandTrimX(hwColStart, hwColEnd);
           }
         } break;
         default: break;
