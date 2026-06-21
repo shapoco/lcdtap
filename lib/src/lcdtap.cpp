@@ -108,6 +108,13 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
       cfg->busInterface = BusType::SPI_4LINE;
       break;
 
+    case ConfigPreset::PICOSYSTEM:
+      getDefaultConfig(ControllerFamily::ST7789, cfg);
+      cfg->buffWidth = 240;
+      cfg->buffHeight = 240;
+      cfg->busInterface = BusType::PARALLEL;
+      break;
+
     case ConfigPreset::THUMBY:
       getDefaultConfig(ControllerFamily::SSD1306, cfg);
       cfg->busInterface = BusType::SPI_4LINE;
@@ -121,6 +128,13 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
     case ConfigPreset::TINYJOYPAD:
       getDefaultConfig(ControllerFamily::SSD1306, cfg);
       cfg->busInterface = BusType::I2C;
+      break;
+
+    case ConfigPreset::WIO_TERMINAL:
+      getDefaultConfig(ControllerFamily::ILI9341, cfg);
+      cfg->flipMode = FlipMode::FLIP_V;
+      cfg->outputRotation = 3;
+      cfg->busInterface = BusType::PARALLEL;
       break;
 
     case ConfigPreset::XIAMOCON:
@@ -183,8 +197,8 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
     case ConfigId::BUS_INTERFACE:
       e->type = ValueType::ENUM;
       e->name = "Bus Interface";
-      e->options = INTERFACE_NAMES;
-      e->max = static_cast<int16_t>(BusType::NUM_INTERFACES) - 1;
+      e->options = BUS_NAMES;
+      e->max = static_cast<int16_t>(BusType::NUM_BUSES) - 1;
       break;
 
     // Frame Buffer Width

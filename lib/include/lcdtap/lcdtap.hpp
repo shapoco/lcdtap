@@ -52,14 +52,19 @@ enum class BusType : uint8_t {
   SPI_4LINE,
   SPI_3LINE,
   PARALLEL,
-  NUM_INTERFACES,
+  NUM_BUSES,
 };
 
-static const char* INTERFACE_NAMES[] = {"I2C", "4-Line SPI", "3-Line SPI",
-                                        "Parallel"};
-static_assert(sizeof(INTERFACE_NAMES) / sizeof(INTERFACE_NAMES[0]) ==
-                  static_cast<size_t>(BusType::NUM_INTERFACES),
-              "INTERFACE_NAMES size must match lcdtap::BusType enum");
+static const char* BUS_NAMES[] = {"I2C", "4-Line SPI", "3-Line SPI",
+                                  "Parallel8"};
+static_assert(sizeof(BUS_NAMES) / sizeof(BUS_NAMES[0]) ==
+                  static_cast<size_t>(BusType::NUM_BUSES),
+              "BUS_NAMES size must match lcdtap::BusType enum");
+
+static const char* BUS_SHORT_NAMES[] = {"I2C", "SPI4", "SPI3", "PAR8"};
+static_assert(sizeof(BUS_SHORT_NAMES) / sizeof(BUS_SHORT_NAMES[0]) ==
+                  static_cast<size_t>(BusType::NUM_BUSES),
+              "BUS_SHORT_NAMES size must match lcdtap::BusType enum");
 
 //=============================================================================
 // Interface Pixel format (SPI/I2C input side)
@@ -130,7 +135,8 @@ enum class FlipMode : uint8_t {
   FLIP_HV,
 };
 
-static const char* FLIP_MODE_NAMES[] = {"Off", "Flip H", "Flip V", "Flip H+V"};
+static const char* FLIP_MODE_NAMES[] = {"Off", "Horizontal", "Vertical",
+                                        "Both"};
 static_assert(sizeof(FLIP_MODE_NAMES) / sizeof(FLIP_MODE_NAMES[0]) ==
                   static_cast<size_t>(FlipMode::FLIP_HV) + 1,
               "FLIP_MODE_NAMES size must match FlipMode enum");
@@ -165,15 +171,18 @@ enum class ConfigPreset : uint8_t {
   ST7789,
   ARDUBOY,
   M5STACK_CORES3,
+  PICOSYSTEM,
   THUMBY,
   TINYJOYPAD,
+  WIO_TERMINAL,
   XIAMOCON,
   NUM_PRESETS,
 };
 
 static const char* CONFIG_PRESET_NAMES[] = {
-    "ILI9341", "ILI9342", "ILI9488",        "SSD1306", "SSD1331",    "ST7735",
-    "ST7789",  "Arduboy", "M5Stack CoreS3", "Thumby",  "TinyJoypad", "Xiamocon",
+    "ILI9341", "ILI9342",    "ILI9488",      "SSD1306",        "SSD1331",
+    "ST7735",  "ST7789",     "Arduboy",      "M5Stack CoreS3", "Picosystem",
+    "Thumby",  "TinyJoypad", "Wio Terminal", "Xiamocon",
 };
 static_assert(sizeof(CONFIG_PRESET_NAMES) / sizeof(CONFIG_PRESET_NAMES[0]) ==
                   static_cast<size_t>(ConfigPreset::NUM_PRESETS),

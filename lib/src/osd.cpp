@@ -565,23 +565,32 @@ void Osd::writeChar(int row, int col, char c) {
 // Osd::renderPresetList
 //=============================================================================
 void Osd::renderPresetList() {
+  constexpr int HEADER_ROWS = 2;
+  constexpr int FOOTER_ROWS = 1;
+  constexpr int BODY_ROWS = ROWS - HEADER_ROWS - FOOTER_ROWS;
+
+  // Ensure selected index is visible within the scroll window
+  int p = presetSelectedIndex_ - presetScrollOffset_;
+  if (p < 0) {
+    presetScrollOffset_ = presetSelectedIndex_;
+  } else if (p >= BODY_ROWS) {
+    presetScrollOffset_ = presetSelectedIndex_ - BODY_ROWS + 1;
+  }
+
   // Clear background to avoid main-menu color bleed-through
   memset(textCol_, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK),
          sizeof(textCol_));
 
   drawTitleBar("Load Preset");
 
-  // --- Row 1: key hint ---
+  // Header
   fillRow(1, ' ');
-  fillRowColor(1, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK));
-  writeStr(1, 0, "\x84:Back \x86:Load \x82\x83:Scroll");
+  fillRowColor(1, static_cast<uint8_t>((PAL_SILVER << 4) | PAL_DARK_GRAY));
+  writeStr(1, 0, "Preset Name      Family   Bus   Size");
 
-  // --- Rows 2-: data rows ---
-  constexpr int HEADER_ROWS = 2;
-  constexpr int VISIBLE_ROWS = ROWS - HEADER_ROWS;
-
+  // Body
   int numPresets = static_cast<int>(ConfigPreset::NUM_PRESETS);
-  for (int slot = 0; slot < VISIBLE_ROWS; ++slot) {
+  for (int slot = 0; slot < BODY_ROWS; ++slot) {
     char buff[COLS + 1];
     LcdTapConfig preset;
     int i = presetScrollOffset_ + slot;
@@ -595,11 +604,19 @@ void Osd::renderPresetList() {
       getPresetConfig(static_cast<ConfigPreset>(i), &preset);
       int row = HEADER_ROWS + slot;
       int iCtrl = static_cast<int>(preset.controllerFamily);
-      snprintf(buff, sizeof(buff), "%-20s %-8s %dx%d", CONFIG_PRESET_NAMES[i],
-               CONTROLLER_NAMES[iCtrl], preset.trimWidth, preset.trimHeight);
+      snprintf(buff, sizeof(buff), "%-16s %-8s %-5s %dx%d",
+               CONFIG_PRESET_NAMES[i], CONTROLLER_NAMES[iCtrl],
+               BUS_SHORT_NAMES[static_cast<int>(preset.busInterface)],
+               preset.buffWidth, preset.buffHeight);
       writeStr(row, 0, buff, COLS);
     }
   }
+
+  // Footer
+  fillRow(ROWS - 1, ' ');
+  fillRowColor(ROWS - 1,
+               static_cast<uint8_t>((PAL_SILVER << 4) | PAL_DARK_GRAY));
+  writeStr(ROWS - 1, 0, "\x84:Back \x86:Load \x82\x83:Scroll");
 }
 
 //=============================================================================
@@ -607,6 +624,11 @@ void Osd::renderPresetList() {
 //=============================================================================
 
 void Osd::renderDumpView(LcdTap& lcdtap) {
+  constexpr int HEADER_ROWS = 2;
+  constexpr int FOOTER_ROWS = 1;
+  constexpr int BODY_ROWS = ROWS - HEADER_ROWS - FOOTER_ROWS;
+  constexpr int ENTRIES_PER_ROW = 16;
+
   static const char HEX[] = "0123456789ABCDEF";
 
   // Clear background to avoid main-menu color bleed-through
@@ -640,22 +662,13 @@ void Osd::renderDumpView(LcdTap& lcdtap) {
   writeStr(0, 16, stateStr, stateLen);
   setColorRange(0, 16, stateLen, static_cast<uint8_t>(stateFg << 4), 0xF0);
 
-  // --- Row 1: key hint ---
+  // Header
   fillRow(1, ' ');
-  fillRowColor(1, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK));
-  writeStr(1, 0, "\x84:Back \x86:Trigger \x85:Abort \x82\x83:Scroll");
-
-  // --- Row 2: column header ---
-  fillRow(2, ' ');
-  fillRowColor(2, static_cast<uint8_t>((PAL_SILVER << 4) | PAL_BLACK));
-  writeStr(2, 0, "   +0+1+2+3+4+5+6+7+8+9+A+B+C+D+E+F");
+  fillRowColor(1, static_cast<uint8_t>((PAL_SILVER << 4) | PAL_DARK_GRAY));
+  writeStr(1, 0, "   +0+1+2+3+4+5+6+7+8+9+A+B+C+D+E+F");
 
   // --- Rows 3-14: data rows ---
-  constexpr int HEADER_ROWS = 3;
-  constexpr int VISIBLE_ROWS = ROWS - HEADER_ROWS;  // 12
-  constexpr int ENTRIES_PER_ROW = 16;
-
-  for (int slot = 0; slot < VISIBLE_ROWS; ++slot) {
+  for (int slot = 0; slot < BODY_ROWS; ++slot) {
     const int row = slot + HEADER_ROWS;
     const int rowIdx = dumpScrollOffset_ + slot;
     const int baseEntry = rowIdx * ENTRIES_PER_ROW;
@@ -666,7 +679,7 @@ void Osd::renderDumpView(LcdTap& lcdtap) {
     writeChar(row, 0, HEX[rowIdx]);
     writeChar(row, 1, '0');
     setColorRange(row, 0, 3,
-                  static_cast<uint8_t>((PAL_SILVER << 4) | PAL_BLACK));
+                  static_cast<uint8_t>((PAL_SILVER << 4) | PAL_DARK_GRAY));
 
     // 16 data columns
     for (int col = 0; col < ENTRIES_PER_ROW; ++col) {
@@ -713,6 +726,11 @@ void Osd::renderDumpView(LcdTap& lcdtap) {
       }
     }
   }
+
+  // Footer
+  fillRow(ROWS - 1, ' ');
+  fillRowColor(ROWS - 1, static_cast<uint8_t>((PAL_SILVER << 4) | PAL_DARK_GRAY));
+  writeStr(ROWS - 1, 0, "\x84:Back \x86:Trigger \x85:Abort \x82\x83:Scroll");
 }
 
 //=============================================================================
