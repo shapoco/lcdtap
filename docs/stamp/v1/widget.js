@@ -12,6 +12,47 @@
 
   const CLASS_STAMP_BUTTON = 'shpcstamp_stamp';
 
+  const STR_DICT = {
+    'ja': {
+      'Loading stamps...': 'スタンプを読み込んでいます...',
+      'Show all stamps': 'すべてのスタンプを表示',
+      'Show all': 'すべて表示',
+      'Add a stamp': 'スタンプを追加',
+      'Add': '追加',
+      'Stamps are limited to <N>': 'スタンプは <N> 個まで追加できます',
+      'Remove a stamp': 'スタンプを解除',
+      'Update stamp': 'スタンプの更新',
+      'Cancel': 'キャンセル',
+      'Send stamp': 'スタンプを送信',
+      'Remove stamp <EMOJI>': 'スタンプ <EMOJI> を解除',
+      'Send stamp <EMOJI>': 'スタンプ <EMOJI> を送信',
+      '<NUM> comments': '<NUM> 件のコメント',
+      'Admin': '管理者',
+      'Remove stamp': 'スタンプを解除',
+      'Comment will be deleted when stamp is removed.': '解除するとコメントも削除されます。',
+      'Sending...': '送信中...',
+      'Communication error': '通信エラー',
+      'Loading emojis...': '絵文字を読み込んでいます...',
+      'Select from above or enter directly here': '↑から選択またはここに直接入力',
+      'Recently used stamps': '最近使われたスタンプ',
+      'You can also write a comment here.\nThe content will be public. Empty is OK.': 'ここにコメントも書けます。\n内容は公開されます。空欄 OK。',
+      'You can send <N> more stamps': 'あと <N> 個スタンプを送れます',
+      'You can no longer send stamps': 'これ以上スタンプを送れません',
+      'Failed to load stamps': 'スタンプを読み込めませんでした',
+      'Unknown error': '不明なエラー',
+    },
+  };
+
+  function S(key) {
+    const lang = navigator.language || 'ja';
+    if (lang in STR_DICT && key in STR_DICT[lang]) {
+      return STR_DICT[lang][key];
+    }
+    else {
+      return key;
+    }
+  }
+
   /** @type {ShapocoNetStamp|null} */
   let shapocoNetStamp = null;
 
@@ -64,21 +105,21 @@
       stampContainer.classList.add('shpcstamp');
 
       this.stampButtonList.id = 'shpcstamp_stamp_list';
-      this.stampButtonList.innerHTML = 'スタンプを読み込んでいます...&nbsp;';
+      this.stampButtonList.innerHTML = `${S('Loading stamps...')}&nbsp;`;
       stampContainer.appendChild(this.stampButtonList);
 
       this.expandButton.type = 'button';
       this.expandButton.id = 'shpcstamp_expand_button';
-      this.expandButton.title = '全てのスタンプを表示';
-      this.expandButton.innerHTML = '全て表示';
+      this.expandButton.title = S('Show all stamps');
+      this.expandButton.innerHTML = S('Show all');
       this.expandButton.style.display = 'none';
       stampContainer.appendChild(this.expandButton);
       this.expandButton.addEventListener('click', evt => this.onExpand(evt));
 
       this.addButton.type = 'button';
       this.addButton.id = 'shpcstamp_add_button';
-      this.addButton.title = 'スタンプを追加する';
-      this.addButton.innerHTML = '<span class="shpcstamp_emoji">➕</span>追加';
+      this.addButton.title = S('Add a stamp');
+      this.addButton.innerHTML = `<span class="shpcstamp_emoji">➕</span>${S('Add')}`;
       stampContainer.appendChild(this.addButton);
       this.addButton.addEventListener('click', async (evt) => {
         if (commentWindow && commentWindow.isShown()) {
@@ -175,7 +216,9 @@
       }
 
       this.addButton.disabled = full;
-      this.addButton.title = full ? `スタンプは ${maxStampCount} 個まで送れます` : 'スタンプを追加する';
+      this.addButton.title = full ?
+        S('Stamps are limited to <N>').replace('<N>', maxStampCount) :
+        S('Add a stamp');
     }
 
     updateButton(button, numStamp, numComment, sent, full) {
@@ -187,11 +230,13 @@
 
       if (sent) {
         button.classList.add('shpcstamp_sent');
-        button.title = 'スタンプを解除する';
+        button.title = S('Remove a stamp');
       }
       else {
         button.classList.remove('shpcstamp_sent');
-        button.title = full ? `スタンプは ${maxStampCount} 個まで送れます` : 'スタンプを送る';
+        button.title = full ?
+          S('Stamps are limited to <N>').replace('<N>', maxStampCount) :
+          S('Add a stamp');
       }
     }
 
@@ -336,7 +381,7 @@
       this.container.appendChild(this.commentTitleBar);
       this.commentListDiv.classList.add('shpcstamp_comment_list');
       this.container.appendChild(this.commentListDiv);
-      this.stampTitleBar.textContent = 'スタンプの更新';
+      this.stampTitleBar.textContent = S('Update stamp');
       this.container.appendChild(this.stampTitleBar);
       this.container.appendChild(this.stampDescDiv);
       this.container.appendChild(this.commentBoxCtrl.container);
@@ -346,11 +391,11 @@
         div.style.textAlign = 'right';
         const cancelButton = document.createElement('button');
         cancelButton.type = 'button';
-        cancelButton.textContent = 'キャンセル';
+        cancelButton.textContent = S('Cancel');
         cancelButton.addEventListener('click', evt => this.hide());
 
         this.sendButton.type = 'button';
-        this.sendButton.innerHTML = '<span class="shpcstamp_emoji">➕</span>スタンプを送信';
+        this.sendButton.innerHTML = '<span class="shpcstamp_emoji">➕</span>' + S('Send stamp');
 
         div.appendChild(cancelButton);
         div.appendChild(document.createTextNode(' '));
@@ -367,23 +412,24 @@
 
       const emoji = this.ownerButton.dataset.emoji;
 
+      const emojiSpan = `<span class="shpcstamp_emoji">${replaceCustomEmoji(emoji)}</span>`;
       this.sendButton.innerHTML = sent ?
-        `スタンプ<span class="shpcstamp_emoji">${replaceCustomEmoji(emoji)}</span>を解除` :
-        `スタンプ<span class="shpcstamp_emoji">${replaceCustomEmoji(emoji)}</span>を送る`;
+        S('Remove stamp <EMOJI>').replace('<EMOJI>', emojiSpan) :
+        S('Send stamp <EMOJI>').replace('<EMOJI>', emojiSpan);
       this.commentBoxCtrl.clear();
 
       let numComments = 0;
 
       this.commentListDiv.innerHTML = '';
       const cts = comments.filter(entry => entry.emoji == emoji).slice().reverse();
-      this.commentTitleBar.innerHTML = `${cts.length} 件のコメント`;
+      this.commentTitleBar.innerHTML = S('<NUM> comments').replace('<NUM>', cts.length);
       if (cts.length > 0) {
         const ul = document.createElement('ul');
         for (const entry of cts) {
           const li = document.createElement('li');
           if (entry.author) {
             li.classList.add('shpcstamp_comment_author');
-            li.innerHTML = escapeForHtml(`[管理者] ${entry.comment}`);
+            li.innerHTML = escapeForHtml(`[${S('Admin')}] ${entry.comment}`);
           }
           else {
             li.innerHTML = escapeForHtml(entry.comment);
@@ -402,11 +448,11 @@
       }
 
       if (sent) {
-        this.stampTitleBar.innerHTML = `スタンプの解除`;
-        this.stampDescDiv.textContent = '解除するとコメントも削除されます。';
+        this.stampTitleBar.innerHTML = S('Remove stamp');
+        this.stampDescDiv.textContent = S('Comment will be deleted when stamp is removed.');
       }
       else {
-        this.stampTitleBar.innerHTML = `スタンプの送信`;
+        this.stampTitleBar.innerHTML = S('Send stamp');
         this.stampDescDiv.textContent = getStampSendDescription();
       }
 
@@ -421,7 +467,7 @@
 
     async onSend() {
       this.sendButton.disabled = true;
-      this.sendButton.innerHTML = '送信中...';
+      this.sendButton.innerHTML = S('Sending...');
       const remove = this.checkSentThisStamp();
       const emoji = this.ownerButton.dataset.emoji;
       try {
@@ -430,7 +476,7 @@
       }
       catch (error) {
         console.error(error);
-        showMessage(false, '通信エラー');
+        showMessage(false, S('Communication error'));
       }
       this.hide();
     }
@@ -456,7 +502,7 @@
       this.commentBoxCtrl = new CommentBoxController();
       this.sendButton = document.createElement('button');
 
-      this.titleBar.textContent = 'スタンプの追加';
+      this.titleBar.textContent = S('Add stamp');
       this.container.appendChild(this.titleBar);
 
       // カテゴリ選択
@@ -469,7 +515,7 @@
 
       // 絵文字のリスト
       {
-        this.emojiList.textContent = '絵文字を読み込んでいます...';
+        this.emojiList.textContent = S('Loading emojis...');
         this.emojiList.classList.add('shpcstamp_popup_list');
         this.container.appendChild(this.emojiList);
       }
@@ -483,7 +529,7 @@
         this.emojiBox.type = 'text';
         this.emojiBox.classList.add('shpcstamp_emoji');
         this.emojiBox.style.width = '100%';
-        this.emojiBox.placeholder = '↑から選択またはここに直接入力';
+        this.emojiBox.placeholder = S('Select from above or enter directly here');
         const div = document.createElement('div');
         div.appendChild(this.emojiBox);
         this.container.appendChild(div);
@@ -496,7 +542,7 @@
       {
         const cancelButton = document.createElement('button');
         cancelButton.type = 'button';
-        cancelButton.textContent = 'キャンセル';
+        cancelButton.textContent = S('Cancel');
 
         this.sendButton.type = 'button';
 
@@ -569,18 +615,18 @@
         }
         catch (error) {
           console.error(error);
-          this.emojiList.innerHTML = '通信エラー';
+          this.emojiList.innerHTML = S('Communication error');
         }
       }
 
       this.stampDescDiv.textContent = getStampSendDescription();
-      this.sendButton.innerHTML = '<span class="shpcstamp_emoji">➕</span>スタンプ送信';
+      this.sendButton.innerHTML = '<span class="shpcstamp_emoji">➕</span>' + S('Send stamp');
 
       // カテゴリの選択肢を生成
       this.categoryList.innerHTML = '';
       const recentStamps = document.createElement('option');
       recentStamps.value = '-1';
-      recentStamps.textContent = '⭐ 最近使われたスタンプ';
+      recentStamps.textContent = '⭐ ' + S('Recently used stamps');
       this.categoryList.appendChild(recentStamps);
       for (let icat = 0; icat < emojiCategories.length; icat++) {
         const cate = emojiCategories[icat];
@@ -624,7 +670,7 @@
 
     async send() {
       this.sendButton.disabled = true;
-      this.sendButton.innerHTML = '送信中...';
+      this.sendButton.innerHTML = S('Sending...');
       try {
         await updateStamp(this.emojiBox.value, false, this.commentBoxCtrl.getText());
         this.emojiBox.value = '';
@@ -632,7 +678,7 @@
       }
       catch (error) {
         console.error(error);
-        showMessage(false, '通信エラー');
+        showMessage(false, S('Communication error'));
       }
       this.hide();
     }
@@ -651,7 +697,7 @@
       // コメント入力欄
       this.textarea = document.createElement('textarea');
       this.textarea.style.width = '100%';
-      this.textarea.placeholder = 'ここにコメントも書けます。\n内容は公開されます。空欄 OK。';
+      this.textarea.placeholder = S('You can also write a comment here.\nThe content will be public. Empty is OK.');
       this.textarea.rows = 3;
       this.container.appendChild(this.textarea);
 
@@ -821,13 +867,13 @@
   function getStampSendDescription() {
     const numStampSent = Object.values(stamps).filter(item => item.sent).length;
     if (numStampSent == 0) {
-      return `スタンプは ${maxStampCount} 個まで送れます。`;
+      return S('Stamps are limited to <N>').replace('<N>', maxStampCount);
     }
     else if (numStampSent < maxStampCount) {
-      return `スタンプはあと ${maxStampCount - numStampSent} 個送れます。`;
+      return S('You can send <N> more stamps').replace('<N>', maxStampCount - numStampSent);
     }
     else {
-      return `スタンプはもう送れません。`;
+      return S('You can no longer send stamps');
     }
   }
 
@@ -914,7 +960,7 @@
     catch (error) {
       console.error(error);
       shapocoNetStamp.stampButtonList.innerHTML = '';
-      showMessage(false, 'スタンプを読み込めませんでした');
+      showMessage(false, S('Failed to load stamps'));
     }
   }
 
@@ -931,7 +977,7 @@
       statusMsg.innerHTML = '';
     }
     else {
-      statusMsg.innerHTML = '⚠ ' + (message ? message : '不明なエラー');
+      statusMsg.innerHTML = '⚠ ' + (message ? message : S('Unknown error'));
       statusMsg.style.visibility = 'visible';
     }
   }
