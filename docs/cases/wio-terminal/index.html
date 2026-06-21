@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
-  
+
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
   <script>
@@ -21,7 +21,7 @@
   </script>
 
   <link rel="stylesheet" href="../../style.css">
-  <title>J7-c | LcdTap Use Cases</title>
+  <title>Wio Terminal | LcdTap Use Cases</title>
 </head>
 
 <body>
@@ -30,16 +30,19 @@
     <a href="../../#cases">Cases</a>
   </header>
   <main>
-    <h1 id="configuration-for-j7-c">Configuration for J7-c</h1>
+    <h1 id="configuration-for-wio-terminal">Configuration for Wio Terminal</h1>
     <p><img src="./thumb.jpg" class="large-img" /></p>
-    <h2 id="using-lcdtap-pico2-universal">Using LcdTap-Pico2 Universal</h2>
+    <h2 id="using-lcdtap-wio-terminal-universal">Using LcdTap-Pico2 Universal</h2>
+    <h3 id="external-deserializer-is-required">External Deserializer is
+      Required</h3>
+    <p>The Wio Terminal’s SPI is too fast for the LcdTap’s 4-Line SPI
+      interface, so an <a
+        href="https://github.com/shapoco/lcdtap/tree/main/example/pico2_universal#external-deserializer-for-high-speed-spi">external
+        deserializer</a> is required.</p>
     <h3 id="connection">Connection</h3>
     <p><img src="wiring.jpg" class="large-img" /></p>
     <h3 id="configuration">Configuration</h3>
-    <ol type="1">
-      <li>Load preset for ST7735.</li>
-      <li>Set Format Override to RGB666-LA.</li>
-    </ol>
+    <p>Load preset for Wio Terminal.</p>
   </main>
 
   <footer>
