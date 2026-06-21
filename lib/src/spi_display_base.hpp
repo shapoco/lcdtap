@@ -17,6 +17,13 @@ class SpiDisplayBase : public ControllerBase {
   static constexpr uint8_t MADCTL_MY = 0x80;
 
   uint8_t madctl;
+
+  inline uint8_t effectiveMadctl() const {
+    uint8_t f = static_cast<uint8_t>(config.flipMode);
+    uint8_t mask =
+        ((f & 0x01u) ? MADCTL_MX : 0u) | ((f & 0x02u) ? MADCTL_MY : 0u);
+    return madctl ^ mask;
+  }
   uint16_t hwColStart;  // CASET start (hardware column coordinate)
   uint16_t hwColEnd;    // CASET end   (hardware column coordinate, inclusive)
   uint16_t hwRowStart;  // RASET start (hardware row coordinate)

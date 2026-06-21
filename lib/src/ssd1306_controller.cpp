@@ -51,7 +51,7 @@ void Ssd1306Controller::dispatchCommand(uint8_t cmd) {
           ramwrX = casetXS;
         } else {
           casetXE = LCDTAP_CLIP(casetXS, config.buffWidth - 1, cmd);
-          if (ssdSegmentRemap) {
+          if (effectiveSegmentRemap()) {
             expandTrimX(config.buffWidth - 1 - casetXE,
                         config.buffWidth - 1 - casetXS);
           } else {
@@ -67,7 +67,7 @@ void Ssd1306Controller::dispatchCommand(uint8_t cmd) {
         } else {
           rasetYE = LCDTAP_CLIP(rasetYS, config.buffHeight - 1,
                                 (uint16_t)cmd * 8u + 7u);
-          if (ssdComFlip) {
+          if (effectiveComFlip()) {
             expandTrimY(config.buffHeight - 1 - rasetYE,
                         config.buffHeight - 1 - rasetYS);
           } else {
@@ -190,8 +190,8 @@ void Ssd1306Controller::processRamwrData(const uint8_t* data, uint32_t numElems,
       uint16_t row = static_cast<uint16_t>(ramwrY + bit);
       if (row < lcdH) {
         uint16_t physRow =
-            ssdComFlip ? static_cast<uint16_t>(lcdH - 1u - row) : row;
-        uint16_t physCol = ssdSegmentRemap
+            effectiveComFlip() ? static_cast<uint16_t>(lcdH - 1u - row) : row;
+        uint16_t physCol = effectiveSegmentRemap()
                                ? static_cast<uint16_t>(lcdW - 1u - ramwrX)
                                : ramwrX;
         framebuf[physRow * lcdW + physCol] =

@@ -24,8 +24,9 @@ uint16_t SpiDisplayBase::logicalHeight() const {
 
 void SpiDisplayBase::updateWriteCache() {
   bool mv = !!(madctl & MADCTL_MV);
-  bool mx = !!(madctl & MADCTL_MX);
-  bool my = !!(madctl & MADCTL_MY);
+  uint8_t effM = effectiveMadctl();
+  bool mx = !!(effM & MADCTL_MX);
+  bool my = !!(effM & MADCTL_MY);
   // Map hardware window coordinates to logical coordinates used by physIndex().
   // When mv=true the fast axis is the hardware row and the slow axis is the
   // hardware column, so they must be swapped relative to the mv=false case.
@@ -140,7 +141,7 @@ void SpiDisplayBase::feedDataByte(uint8_t byte) {
           uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
           if (!(madctl & MADCTL_MV)) {
             hwColEnd = LCDTAP_CLIP(hwColStart, config.buffWidth - 1, val);
-            if (madctl & MADCTL_MX) {
+            if (effectiveMadctl() & MADCTL_MX) {
               uint16_t w = config.buffWidth;
               expandTrimX(w - hwColEnd - 1, w - hwColStart - 1);
             } else {
@@ -148,7 +149,7 @@ void SpiDisplayBase::feedDataByte(uint8_t byte) {
             }
           } else {
             hwRowEnd = LCDTAP_CLIP(hwRowStart, config.buffHeight - 1, val);
-            if (madctl & MADCTL_MY) {
+            if (effectiveMadctl() & MADCTL_MY) {
               uint16_t h = config.buffHeight;
               expandTrimY(h - hwRowEnd - 1, h - hwRowStart - 1);
             } else {
@@ -176,7 +177,7 @@ void SpiDisplayBase::feedDataByte(uint8_t byte) {
           uint16_t val = static_cast<uint16_t>((ramwrBuf[0] << 8) | byte);
           if (!(madctl & MADCTL_MV)) {
             hwRowEnd = LCDTAP_CLIP(hwRowStart, config.buffHeight - 1, val);
-            if (madctl & MADCTL_MY) {
+            if (effectiveMadctl() & MADCTL_MY) {
               uint16_t h = config.buffHeight;
               expandTrimY(h - hwRowEnd - 1, h - hwRowStart - 1);
             } else {
@@ -184,7 +185,7 @@ void SpiDisplayBase::feedDataByte(uint8_t byte) {
             }
           } else {
             hwColEnd = LCDTAP_CLIP(hwColStart, config.buffWidth - 1, val);
-            if (madctl & MADCTL_MX) {
+            if (effectiveMadctl() & MADCTL_MX) {
               uint16_t w = config.buffWidth;
               expandTrimX(w - hwColEnd - 1, w - hwColStart - 1);
             } else {

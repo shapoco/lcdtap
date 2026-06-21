@@ -7,11 +7,13 @@
 namespace lcdtap {
 
 uint16_t Ssd1331Controller::logicalWidth() const {
-  return (remap & ssd1331::REMAP_ADDR_INC) ? config.buffHeight : config.buffWidth;
+  return (remap & ssd1331::REMAP_ADDR_INC) ? config.buffHeight
+                                           : config.buffWidth;
 }
 
 uint16_t Ssd1331Controller::logicalHeight() const {
-  return (remap & ssd1331::REMAP_ADDR_INC) ? config.buffWidth : config.buffHeight;
+  return (remap & ssd1331::REMAP_ADDR_INC) ? config.buffWidth
+                                           : config.buffHeight;
 }
 
 // Map SETREMAP bits to write-cache offsets and steps (mirrors ST7789 MADCTL
@@ -21,6 +23,9 @@ void Ssd1331Controller::updateWriteCache() {
   bool mx = (remap & ssd1331::REMAP_COL_REMAP) != 0;  // mirror X
   bool my = ((remap & ssd1331::REMAP_COM_REMAP) != 0) ^
             mv;  // mirror Y (inverted when MV=1)
+  // Apply flip after mv correction
+  mx ^= (static_cast<uint8_t>(config.flipMode) & 0x01u) != 0u;
+  my ^= (static_cast<uint8_t>(config.flipMode) & 0x02u) != 0u;
   // Map hardware window coordinates to logical coordinates used by physIndex().
   // When mv=true the fast axis is the hardware row and the slow axis is the
   // hardware column, so they must be swapped relative to the mv=false case.

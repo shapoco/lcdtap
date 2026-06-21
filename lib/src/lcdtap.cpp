@@ -307,6 +307,14 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->enableKeyValueMax = static_cast<int16_t>(TrimMode::CUSTOM);
       break;
 
+    // Flip Mode
+    case ConfigId::FLIP_MODE:
+      e->type = ValueType::ENUM;
+      e->name = "Flip Mode";
+      e->options = FLIP_MODE_NAMES;
+      e->max = static_cast<int16_t>(FlipMode::FLIP_HV);
+      break;
+
     // Output Rotation
     case ConfigId::OUTPUT_ROT:
       e->type = ValueType::ENUM;
@@ -344,6 +352,7 @@ int16_t getConfigValueById(const LcdTapConfig& cfg, ConfigId id) {
     case ConfigId::TRIM_Y: return static_cast<int16_t>(cfg.trimY);
     case ConfigId::TRIM_WIDTH: return static_cast<int16_t>(cfg.trimWidth);
     case ConfigId::TRIM_HEIGHT: return static_cast<int16_t>(cfg.trimHeight);
+    case ConfigId::FLIP_MODE: return static_cast<int16_t>(cfg.flipMode);
     case ConfigId::OUTPUT_ROT: return static_cast<int16_t>(cfg.outputRotation);
     case ConfigId::SCALE_MODE: return static_cast<int16_t>(cfg.scaleMode);
     default: return 0;
@@ -380,6 +389,9 @@ void setConfigValueById(LcdTapConfig* cfg, ConfigId id, int16_t value) {
       break;
     case ConfigId::TRIM_HEIGHT:
       cfg->trimHeight = static_cast<uint16_t>(value);
+      break;
+    case ConfigId::FLIP_MODE:
+      cfg->flipMode = static_cast<FlipMode>(value);
       break;
     case ConfigId::OUTPUT_ROT:
       cfg->outputRotation = static_cast<uint8_t>(value & 3u);

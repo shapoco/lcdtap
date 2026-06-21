@@ -14,9 +14,18 @@ namespace lcdtap {
 // - Addressing is page-based (horizontal / vertical / page modes)
 class Ssd1306Controller : public ControllerBase {
  public:
-  uint8_t ssdAddrMode;     // 0=horizontal, 1=vertical, 2=page (default)
-  bool ssdSegmentRemap;    // true=A1 (col127→SEG0, horizontal flip)
-  bool ssdComFlip;         // true=C8 (COM63→COM0, vertical flip)
+  uint8_t ssdAddrMode;   // 0=horizontal, 1=vertical, 2=page (default)
+  bool ssdSegmentRemap;  // true=A1 (col127→SEG0, horizontal flip)
+  bool ssdComFlip;       // true=C8 (COM63→COM0, vertical flip)
+
+  inline bool effectiveSegmentRemap() const {
+    return ssdSegmentRemap ^
+           ((static_cast<uint8_t>(config.flipMode) & 0x01u) != 0u);
+  }
+  inline bool effectiveComFlip() const {
+    return ssdComFlip ^ ((static_cast<uint8_t>(config.flipMode) & 0x02u) != 0u);
+  }
+
   uint8_t expectedParams;  // remaining parameter bytes for the current command
   uint8_t pageColLow;      // page mode column address lower nibble
   uint8_t pageColHigh;     // page mode column address upper nibble

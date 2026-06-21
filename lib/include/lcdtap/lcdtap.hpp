@@ -119,6 +119,23 @@ static_assert(sizeof(TRIM_MODE_NAMES) / sizeof(TRIM_MODE_NAMES[0]) ==
               "TRIM_MODE_NAMES size must match TrimMode enum");
 
 //=============================================================================
+// Flip mode (horizontal/vertical mirroring of framebuffer content)
+//=============================================================================
+
+// bit[0]: Horizontal Flip, bit[1]: Vertical Flip
+enum class FlipMode : uint8_t {
+  OFF,
+  FLIP_H,
+  FLIP_V,
+  FLIP_HV,
+};
+
+static const char* FLIP_MODE_NAMES[] = {"Off", "Flip H", "Flip V", "Flip H+V"};
+static_assert(sizeof(FLIP_MODE_NAMES) / sizeof(FLIP_MODE_NAMES[0]) ==
+                  static_cast<size_t>(FlipMode::FLIP_HV) + 1,
+              "FLIP_MODE_NAMES size must match FlipMode enum");
+
+//=============================================================================
 // Scale mode (scaling of framebuffer content to DVI output)
 //=============================================================================
 
@@ -189,6 +206,8 @@ struct LcdTapConfig {
   uint16_t trimWidth;
   uint16_t trimHeight;
 
+  FlipMode flipMode;
+
   uint16_t dviWidth;   // DVI active area width (pixels)
   uint16_t dviHeight;  // DVI active area height (lines)
   ScaleMode scaleMode;
@@ -205,6 +224,7 @@ enum class ConfigId : uint8_t {
   TRIM_Y,
   TRIM_WIDTH,
   TRIM_HEIGHT,
+  FLIP_MODE,
   INVERSE,
   SWAP_RB,
   OUTPUT_ROT,
