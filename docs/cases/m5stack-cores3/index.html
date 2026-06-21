@@ -30,17 +30,18 @@
     <a href="../../#cases">Cases</a>
   </header>
   <main>
-    <h1 id="configuration-for-m5stack-cores3">Configuration for M5Stack
-      CoreS3</h1>
+    <h1>Configuration for M5Stack CoreS3</h1>
+
+    <div id="shpcstamp_wrap"></div>
+    <script async src="/stamp/v1/widget.js?202606212157"></script>
+
     <p><img src="./thumb.jpg" class="large-img" /></p>
     <p>See also: <a href="https://blog.shapoco.net/2026/0520-m5stack-with-large-monitor/">LcdTap:
         M5Stack CoreS3 の画面をミラーリング/キャプチャする</a></p>
-    <h2 id="accessing-the-chip-select-signal">Accessing the Chip Select
-      Signal</h2>
+    <h2>Accessing the Chip Select Signal</h2>
     <p>The M5Stack CoreS3 does not have the CS signal exposed on the
       connector, so one of the following solutions is required.</p>
-    <h3 id="method1-route-cs-signal-to-m-bus">Method1: Route CS signal to
-      M-Bus</h3>
+    <h3>Method1: Route CS signal to M-Bus</h3>
     <p>Requires modifying <code>M5GFX.cpp</code> and recompiling, but no
       hardware modification is needed.</p>
     <pre>
@@ -68,12 +69,12 @@
                            : GPIO_ENABLE1_W1TS_REG
                          ) = 1u &lt;&lt; (GPIO_NUM_35 &amp; 31);
   }</pre>
-    <h3 id="method2-wire-directly">Method2: Wire directly</h3>
+    <h3>Method2: Wire directly</h3>
     <p>Wire directly to R49 on the back of the board: Hardware modification
       is required, but no software changes are needed.</p>
     <p><img src="wiring.jpg" class="large-img" /></p>
-    <h2 id="using-lcdtap-pico2-universal">Using LcdTap-Pico2 Universal</h2>
-    <h3 id="connection">Connection</h3>
+    <h2>Using LcdTap-Pico2 Universal</h2>
+    <h3>Connection</h3>
     <table>
       <thead>
         <tr>
@@ -108,10 +109,10 @@
         </tr>
       </tbody>
     </table>
-    <h3 id="configuration">Configuration</h3>
+    <h3>Configuration</h3>
     <p>Load preset for M5Stack CoreS3.</p>
-    <h2 id="using-lcdtap-pico2-for-st7789">Using LcdTap-Pico2 for ST7789</h2>
-    <h3 id="connection-1">Connection</h3>
+    <h2>Using LcdTap-Pico2 for ST7789</h2>
+    <h3>Connection</h3>
     <table>
       <thead>
         <tr>
