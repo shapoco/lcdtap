@@ -171,6 +171,7 @@ enum class ConfigPreset : uint8_t {
   ST7789,
   ARDUBOY,
   M5STACK_CORES3,
+  PICOPAD,
   PICOSYSTEM,
   THUMBY,
   TINYJOYPAD,
@@ -180,9 +181,9 @@ enum class ConfigPreset : uint8_t {
 };
 
 static const char* CONFIG_PRESET_NAMES[] = {
-    "ILI9341", "ILI9342",    "ILI9488",      "SSD1306",        "SSD1331",
-    "ST7735",  "ST7789",     "Arduboy",      "M5Stack CoreS3", "Picosystem",
-    "Thumby",  "TinyJoypad", "Wio Terminal", "Xiamocon",
+    "ILI9341",    "ILI9342", "ILI9488",    "SSD1306",        "SSD1331",
+    "ST7735",     "ST7789",  "Arduboy",    "M5Stack CoreS3", "PicoPad",
+    "Picosystem", "Thumby",  "TinyJoypad", "Wio Terminal",   "Xiamocon",
 };
 static_assert(sizeof(CONFIG_PRESET_NAMES) / sizeof(CONFIG_PRESET_NAMES[0]) ==
                   static_cast<size_t>(ConfigPreset::NUM_PRESETS),

@@ -108,6 +108,11 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
       cfg->busInterface = BusType::SPI_4LINE;
       break;
 
+    case ConfigPreset::PICOPAD:
+      getDefaultConfig(ControllerFamily::ST7789, cfg);
+      cfg->outputRotation = 3;
+      break;
+
     case ConfigPreset::PICOSYSTEM:
       getDefaultConfig(ControllerFamily::ST7789, cfg);
       cfg->buffWidth = 240;

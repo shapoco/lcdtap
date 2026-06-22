@@ -21,7 +21,7 @@
   </script>
 
   <link rel="stylesheet" href="../../style.css">
-  <title>KWS-X1 | LcdTap Use Cases</title>
+  <title>Picosystem | LcdTap Use Cases</title>
 </head>
 
 <body>
@@ -30,80 +30,54 @@
     <a href="../../#cases">Cases</a>
   </header>
   <main>
-    <h1>Configuration for KWS-X1</h1>
-    
+    <h1>Configuration for PicoPad</h1>
+
     <div id="shpcstamp_wrap"></div>
     <script async src="/lcdtap/stamp/v1/widget.js?202606212157"></script>
 
     <p><img src="./thumb.jpg" class="large-img" /></p>
     <h2>Using LcdTap-Pico2 Universal</h2>
     <h3>Connection</h3>
-    <p><img src="./wiring.jpg" class="large-img" /></p>
     <p>
-      Connect the CS pin of LcdTap to GND.
+      The timing between the CS signal edge and the clock/data edges from PicoPad is
+      too short for LcdTap. So connect the LcdTap CS signal to GND.
     </p>
-    <h3>Configuration</h3>
-    <ol type="1">
-      <li>Load preset for ST7789.</li>
-      <li>Set Output Rotation to 270°.</li>
-      <li>Set Trim Mode to Auto.</li>
-    </ol>
-    <h2>Using LcdTap-Pico2 for ST7789</h2>
-    <h3>Connection</h3>
     <table>
       <thead>
         <tr>
-          <th>LcdTap (Pico2)</th>
+          <th>LcdTap</th>
           <th>Connection</th>
         </tr>
       </thead>
       <tbody>
         <tr>
+          <td>RST</td>
+          <td>PicoPad's RST</td>
+        </tr>
+        <tr>
+          <td>CS</td>
+          <td><strong>GND</strong></td>
+        </tr>
+        <tr>
+          <td>SCLK</td>
+          <td>PicoPad's SCLK</td>
+        </tr>
+        <tr>
           <td>GND</td>
-          <td>KWS-X1’s GND</td>
+          <td>PicoPad's GND</td>
         </tr>
         <tr>
-          <td>GPIO0 (RST)</td>
-          <td>KWS-X1’s RST (Pin 6)</td>
+          <td>DC</td>
+          <td>PicoPad's DC</td>
         </tr>
         <tr>
-          <td>GPIO1 (CS)</td>
-          <td>Pico2’s GND</td>
-        </tr>
-        <tr>
-          <td>GPIO2 (SCLK)</td>
-          <td>KWS-X1’s SCLK (Pin 4)</td>
-        </tr>
-        <tr>
-          <td>GPIO3 (MOSI)</td>
-          <td>KWS-X1’s MOSI (Pin 3)</td>
-        </tr>
-        <tr>
-          <td>GPIO4 (DC)</td>
-          <td>KWS-X1’s DC (Pin 5)</td>
-        </tr>
-        <tr>
-          <td>GPIO20 (CFG_OUT_720P)</td>
-          <td>Select according to your display</td>
-        </tr>
-        <tr>
-          <td>GPIO21 (CFG_LCD_SIZE_SEL)</td>
-          <td>Open or 3V3</td>
-        </tr>
-        <tr>
-          <td>GPIO22 (CFG_SWAP_RB)</td>
-          <td>Open or 3V3</td>
-        </tr>
-        <tr>
-          <td>GPIO26 (CFG_INVERTED)</td>
-          <td>GND (inverted)</td>
-        </tr>
-        <tr>
-          <td>GPIO28/27 (CFG_ROT[1:0])</td>
-          <td>GND (270°)</td>
+          <td>MOSI</td>
+          <td>PicoPad's MOSI</td>
         </tr>
       </tbody>
     </table>
+    <h3>Configuration</h3>
+    <p>Load preset for PicoPad.</p>
   </main>
 
   <footer>
