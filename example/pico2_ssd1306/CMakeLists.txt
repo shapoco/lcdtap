@@ -23,11 +23,6 @@ target_include_directories(lcdtap_pico2_ssd1306 PRIVATE
     include
 )
 
-# DVI_DEFAULT_PIO_INST must be pio0 so libdvi and pico_sock_cfg agree.
-target_compile_definitions(lcdtap_pico2_ssd1306 PRIVATE
-    DVI_DEFAULT_PIO_INST=pio0
-)
-
 # Forward framebuffer-size overrides only when explicitly passed via -D.
 # Defaults are defined in config.h via #ifndef/#define.
 foreach(VAR LCDTAP_LCD_SIZE1_W LCDTAP_LCD_SIZE1_H LCDTAP_LCD_SIZE2_W LCDTAP_LCD_SIZE2_H)
@@ -37,7 +32,7 @@ foreach(VAR LCDTAP_LCD_SIZE1_W LCDTAP_LCD_SIZE1_H LCDTAP_LCD_SIZE2_W LCDTAP_LCD_
 endforeach()
 
 target_link_libraries(lcdtap_pico2_ssd1306
-    pico2_common      # pulls in lcdtap, libdvi, hardware_dma/gpio/i2c/irq/pio
+    pico2_common      # pulls in lcdtap, hstx driver, hardware_dma/gpio/i2c/irq/pio
     pico_stdlib
     pico_multicore
     hardware_clocks

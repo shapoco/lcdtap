@@ -3,20 +3,13 @@
 #include <cstring>
 #include <initializer_list>
 
-#include "hardware/clocks.h"
 #include "hardware/gpio.h"
-#include "hardware/vreg.h"
 #include "hardware/watchdog.h"
-#include "pico/multicore.h"
 #include "pico/stdlib.h"
-
-#include "common_dvi_pin_configs.h"  // pico_sock_cfg
-#include "dvi.h"
-#include "dvi_timing.h"
 
 #include "lcdtap/lcdtap.hpp"
 #include "lcdtap/osd.hpp"
-#include "lcdtap/pico2/dvi_out.hpp"
+#include "lcdtap/pico2/hstx_out.hpp"
 #include "lcdtap/pico2/i2c_slave.hpp"
 #include "lcdtap/pico2/spi_slave.hpp"
 
@@ -75,14 +68,6 @@ static lcdtap::BusType gCurrentIface = lcdtap::BusType::SPI_4LINE;
 static bool gIfaceActive = false;
 
 // =============================================================================
-// DVI
-// =============================================================================
-static struct dvi_inst dvi0;
-
-static uint16_t
-    __attribute__((aligned(4))) scanlineBufs[N_SCANLINE_BUFS][DVI_MAX_W];
-
-// =============================================================================
 // LcdTap instance
 // =============================================================================
 static lcdtap::LcdTap *gInst = nullptr;
@@ -95,7 +80,7 @@ static lcdtap::Osd gOsd;
 // =============================================================================
 static lcdtap::pico2::SpiSlaveState gSpi;
 static lcdtap::pico2::I2cSlaveState gI2c;
-static lcdtap::pico2::DviOutState gDvi;
+static lcdtap::pico2::HstxOutState gHstx;
 
 // =============================================================================
 // OSD user items
@@ -238,9 +223,9 @@ static void switchInterface(lcdtap::BusType newIface) {
 // cannot access flash-resident code (fillScanline, OSD) during erase/program.
 // =============================================================================
 static void saveConfigSafe(const ConfigFile &cfg) {
-  lcdtap::pico2::dviOutFlashAcquire(&gDvi);
+  lcdtap::pico2::hstxOutFlashAcquire(&gHstx);
   saveConfig(cfg);
-  lcdtap::pico2::dviOutFlashRelease(&gDvi);
+  lcdtap::pico2::hstxOutFlashRelease(&gHstx);
 }
 
 // =============================================================================
@@ -315,11 +300,9 @@ int main() {
   }
 
   // -------------------------------------------------------------------------
-  // 2. Voltage regulator and system clock
+  // 2. Clock init (PLL_USB → clk_sys=288MHz; PLL_SYS → clk_hstx=bit_clk/2)
   // -------------------------------------------------------------------------
-  vreg_set_voltage(VREG_VOLTAGE_1_20);
-  sleep_ms(10);
-  set_sys_clock_khz(timing->bit_clk_khz, /*required=*/true);
+  lcdtap::pico2::hstxOutClockInit(timing);
 
   // -------------------------------------------------------------------------
   // 3. LED
@@ -335,15 +318,8 @@ int main() {
   gpio_set_dir(PIN_RST, GPIO_IN);
   gpio_pull_up(PIN_RST);
 
-  // -------------------------------------------------------------------------
-  // 5. DVI init (claims DMA channels and PIO0 state machines)
-  // -------------------------------------------------------------------------
-  dvi0.timing = timing;
-  dvi0.ser_cfg = pico_sock_cfg;
-  dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
-
-  const uint32_t dviW = timing->h_active_pixels / DVI_SYMBOLS_PER_WORD;
-  const uint32_t dviH = timing->v_active_lines / DVI_VERTICAL_REPEAT;
+  const uint32_t dviW = (uint32_t)timing->h_active_pixels;
+  const uint32_t dviH = (uint32_t)timing->v_active_lines;
 
   // -------------------------------------------------------------------------
   // 6. LcdTap init
@@ -410,14 +386,13 @@ int main() {
   switchInterface(gCurrentIface);
 
   // -------------------------------------------------------------------------
-  // 10. Launch Core 1 (fillScanline + OSD overlay + TMDS encode + serialise)
+  // 10. Launch Core 1 (fillScanline + OSD overlay + HSTX DVI output)
   // -------------------------------------------------------------------------
-  lcdtap::pico2::DviOutConfig dviCfg = {PIN_LED, LED_TOGGLE_FRAMES};
-  lcdtap::pico2::dviOutPrepare(&gDvi, &dvi0, scanlineBufs[0],
-                               sizeof(scanlineBufs[0]), &inst,
-                               universalFillScanline, nullptr, dviCfg);
-  gDvi.dviH = dviH;
-  lcdtap::pico2::dviOutLaunchCore1(&gDvi);
+  lcdtap::pico2::HstxOutConfig hstxCfg = {PIN_LED, LED_TOGGLE_FRAMES,
+                                          lcdtap::pico2::HSTX_PICO_SOCK_PINOUT};
+  lcdtap::pico2::hstxOutInit(&gHstx, timing, &inst, universalFillScanline,
+                             nullptr, hstxCfg);
+  lcdtap::pico2::hstxOutLaunchCore1(&gHstx);
 
   // -------------------------------------------------------------------------
   // 11. USB CDC serial interface
@@ -426,14 +401,14 @@ int main() {
 
   // -------------------------------------------------------------------------
   // 12. Main loop (Core 0)
-  //     Core 1 handles fillScanline + TMDS encode; Core 0 is free to drain
-  //     the SPI/I2C ring buffers continuously without timer preemption.
-  //     dviOutConsumeNewFrame returns true once per frame boundary.
+  //     Core 1 handles fillScanline + HSTX DVI output; Core 0 drains the
+  //     SPI/I2C ring buffers continuously without timer preemption.
+  //     hstxOutConsumeNewFrame returns true once per frame boundary.
   // -------------------------------------------------------------------------
   while (true) {
     processInputBuf();
     uartIfProcess();
-    if (lcdtap::pico2::dviOutConsumeNewFrame(&gDvi)) {
+    if (lcdtap::pico2::hstxOutConsumeNewFrame(&gHstx)) {
       uint64_t nowMs =
           static_cast<uint64_t>(to_ms_since_boot(get_absolute_time()));
       uint8_t action = gOsd.update(nowMs, *gInst, readKeys());

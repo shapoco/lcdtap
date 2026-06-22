@@ -3,17 +3,11 @@
 #include <cstring>
 #include <initializer_list>
 
-#include "hardware/clocks.h"
 #include "hardware/gpio.h"
-#include "hardware/vreg.h"
 #include "pico/stdlib.h"
 
-#include "common_dvi_pin_configs.h"
-#include "dvi.h"
-#include "dvi_timing.h"
-
 #include "lcdtap/lcdtap.hpp"
-#include "lcdtap/pico2/dvi_out.hpp"
+#include "lcdtap/pico2/hstx_out.hpp"
 #include "lcdtap/pico2/spi_slave.hpp"
 
 #include "config.h"
@@ -48,19 +42,11 @@ static uint32_t
     __attribute__((aligned(SPI_RING_BUF_BYTES))) spiRingBuf[SPI_RING_BUF_WORDS];
 
 // =============================================================================
-// DVI
-// =============================================================================
-static struct dvi_inst dvi0;
-
-static uint16_t
-    __attribute__((aligned(4))) scanlineBufs[N_SCANLINE_BUFS][DVI_MAX_W];
-
-// =============================================================================
 // Module state
 // =============================================================================
 static lcdtap::LcdTap *gInst = nullptr;
 static lcdtap::pico2::SpiSlaveState gSpi;
-static lcdtap::pico2::DviOutState gDvi;
+static lcdtap::pico2::HstxOutState gHstx;
 
 // =============================================================================
 // GPIO interrupt handler  (RST pin; CS pin)
@@ -115,11 +101,9 @@ int main() {
               : &dvi_timing_640x480p_60hz;          // 252.0 MHz bit clock
 
   // -------------------------------------------------------------------------
-  // 2. Voltage regulator and system clock
+  // 2. Clock init (PLL_USB → clk_sys=288MHz; PLL_SYS → clk_hstx=bit_clk/2)
   // -------------------------------------------------------------------------
-  vreg_set_voltage(VREG_VOLTAGE_1_20);
-  sleep_ms(10);
-  set_sys_clock_khz(timing->bit_clk_khz, /*required=*/true);
+  lcdtap::pico2::hstxOutClockInit(timing);
 
   // -------------------------------------------------------------------------
   // 3. LED
@@ -128,15 +112,8 @@ int main() {
   gpio_set_dir(PIN_LED, GPIO_OUT);
   gpio_put(PIN_LED, 0);
 
-  // -------------------------------------------------------------------------
-  // 4. DVI init (claims DMA channels and PIO0 state machines)
-  // -------------------------------------------------------------------------
-  dvi0.timing = timing;
-  dvi0.ser_cfg = pico_sock_cfg;  // GPIO12-19, pio0, invert_diffpairs=false
-  dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
-
-  const uint32_t dviW = timing->h_active_pixels / DVI_SYMBOLS_PER_WORD;
-  const uint32_t dviH = timing->v_active_lines / DVI_VERTICAL_REPEAT;
+  const uint32_t dviW = (uint32_t)timing->h_active_pixels;
+  const uint32_t dviH = (uint32_t)timing->v_active_lines;
 
   // -------------------------------------------------------------------------
   // 5. LcdTap init
@@ -186,26 +163,24 @@ int main() {
   lcdtap::pico2::spiSlaveRegisterIrq(&gSpi);
 
   // -------------------------------------------------------------------------
-  // 8. Launch Core 1 (fillScanline + TMDS encode + serialise)
+  // 8. Launch Core 1 (fillScanline + HSTX DVI output)
   // -------------------------------------------------------------------------
-  lcdtap::pico2::DviOutConfig dviCfg = {PIN_LED, LED_TOGGLE_FRAMES};
-  lcdtap::pico2::dviOutPrepare(&gDvi, &dvi0, scanlineBufs[0],
-                               sizeof(scanlineBufs[0]), &inst, nullptr, nullptr,
-                               dviCfg);
-  gDvi.dviH = dviH;
-  lcdtap::pico2::dviOutLaunchCore1(&gDvi);
+  lcdtap::pico2::HstxOutConfig hstxCfg = {PIN_LED, LED_TOGGLE_FRAMES,
+                                          lcdtap::pico2::HSTX_PICO_SOCK_PINOUT};
+  lcdtap::pico2::hstxOutInit(&gHstx, timing, &inst, nullptr, nullptr, hstxCfg);
+  lcdtap::pico2::hstxOutLaunchCore1(&gHstx);
 
   // -------------------------------------------------------------------------
   // 9. Main loop (Core 0)
-  //    Core 1 handles fillScanline + TMDS encode; Core 0 is free to drain
-  //    the SPI ring buffer continuously without timer preemption.
-  //    dviOutConsumeNewFrame returns true once per frame boundary.
+  //    Core 1 handles fillScanline + HSTX DVI output; Core 0 drains the
+  //    SPI ring buffer continuously without timer preemption.
+  //    hstxOutConsumeNewFrame returns true once per frame boundary.
   // -------------------------------------------------------------------------
   int currentRot = rot;
 
   while (true) {
     lcdtap::pico2::spiSlaveProcess(&gSpi);
-    if (lcdtap::pico2::dviOutConsumeNewFrame(&gDvi)) {
+    if (lcdtap::pico2::hstxOutConsumeNewFrame(&gHstx)) {
       int newRot = static_cast<int>((!gpio_get(PIN_CFG_ROT1) ? 2u : 0u) |
                                     (!gpio_get(PIN_CFG_ROT0) ? 1u : 0u));
       if (newRot != currentRot) {

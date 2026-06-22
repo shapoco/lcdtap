@@ -56,7 +56,7 @@ The SPI interface operates in Mode 0 (CPOL=0, CPHA=0) with MSB first. The maximu
 
 ## Video output
 
-DVI signal generation uses Luke Wren's excellent library [PicoDVI](https://github.com/Wren6991/PicoDVI), and signal output uses his [Pico-DVI-Sock](https://github.com/Wren6991/Pico-DVI-Sock).
+DVI signal generation uses the RP2350's built-in HSTX peripheral (hardware TMDS encoder). Signal output uses Luke Wren's [Pico-DVI-Sock](https://github.com/Wren6991/Pico-DVI-Sock) board.
 
 ## Pin assignment
 
@@ -69,7 +69,7 @@ DVI signal generation uses Luke Wren's excellent library [PicoDVI](https://githu
 | 4     | IN        | DC | | | D/C# signal from master (SPI mode) |
 | 8     | IN        | SDA | | v | I2C data (I2C mode) |
 | 9     | IN        | SCL | | v | I2C clock (I2C mode) |
-| 12–19 | OUT       | (DVI signals) | | | Driven by PicoDVI |
+| 12–19 | OUT       | (DVI signals) | | | RP2350 HSTX |
 | 20    | IN        | CFG_OUT_720P | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
 | 21    | IN        | CFG_LCD_SIZE_SEL | v | v | High=Size1, Low=Size2 |
 | 22    | IN        | CFG_IFACE_SEL | v | v | High=I2C, Low=SPI |

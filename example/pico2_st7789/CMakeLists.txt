@@ -23,11 +23,6 @@ target_include_directories(lcdtap_pico2_st7789 PRIVATE
     include
 )
 
-# DVI_DEFAULT_PIO_INST must be pio0 so libdvi and pico_sock_cfg agree.
-target_compile_definitions(lcdtap_pico2_st7789 PRIVATE
-    DVI_DEFAULT_PIO_INST=pio0
-)
-
 # Forward framebuffer-size overrides only when explicitly passed via -D.
 # Defaults are defined in config.h via #ifndef/#define.
 foreach(VAR
@@ -39,7 +34,7 @@ foreach(VAR
 endforeach()
 
 target_link_libraries(lcdtap_pico2_st7789
-    pico2_common      # pulls in lcdtap, libdvi, hardware_dma/gpio/irq/pio
+    pico2_common      # pulls in lcdtap, hstx driver, hardware_dma/gpio/irq/pio
     pico_stdlib
     pico_multicore
     hardware_clocks

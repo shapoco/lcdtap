@@ -27,7 +27,7 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 | GPIO  | Direction | Name | Active-low | Internal Pull-up | Description |
 |:--:|:--:|:--|:--:|:--:|:--|
 | 0     | IN        | RST | v | v | LCD Hardware reset (SPI mode) |
-| 12–19 | OUT       | (DVI signals) | | | Driven by PicoDVI |
+| 12–19 | OUT       | (DVI signals) | | | RP2350 HSTX |
 | 20    | IN        | CFG_OUT_720P | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
 | 21    | IN        | KEY_DOWN | v | v | Low=pressed |
 | 22    | IN        | KEY_LEFT | v | v | Low=pressed |

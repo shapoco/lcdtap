@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <dvi.h>
 
 // =============================================================================
 // SPI slave pins (PIO1 SM0)
@@ -65,7 +64,6 @@ static constexpr uint PIN_LED = 25u;
 
 // =============================================================================
 // PIO / DMA resource assignment
-// pio0 is reserved for PicoDVI (libdvi uses DVI_DEFAULT_PIO_INST = pio0).
 // pio1 is used for the SPI slave.
 // =============================================================================
 #define SPI_PIO pio1
@@ -80,15 +78,6 @@ static constexpr uint32_t SPI_RING_BUF_LOG2 = 14u;
 static constexpr uint32_t SPI_RING_BUF_BYTES = 1u << SPI_RING_BUF_LOG2;
 static constexpr uint32_t SPI_RING_BUF_WORDS =
     SPI_RING_BUF_BYTES / sizeof(uint32_t);
-
-// =============================================================================
-// DVI scanline buffers (RGB565, fed to PicoDVI q_colour_valid)
-// Must be <= q_colour_free queue depth (8, set in dvi_init).
-// DVI_MAX_W is the maximum effective width (h_active_pixels/2) across all
-// supported DVI timings. Used to statically size the scanline buffers.
-// =============================================================================
-static constexpr int N_SCANLINE_BUFS = 4;
-static constexpr uint32_t DVI_MAX_W = 1280 / DVI_SYMBOLS_PER_WORD;
 
 // =============================================================================
 // LED blink interval (DVI output frames)
