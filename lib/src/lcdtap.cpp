@@ -947,36 +947,42 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
 
   const uint16_t dviW = ctrl->config.dviWidth;
 
-  // Display off, sleeping, or in the vertical black border region
-  bool powerOff =
-      !ctrl->config.forcePowerOn && (ctrl->sleeping || !ctrl->displayOn);
-  if (powerOff || dviLine < ctrl->outDestY ||
-      dviLine >= ctrl->outDestY + ctrl->outDestH) {
-    memset(dst, 0, dviW * sizeof(uint16_t));
-    return;
-  }
-
-  // Vertical mapping: compute LCD row via fixed-point multiply
-  const uint32_t lcdRowOut =
-      (((uint32_t)(dviLine - ctrl->outDestY) * ctrl->outSrcStepV) >> 16);
-
-  uint16_t* d = dst;
-
-  // Left black border
-  memset(d, 0, (size_t)ctrl->outDestX * sizeof(uint16_t));
-  d += ctrl->outDestX;
-
-  // Active area: horizontal scaling + brightness inversion + rotation
-  // Inverse: XOR all RGB565 bits → (31-R, 63-G, 31-B) inverts each channel
-  const uint16_t inv = ctrl->inverted ? 0xFFFFu : 0u;
-  const uint16_t* fb = ctrl->framebuf;
-  const uint32_t stride = ctrl->config.buffWidth;
   const uint32_t srcX = ctrl->outSrcX;
   const uint32_t srcY = ctrl->outSrcY;
   const uint32_t srcW = ctrl->outSrcW;
   const uint32_t srcH = ctrl->outSrcH;
   const uint32_t srcR = srcX + srcW - 1;
   const uint32_t srcB = srcY + srcH - 1;
+  const uint32_t destX = ctrl->outDestX;
+  const uint32_t destY = ctrl->outDestY;
+  const uint32_t destW = ctrl->outDestW;
+  const uint32_t destH = ctrl->outDestH;
+  const uint32_t stepH = ctrl->outSrcStepH;
+  const uint32_t stepV = ctrl->outSrcStepV;
+
+  // Display off, sleeping, or in the vertical black border region
+  bool powerOff =
+      !ctrl->config.forcePowerOn && (ctrl->sleeping || !ctrl->displayOn);
+  if (powerOff || dviLine < destY || dviLine >= destY + destH || srcW == 0 ||
+      srcH == 0) {
+    memset(dst, 0, dviW * sizeof(uint16_t));
+    return;
+  }
+
+  // Vertical mapping: compute LCD row via fixed-point multiply
+  const uint32_t lcdRowOut = (((uint32_t)(dviLine - destY) * stepV) >> 16);
+
+  uint16_t* d = dst;
+
+  // Left black border
+  memset(d, 0, (size_t)destX * sizeof(uint16_t));
+  d += destX;
+
+  // Active area: horizontal scaling + brightness inversion + rotation
+  // Inverse: XOR all RGB565 bits → (31-R, 63-G, 31-B) inverts each channel
+  const uint16_t inv = ctrl->inverted ? 0xFFFFu : 0u;
+  const uint16_t* fb = ctrl->framebuf;
+  const uint32_t stride = ctrl->config.buffWidth;
   uint32_t hAccum = 0;
 
   switch (ctrl->outputRotation) {
@@ -985,9 +991,9 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       // rot=0: normal (row-major readout)
       const uint16_t* srcRow = fb + (lcdRowOut + srcY) * stride;
       hAccum += srcX << 16;  // start at the left of the trim area
-      for (uint16_t x = 0; x < ctrl->outDestW; ++x) {
+      for (uint16_t x = 0; x < destW; ++x) {
         *d++ = srcRow[hAccum >> 16] ^ inv;
-        hAccum += ctrl->outSrcStepH;
+        hAccum += stepH;
       }
       break;
     }
@@ -998,14 +1004,14 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       // the source column and step backward by stride as lcdColOut increases.
       uint32_t prevCol = 0;
       const uint16_t* cur = fb + srcB * stride + srcX + lcdRowOut;
-      for (uint16_t x = 0; x < ctrl->outDestW; ++x) {
+      for (uint16_t x = 0; x < destW; ++x) {
         uint32_t lcdColOut = hAccum >> 16;
         while (prevCol < lcdColOut) {
           cur -= stride;
           ++prevCol;
         }
         *d++ = *cur ^ inv;
-        hAccum += ctrl->outSrcStepH;
+        hAccum += stepH;
       }
       break;
     }
@@ -1014,9 +1020,9 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       // (trimW-1-lcdColOut))
       const uint16_t* srcRow = fb + (uint32_t)(srcB - lcdRowOut) * stride;
       hAccum += (srcR << 16) + 0xFFFF;  // start at the right of the trim area
-      for (uint16_t x = 0; x < ctrl->outDestW; ++x) {
+      for (uint16_t x = 0; x < destW; ++x) {
         *d++ = srcRow[hAccum >> 16] ^ inv;
-        hAccum -= ctrl->outSrcStepH;
+        hAccum -= stepH;
       }
       break;
     }
@@ -1027,22 +1033,21 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       // of the source column and step forward by physW as lcdColOut increases.
       uint32_t prevCol = 0;
       const uint16_t* cur = fb + srcY * stride + (srcR - lcdRowOut);
-      for (uint16_t x = 0; x < ctrl->outDestW; ++x) {
+      for (uint16_t x = 0; x < destW; ++x) {
         uint32_t lcdColOut = hAccum >> 16;
         while (prevCol < lcdColOut) {
           cur += stride;
           ++prevCol;
         }
         *d++ = *cur ^ inv;
-        hAccum += ctrl->outSrcStepH;
+        hAccum += stepH;
       }
       break;
     }
   }
 
   // Right black border
-  memset(d, 0,
-         (size_t)(dviW - ctrl->outDestX - ctrl->outDestW) * sizeof(uint16_t));
+  memset(d, 0, (size_t)(dviW - destX - destW) * sizeof(uint16_t));
 }
 
 LcdTapConfig LcdTap::getConfig() const {
