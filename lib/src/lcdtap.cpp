@@ -992,9 +992,9 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
     case 0: {
       // rot=0: 0° (no rotation)
       // (srcX, (lcdRowOut + srcY)) --> (srcR, (lcdRowOut + srcY))
-      const uint16_t* srcRow = fb + (lcdRowOut + srcY) * stride;
-      uint32_t hAccum = srcX << 16;
-      for (uint16_t x = 0; x < destW; ++x) {
+      const uint16_t* srcRow = fb + (lcdRowOut + srcY) * stride + srcX;
+      uint32_t hAccum = 0;
+      for (uint32_t x = 0; x < destW; ++x) {
         *dest++ = srcRow[hAccum >> 16] ^ inv;
         hAccum += stepH;
       }
@@ -1005,7 +1005,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       // ((srcX + lcdRowOut), srcB) --> ((srcX + lcdRowOut), srcY)
       const uint16_t* src = fb + srcY * stride + lcdRowOut + srcX;
       uint32_t hAccum = (srcH << 16) + 0xFFFF;
-      for (uint16_t x = 0; x < destW; ++x) {
+      for (uint32_t x = 0; x < destW; ++x) {
         *dest++ = src[(hAccum >> 16) * stride] ^ inv;
         hAccum -= stepH;
       }
@@ -1016,7 +1016,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       // (srcR, (srcB - lcdRowOut)) --> (srcX, (srcB - lcdRowOut))
       const uint16_t* src = fb + (uint32_t)(srcB - lcdRowOut) * stride + srcX;
       uint32_t hAccum = ((srcW - 1) << 16) + 0xFFFF;
-      for (uint16_t x = 0; x < destW; ++x) {
+      for (uint32_t x = 0; x < destW; ++x) {
         *dest++ = src[hAccum >> 16] ^ inv;
         hAccum -= stepH;
       }
@@ -1027,7 +1027,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       // ((srcR - lcdRowOut), srcY) --> ((srcR - lcdRowOut), srcB)
       const uint16_t* src = fb + srcY * stride + (srcR - lcdRowOut);
       uint32_t hAccum = 0;
-      for (uint16_t x = 0; x < destW; ++x) {
+      for (uint32_t x = 0; x < destW; ++x) {
         *dest++ = src[(hAccum >> 16) * stride] ^ inv;
         hAccum += stepH;
       }
