@@ -16,6 +16,14 @@ void getDefaultOsdConfig(OsdConfig* cfg) {
   cfg->userData = nullptr;
 }
 
+static LCDTAP_INLINE char normalizeChar(char c) {
+  if (font8x16::CODE_FIRST <= c && c <= font8x16::CODE_LAST) {
+    return c - font8x16::CODE_FIRST;
+  } else {
+    return ' ' - font8x16::CODE_FIRST;
+  }
+}
+
 //=============================================================================
 // Osd::init
 //=============================================================================
@@ -34,7 +42,7 @@ void Osd::init(const OsdConfig& cfg) {
   lastDumpState_ = DumpState::WAIT;
   lastDumpSize_ = 0;
   dumpViewDirty_ = true;
-  memset(textBuf_, ' ', sizeof(textBuf_));
+  memset(textBuf_, normalizeChar(' '), sizeof(textBuf_));
   memset(textCol_, 0, sizeof(textCol_));
 }
 
@@ -292,17 +300,14 @@ void Osd::fillScanline(uint16_t line, uint16_t* dst) const {
 
   for (int col = 0; col < COLS; ++col) {
     uint8_t ch = static_cast<uint8_t>(rowPtr[col]);
-    if (ch < codeFirst || ch > codeLast) ch = static_cast<uint8_t>(' ');
     const uint8_t colByte = colPtr[col];
     const uint16_t fg = OSD_PALETTE[colByte >> 4];
     const uint16_t bg = OSD_PALETTE[colByte & 0xFu];
     const uint8_t bits =
-        font8x16::bitmap[static_cast<uint32_t>(ch - codeFirst) *
-                             font8x16::GLYPH_HEIGHT +
+        font8x16::bitmap[static_cast<uint32_t>(ch) * font8x16::GLYPH_HEIGHT +
                          static_cast<uint32_t>(pixRow)];
-    uint16_t* d = dst + (col << 3);  // col * GLYPH_WIDTH (8)
     for (int j = 0; j < font8x16::GLYPH_WIDTH; ++j) {
-      d[j] = ((bits >> j) & 1u) ? fg : bg;
+      *dst++ = ((bits >> j) & 1u) ? fg : bg;
     }
   }
 }
@@ -533,7 +538,7 @@ void Osd::drawTitleBar(const char* title) {
 }
 
 void Osd::fillRow(int row, char c) {
-  memset(&textBuf_[row * COLS], c, static_cast<size_t>(COLS));
+  memset(&textBuf_[row * COLS], normalizeChar(c), static_cast<size_t>(COLS));
 }
 
 void Osd::fillRowColor(int row, uint8_t colByte) {
@@ -552,13 +557,13 @@ void Osd::writeStr(int row, int col, const char* str, int maxLen) {
   char* dst = &textBuf_[row * COLS + col];
   int i = 0;
   while (str[i] && (maxLen < 0 || i < maxLen)) {
-    dst[i] = str[i];
+    dst[i] = normalizeChar(str[i]);
     ++i;
   }
 }
 
 void Osd::writeChar(int row, int col, char c) {
-  textBuf_[row * COLS + col] = c;
+  textBuf_[row * COLS + col] = normalizeChar(c);
 }
 
 //=============================================================================
@@ -729,7 +734,8 @@ void Osd::renderDumpView(LcdTap& lcdtap) {
 
   // Footer
   fillRow(ROWS - 1, ' ');
-  fillRowColor(ROWS - 1, static_cast<uint8_t>((PAL_SILVER << 4) | PAL_DARK_GRAY));
+  fillRowColor(ROWS - 1,
+               static_cast<uint8_t>((PAL_SILVER << 4) | PAL_DARK_GRAY));
   writeStr(ROWS - 1, 0, "\x84:Back \x86:Trigger \x85:Abort \x82\x83:Scroll");
 }
 
