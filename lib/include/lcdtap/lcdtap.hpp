@@ -310,11 +310,6 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg);
 InterfaceFormat getDefaultInterfaceFormat(ControllerFamily type);
 
 //=============================================================================
-// Returns a short display name for the given InterfaceFormat (e.g. "RGB565").
-//=============================================================================
-const char* getShortInterfaceFormatName(InterfaceFormat fmt);
-
-//=============================================================================
 // Configuration entry access
 //=============================================================================
 void getConfigEntryById(ConfigId id, ConfigEntry* e);

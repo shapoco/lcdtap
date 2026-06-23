@@ -19,3 +19,11 @@ target_include_directories(lcdtap
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
+
+# hardware_interp_headers is an INTERFACE-only target (no .c files) that
+# provides the include path for hardware/interp.h, used under #ifdef PICO_RP2350.
+if(TARGET hardware_interp_headers)
+    target_link_libraries(lcdtap PRIVATE
+        hardware_interp_headers
+    )
+endif()

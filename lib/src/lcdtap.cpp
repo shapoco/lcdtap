@@ -6,6 +6,10 @@
 #include <new>
 #include <utility>
 
+#ifdef PICO_RP2350
+#include "hardware/interp.h"
+#endif
+
 #include "controller_base.hpp"
 #include "ili9341_controller.hpp"
 #include "ssd1306_controller.hpp"
@@ -165,19 +169,6 @@ InterfaceFormat getDefaultInterfaceFormat(ControllerFamily type) {
     case ControllerFamily::SSD1331: return InterfaceFormat::RGB332;
     case ControllerFamily::ILI9341: return InterfaceFormat::RGB565_BE;
     default: return InterfaceFormat::RGB565_BE;
-  }
-}
-
-const char* getShortInterfaceFormatName(InterfaceFormat fmt) {
-  switch (fmt) {
-    case InterfaceFormat::GRAY1_VPACK8_H2L: return "GRAY1";
-    case InterfaceFormat::RGB111_HPACK2_H2L_RA8: return "RGB111";
-    case InterfaceFormat::RGB332: return "RGB332";
-    case InterfaceFormat::RGB444_HPACK2_H2L_BE: return "RGB444";
-    case InterfaceFormat::RGB565_BE: return "RGB565";
-    case InterfaceFormat::RGB666_UNPACK_LA8_BE: return "RGB666_LA";
-    case InterfaceFormat::RGB666_UNPACK_RA8_BE: return "RGB666_RA";
-    default: return "(undefined)";
   }
 }
 
@@ -986,51 +977,68 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   const uint16_t inv = ctrl->inverted ? 0xFFFFu : 0u;
   const uint16_t* fb = ctrl->framebuf;
   const uint32_t stride = ctrl->config.buffWidth;
+  const uint32_t inv32 = ctrl->inverted ? 0xFFFFFFFFu : 0u;
 
   switch (ctrl->outputRotation) {
     default:
-    case 0: {
-      // rot=0: 0° (no rotation)
-      // (srcX, (lcdRowOut + srcY)) --> (srcR, (lcdRowOut + srcY))
-      const uint16_t* srcRow = fb + (lcdRowOut + srcY) * stride + srcX;
-      uint32_t hAccum = 0;
-      for (uint32_t x = 0; x < destW; ++x) {
-        *dest++ = srcRow[hAccum >> 16] ^ inv;
-        hAccum += stepH;
-      }
-      break;
-    }
-    case 1: {
-      // rot=1: 90° CW
-      // ((srcX + lcdRowOut), srcB) --> ((srcX + lcdRowOut), srcY)
-      const uint16_t* src = fb + srcY * stride + lcdRowOut + srcX;
-      uint32_t hAccum = (srcH << 16) + 0xFFFF;
-      for (uint32_t x = 0; x < destW; ++x) {
-        *dest++ = src[(hAccum >> 16) * stride] ^ inv;
-        hAccum -= stepH;
-      }
-      break;
-    }
+    case 0:
     case 2: {
-      // rot=2: 180°
-      // (srcR, (srcB - lcdRowOut)) --> (srcX, (srcB - lcdRowOut))
-      const uint16_t* src = fb + (uint32_t)(srcB - lcdRowOut) * stride + srcX;
-      uint32_t hAccum = ((srcW - 1) << 16) + 0xFFFF;
+      // rot=0: fb[(lcdRowOut+srcY)*stride + srcX + col], forward
+      // rot=2: fb[(srcB-lcdRowOut)*stride + srcX + col], reverse
+      const bool rev = (ctrl->outputRotation == 2);
+      const uint16_t* src = rev ? fb + (srcB - lcdRowOut) * stride + srcX
+                                : fb + (lcdRowOut + srcY) * stride + srcX;
+      uint32_t hAccum = rev ? ((srcW - 1) << 16) + 0xFFFF : 0;
+      const uint32_t hStep = rev ? (uint32_t)(-(int32_t)stepH) : stepH;
+#ifdef PICO_RP2350
+      {
+        interp_config cfg = interp_default_config();
+        interp_config_set_shift(&cfg, 16);
+        interp_config_set_mask(&cfg, 0, 15);
+        interp_config_set_add_raw(&cfg, true);
+        interp_set_config(interp0, 0, &cfg);
+        interp_set_base(interp0, 0, hStep);
+        interp_set_accumulator(interp0, 0, hAccum);
+        for (uint32_t x = 0; x < destW; ++x) {
+          *dest++ = src[interp_pop_full_result(interp0)] ^ inv;
+        }
+      }
+#else
       for (uint32_t x = 0; x < destW; ++x) {
         *dest++ = src[hAccum >> 16] ^ inv;
-        hAccum -= stepH;
+        hAccum += hStep;
       }
+#endif
       break;
     }
+    case 1:
     case 3: {
-      // rot=3: 270° CW
-      // ((srcR - lcdRowOut), srcY) --> ((srcR - lcdRowOut), srcB)
-      const uint16_t* src = fb + srcY * stride + (srcR - lcdRowOut);
-      uint32_t hAccum = 0;
+      // rot=1: fb[srcY*stride + (lcdRowOut+srcX) + row*stride], rows srcH-1→0
+      // rot=3: fb[srcY*stride + (srcR-lcdRowOut)  + row*stride], rows 0→srcH-1
+      const bool rev = (ctrl->outputRotation == 1);
+      const uint16_t* src = rev ? fb + srcY * stride + lcdRowOut + srcX
+                                : fb + srcY * stride + (srcR - lcdRowOut);
+      uint32_t hAccum = rev ? (srcH << 16) + 0xFFFF : 0;
+      const uint32_t hStep = rev ? (uint32_t)(-(int32_t)stepH) : stepH;
+#ifdef PICO_RP2350
+      {
+        interp_config cfg = interp_default_config();
+        interp_config_set_shift(&cfg, 16);
+        interp_config_set_mask(&cfg, 0, 15);
+        interp_config_set_add_raw(&cfg, true);
+        interp_set_config(interp0, 0, &cfg);
+        interp_set_base(interp0, 0, hStep);
+        interp_set_accumulator(interp0, 0, hAccum);
+        for (uint32_t x = 0; x < destW; ++x) {
+          *dest++ = src[interp_pop_full_result(interp0) * stride] ^ inv;
+        }
+      }
+#else
       for (uint32_t x = 0; x < destW; ++x) {
         *dest++ = src[(hAccum >> 16) * stride] ^ inv;
-        hAccum += stepH;
+        hAccum += hStep;
       }
+#endif
       break;
     }
   }
