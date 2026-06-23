@@ -526,13 +526,17 @@ void ControllerBase::calcScaleParams() {
       outDestY = (videoH - outDestH) / 2;
       break;
 
-    case ScaleMode::PIXEL_PERFECT: {
+    case ScaleMode::INTEGRAL:
+    case ScaleMode::OFF: {
       // Scale by the largest integer factor that fits in the video area; add
       // black padding if needed
-      uint16_t scaleH = videoW / srcW;
-      uint16_t scaleV = videoH / srcH;
-      uint16_t scale = scaleH < scaleV ? scaleH : scaleV;
-      if (scale == 0) scale = 1;
+      uint16_t scale = 1;
+      if (config.scaleMode == ScaleMode::INTEGRAL) {
+        uint16_t scaleH = videoW / srcW;
+        uint16_t scaleV = videoH / srcH;
+        scale = scaleH < scaleV ? scaleH : scaleV;
+        if (scale == 0) scale = 1;
+      }
       outDestW = srcW * scale;
       outDestH = srcH * scale;
       outDestX = (videoW - outDestW) / 2;
@@ -1133,6 +1137,16 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   ctrl->sleeping = sleeping;
   ctrl->displayOn = displayOn;
   return Status::OK;
+}
+
+void LcdTap::getOutputScreenSize(uint16_t* width, uint16_t* height) const {
+  if (!impl_) {
+    *width = *height = 0;
+    return;
+  }
+  const ControllerBase* ctrl = static_cast<const ControllerBase*>(impl_);
+  *width = ctrl->config.dviWidth;
+  *height = ctrl->config.dviHeight;
 }
 
 bool LcdTap::isOutputInverted() const {

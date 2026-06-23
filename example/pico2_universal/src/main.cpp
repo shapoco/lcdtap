@@ -243,7 +243,14 @@ static void processInputBuf() {
 // =============================================================================
 static void universalFillScanline(uint16_t scanY, uint16_t *buf,
                                   void * /*userData*/) {
-  gOsd.fillScanline(scanY, buf);
+  uint16_t screenW, screenH;
+  gInst->getOutputScreenSize(&screenW, &screenH);
+  uint16_t yStart = (screenH - lcdtap::OSD_HEIGHT) / 2;
+  uint16_t yEnd = yStart + lcdtap::OSD_HEIGHT;
+  uint16_t xStart = (screenW - lcdtap::OSD_WIDTH) / 2;
+  if (yStart <= scanY && scanY < yEnd) {
+    gOsd.fillScanline(scanY - yStart, buf + xStart);
+  }
 }
 
 // =============================================================================

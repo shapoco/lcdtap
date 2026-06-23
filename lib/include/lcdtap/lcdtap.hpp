@@ -146,13 +146,14 @@ static_assert(sizeof(FLIP_MODE_NAMES) / sizeof(FLIP_MODE_NAMES[0]) ==
 //=============================================================================
 
 enum class ScaleMode : uint8_t {
-  STRETCH,        // Stretch to fill the full DVI area (ignores aspect ratio)
-  FIT,            // Letterbox/pillarbox to preserve aspect ratio
-  PIXEL_PERFECT,  // Scale by integer factor; black padding around the image
+  OFF,       // 1:1 pixel mapping; black padding around the image
+  INTEGRAL,  // Scale by integer factor; black padding around the image
+  FIT,       // Letterbox/pillarbox to preserve aspect ratio
+  STRETCH,   // Stretch to fill the full DVI area (ignores aspect ratio)
   NUM_MODES,
 };
 
-static const char* SCALE_MODE_NAMES[] = {"Stretch", "Fit", "Dot-by-Dot"};
+static const char* SCALE_MODE_NAMES[] = {"Off", "Integral", "Fit", "Stretch"};
 static_assert(sizeof(SCALE_MODE_NAMES) / sizeof(SCALE_MODE_NAMES[0]) ==
                   static_cast<size_t>(ScaleMode::NUM_MODES),
               "SCALE_MODE_NAMES size must match ScaleMode enum");
@@ -370,10 +371,10 @@ class LcdTap {
 
   // Set display output rotation.
   // rot=0: no rotation (default)
-  // rot=1: 90° clockwise. With FIT/PIXEL_PERFECT the aspect ratio is
+  // rot=1: 90° clockwise. With FIT/INTEGRAL the aspect ratio is
   // transposed.
   // rot=2: 180° rotation. Aspect ratio is unchanged.
-  // rot=3: 270° clockwise. With FIT/PIXEL_PERFECT
+  // rot=3: 270° clockwise. With FIT/INTEGRAL
   // the aspect ratio is transposed.
   // Does not affect the controller's internal state.
   // Only the readout pattern of fillScanline() changes.
@@ -386,6 +387,9 @@ class LcdTap {
   // Returns OK on success, OUT_OF_MEMORY if the new framebuffer allocation
   // fails (the previous state is left intact in that case).
   Status updateConfig(const LcdTapConfig& cfg);
+
+  // Returns the current output screen size.
+  void getOutputScreenSize(uint16_t* width, uint16_t* height) const;
 
   // Returns true if the display is currently inverted.
   bool isOutputInverted() const;

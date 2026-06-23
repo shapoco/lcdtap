@@ -12,6 +12,12 @@
 namespace lcdtap {
 
 //=============================================================================
+// OSD raster dimensions
+//=============================================================================
+static constexpr int OSD_WIDTH = 320;
+static constexpr int OSD_HEIGHT = 240;
+
+//=============================================================================
 // Key codes (bit-field, combine with |)
 //=============================================================================
 static constexpr uint8_t OSD_KEY_UP = (1u << 0);
@@ -123,8 +129,6 @@ class Osd {
   // OSD raster dimensions
   static constexpr int COLS = 40;
   static constexpr int ROWS = 15;
-  static constexpr int OSD_WIDTH = 320;   // COLS * GLYPH_WIDTH  (40*8)
-  static constexpr int OSD_HEIGHT = 240;  // ROWS * GLYPH_HEIGHT (15*16)
   static constexpr int MAX_ITEMS = 32;
 
   // Key repeat timing (ms)
