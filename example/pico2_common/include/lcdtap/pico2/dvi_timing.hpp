@@ -71,6 +71,8 @@ extern const struct dvi_timing dvi_timing_1920x1080p_rb2_30hz;
 extern const struct dvi_timing dvi_timing_1920x1080p_yolo_48hz;
 extern const struct dvi_timing dvi_timing_2560x1440p_yolo_24hz;
 
-// Reduced blanking 720p@30Hz (ported from PicoDVI dvi_timing.c)
-// Uses CVT-RB blanking at half the 60Hz bit clock (319.2 MHz).
+// 720p@30Hz CVT-RB H-timing, extended V blanking. bit_clk = 480 MHz, H-sync
+// = 33.3 kHz.
 extern const struct dvi_timing dvi_timing_1280x720p_reduced_30hz;
+// 720p@30Hz alt: original CVT-RB at 319.2 MHz. H-sync = 22.2 kHz.
+extern const struct dvi_timing dvi_timing_1280x720p_reduced_30hz_alt;

@@ -236,9 +236,26 @@ const struct dvi_timing dvi_timing_2560x1440p_yolo_24hz = {
 
     .bit_clk_khz = 912000};
 
-// 720p@30Hz reduced blanking (CVT-RB, half bit-clock of 60Hz variant)
-// Ported from PicoDVI dvi_timing.c. bit_clk = 319.2 MHz.
+// 720p@30Hz CVT-RB H-timing, extended V blanking for 30 Hz.
+// bit_clk = 480 MHz, pixel_clk = 48 MHz, H-sync = 33.3 kHz, V total = 1111.
 const struct dvi_timing dvi_timing_1280x720p_reduced_30hz = {
+    .h_sync_polarity = true,
+    .h_front_porch = 48,
+    .h_sync_width = 32,
+    .h_back_porch = 80,
+    .h_active_pixels = 1280,
+
+    .v_sync_polarity = false,
+    .v_front_porch = 3,
+    .v_sync_width = 5,
+    .v_back_porch = 383,
+    .v_active_lines = 720,
+
+    .bit_clk_khz = 480000};
+
+// 720p@30Hz alt: original CVT-RB at half the 60Hz bit clock (319.2 MHz).
+// H-sync = 22.2 kHz. For monitors that reject the standard timing above.
+const struct dvi_timing dvi_timing_1280x720p_reduced_30hz_alt = {
     .h_sync_polarity = true,
     .h_front_porch = 48,
     .h_sync_width = 32,

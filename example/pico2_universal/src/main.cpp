@@ -291,8 +291,15 @@ int main() {
   const uint16_t lcdW = LCDTAP_LCD_SIZE_W;
   const uint16_t lcdH = LCDTAP_LCD_SIZE_H;
 
-  const struct dvi_timing *timing =
-      dvi720p ? &dvi_timing_1280x720p_reduced_30hz : &dvi_timing_640x480p_60hz;
+  // Right button selects alt 720p timing (319.2 MHz CVT-RB) for monitors
+  // that reject the standard 480 MHz timing.
+  const struct dvi_timing *timing;
+  if (dvi720p) {
+    timing = !gpio_get(PIN_KEY_RIGHT) ? &dvi_timing_1280x720p_reduced_30hz_alt
+                                      : &dvi_timing_1280x720p_reduced_30hz;
+  } else {
+    timing = &dvi_timing_640x480p_60hz;
+  }
 
   // -------------------------------------------------------------------------
   // 1b. Read flash config — check for USB mass storage boot mode
