@@ -141,7 +141,7 @@ static void __no_inline_not_in_flash_func(setQmiTiming)() {
       (ioqspi_hw->io[1].status & IO_QSPI_GPIO_QSPI_SS_STATUS_OUTTOPAD_BITS) !=
       IO_QSPI_GPIO_QSPI_SS_STATUS_OUTTOPAD_BITS) {
   }
-  qmi_hw->m[0].timing = 0x40000202u;
+  qmi_hw->m[0].timing = 0x40000203u;
   volatile uint32_t *xip = (volatile uint32_t *)0x14000000u;
   (void)*xip;
 }
