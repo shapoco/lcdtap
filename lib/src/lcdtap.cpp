@@ -139,7 +139,6 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
       getDefaultConfig(ControllerFamily::ILI9341, cfg);
       cfg->flipMode = FlipMode::FLIP_V;
       cfg->outputRotation = 3;
-      cfg->busInterface = BusType::PARALLEL;
       break;
 
     case ConfigPreset::XIAMOCON:
@@ -1016,7 +1015,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       // rot=2: 180°
       // (srcR, (srcB - lcdRowOut)) --> (srcX, (srcB - lcdRowOut))
       const uint16_t* src = fb + (uint32_t)(srcB - lcdRowOut) * stride + srcX;
-      uint32_t hAccum = (srcW << 16) + 0xFFFF;
+      uint32_t hAccum = ((srcW - 1) << 16) + 0xFFFF;
       for (uint16_t x = 0; x < destW; ++x) {
         *dest++ = src[hAccum >> 16] ^ inv;
         hAccum -= stepH;
