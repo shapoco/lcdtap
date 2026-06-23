@@ -976,74 +976,60 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   // Vertical mapping: compute LCD row via fixed-point multiply
   const uint32_t lcdRowOut = (((uint32_t)(dviLine - destY) * stepV) >> 16);
 
-  uint16_t* d = dst;
+  uint16_t* dest = dst;
 
   // Left black border
-  memset(d, 0, (size_t)destX * sizeof(uint16_t));
-  d += destX;
+  memset(dest, 0, (size_t)destX * sizeof(uint16_t));
+  dest += destX;
 
   // Active area: horizontal scaling + brightness inversion + rotation
   // Inverse: XOR all RGB565 bits → (31-R, 63-G, 31-B) inverts each channel
   const uint16_t inv = ctrl->inverted ? 0xFFFFu : 0u;
   const uint16_t* fb = ctrl->framebuf;
   const uint32_t stride = ctrl->config.buffWidth;
-  uint32_t hAccum = 0;
 
   switch (ctrl->outputRotation) {
     default:
     case 0: {
-      // rot=0: normal (row-major readout)
+      // rot=0: 0° (no rotation)
+      // (srcX, (lcdRowOut + srcY)) --> (srcR, (lcdRowOut + srcY))
       const uint16_t* srcRow = fb + (lcdRowOut + srcY) * stride;
-      hAccum += srcX << 16;  // start at the left of the trim area
+      uint32_t hAccum = srcX << 16;
       for (uint16_t x = 0; x < destW; ++x) {
-        *d++ = srcRow[hAccum >> 16] ^ inv;
+        *dest++ = srcRow[hAccum >> 16] ^ inv;
         hAccum += stepH;
       }
       break;
     }
     case 1: {
-      // rot=1: 90° CW  — (focusSrcY, lcdColOut) → ((trimH-1-lcdColOut),
-      // focusSrcY)
-      // Use a running pointer to avoid per-pixel multiply: start at the top of
-      // the source column and step backward by stride as lcdColOut increases.
-      uint32_t prevCol = 0;
-      const uint16_t* cur = fb + srcB * stride + srcX + lcdRowOut;
+      // rot=1: 90° CW
+      // ((srcX + lcdRowOut), srcB) --> ((srcX + lcdRowOut), srcY)
+      const uint16_t* src = fb + srcY * stride + lcdRowOut + srcX;
+      uint32_t hAccum = (srcH << 16) + 0xFFFF;
       for (uint16_t x = 0; x < destW; ++x) {
-        uint32_t lcdColOut = hAccum >> 16;
-        while (prevCol < lcdColOut) {
-          cur -= stride;
-          ++prevCol;
-        }
-        *d++ = *cur ^ inv;
-        hAccum += stepH;
+        *dest++ = src[(hAccum >> 16) * stride] ^ inv;
+        hAccum -= stepH;
       }
       break;
     }
     case 2: {
-      // rot=2: 180° — (focusSrcY, lcdColOut) → ((trimH-1-focusSrcY),
-      // (trimW-1-lcdColOut))
-      const uint16_t* srcRow = fb + (uint32_t)(srcB - lcdRowOut) * stride;
-      hAccum += (srcR << 16) + 0xFFFF;  // start at the right of the trim area
+      // rot=2: 180°
+      // (srcR, (srcB - lcdRowOut)) --> (srcX, (srcB - lcdRowOut))
+      const uint16_t* src = fb + (uint32_t)(srcB - lcdRowOut) * stride + srcX;
+      uint32_t hAccum = (srcW << 16) + 0xFFFF;
       for (uint16_t x = 0; x < destW; ++x) {
-        *d++ = srcRow[hAccum >> 16] ^ inv;
+        *dest++ = src[hAccum >> 16] ^ inv;
         hAccum -= stepH;
       }
       break;
     }
     case 3: {
-      // rot=3: 270° CW — (focusSrcY, lcdColOut) → (lcdColOut,
-      // (physW-1-focusSrcY))
-      // Use a running pointer to avoid per-pixel multiply: start at the bottom
-      // of the source column and step forward by physW as lcdColOut increases.
-      uint32_t prevCol = 0;
-      const uint16_t* cur = fb + srcY * stride + (srcR - lcdRowOut);
+      // rot=3: 270° CW
+      // ((srcR - lcdRowOut), srcY) --> ((srcR - lcdRowOut), srcB)
+      const uint16_t* src = fb + srcY * stride + (srcR - lcdRowOut);
+      uint32_t hAccum = 0;
       for (uint16_t x = 0; x < destW; ++x) {
-        uint32_t lcdColOut = hAccum >> 16;
-        while (prevCol < lcdColOut) {
-          cur += stride;
-          ++prevCol;
-        }
-        *d++ = *cur ^ inv;
+        *dest++ = src[(hAccum >> 16) * stride] ^ inv;
         hAccum += stepH;
       }
       break;
@@ -1051,7 +1037,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   }
 
   // Right black border
-  memset(d, 0, (size_t)(dviW - destX - destW) * sizeof(uint16_t));
+  memset(dest, 0, (size_t)(dviW - destX - destW) * sizeof(uint16_t));
 }
 
 LcdTapConfig LcdTap::getConfig() const {

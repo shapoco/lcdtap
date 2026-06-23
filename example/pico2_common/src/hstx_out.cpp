@@ -21,7 +21,7 @@
 namespace lcdtap::pico2 {
 
 static constexpr int HSTX_FIRST_PIN = 12;
-static constexpr int NUM_CHANS = 3;
+static constexpr int NUM_CHANS = HSTX_NUM_CHANS;
 
 // Command list templates: timing pixel counts are OR'd in at hstxOutInit time.
 // vblank: [CMD_RAW_REPEAT|h_front_porch, sync_word,
@@ -103,8 +103,8 @@ static void __scratch_x("hstx") hstxIrqHandler() {
 static void __not_in_flash_func(core1Main)() {
   HstxOutState *s = sHstx;
 
-  const uint32_t chMask = (1u << s->dmaChannels[0]) |
-                          (1u << s->dmaChannels[1]) | (1u << s->dmaChannels[2]);
+  uint32_t chMask = 0;
+  for (int i = 0; i < NUM_CHANS; ++i) chMask |= (1u << s->dmaChannels[i]);
   dma_hw->intr = chMask;
   dma_hw->ints2 = chMask;
   dma_hw->inte2 = chMask;
@@ -156,7 +156,7 @@ void __no_inline_not_in_flash_func(hstxOutClockInit)(const dvi_timing *timing) {
   // Slow QMI before touching PLLs to protect flash during clock transitions.
   hw_write_masked(&qmi_hw->m[0].timing, 6, QMI_M0_TIMING_CLKDIV_BITS);
 
-  vreg_set_voltage(VREG_VOLTAGE_1_20);
+  vreg_set_voltage(VREG_VOLTAGE_1_25);
 
   // Force a flash read so the slow QMI timing is applied before raising the
   // clock.
@@ -176,28 +176,36 @@ void __no_inline_not_in_flash_func(hstxOutClockInit)(const dvi_timing *timing) {
   clock_stop(clk_peri);
   clock_stop(clk_hstx);
 
-  // PLL_USB: VCO=1152 MHz, /2 → 576 MHz
-  pll_init(pll_usb, PLL_COMMON_REFDIV, 1152u * MHZ, 2, 1);
-  const uint32_t usbPllFreq = 576u * MHZ;
+  constexpr uint32_t USB_PLL_FBDIV = 104;
+  constexpr uint32_t USB_VCO_FREQ = 12 * USB_PLL_FBDIV * MHZ;
+  constexpr uint32_t USB_PLL_PDIV1 = 2;
+  constexpr uint32_t USB_PLL_PDIV2 = 1;
+  constexpr uint32_t USB_PLL_FREQ =
+      USB_VCO_FREQ / (USB_PLL_PDIV1 * USB_PLL_PDIV2);
+  constexpr uint32_t CLK_SYS_FREQ = USB_PLL_FREQ / 2u;
+  constexpr uint32_t CLK_PERI_FREQ = USB_PLL_FREQ / 4u;
+  constexpr uint32_t CLK_USB_FREQ = 48000u * KHZ;
+  constexpr uint32_t CLK_ADC_FREQ = 48000u * KHZ;
 
-  // clk_sys = 576/2 = 288 MHz
+  pll_init(pll_usb, PLL_COMMON_REFDIV, USB_VCO_FREQ, USB_PLL_PDIV1,
+           USB_PLL_PDIV2);
+
   clock_configure(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX,
-                  CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, usbPllFreq,
-                  usbPllFreq / 2u);
+                  CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_PLL_FREQ,
+                  CLK_SYS_FREQ);
 
-  // clk_peri = 576/4 = 144 MHz
-  clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
-                  usbPllFreq, usbPllFreq / 4u);
+  clock_configure(clk_peri, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLK_REF,
+                  CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
+                  USB_PLL_FREQ, CLK_PERI_FREQ);
 
-  // clk_usb = 48 MHz
-  clock_configure(clk_usb, 0, CLOCKS_CLK_USB_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
-                  usbPllFreq, 48000u * KHZ);
+  clock_configure(clk_usb, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLK_REF,
+                  CLOCKS_CLK_USB_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_PLL_FREQ,
+                  CLK_USB_FREQ);
 
-  // clk_adc = 48 MHz
-  clock_configure(clk_adc, 0, CLOCKS_CLK_ADC_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
-                  usbPllFreq, 48000u * KHZ);
+  clock_configure(clk_adc, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLK_REF,
+                  CLOCKS_CLK_ADC_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_PLL_FREQ,
+                  CLK_ADC_FREQ);
 
-  // Now running at 288 MHz — restore fast QMI timing.
   setQmiTiming();
 
   restore_interrupts(intr);
@@ -281,7 +289,7 @@ void hstxOutInit(HstxOutState *s, const dvi_timing *timing,
   s->dviW = (uint16_t)timing->h_active_pixels;
   s->dviH = (uint16_t)timing->v_active_lines;
   s->newFrame = false;
-  s->vScanline = 2;
+  s->vScanline = NUM_CHANS - 1;
   s->chNum = 0;
   s->frame = 0u;
   s->led = false;
@@ -324,7 +332,7 @@ void hstxOutInit(HstxOutState *s, const dvi_timing *timing,
            0, (size_t)s->dviW * sizeof(uint16_t));
   }
 
-  s->fillPending[0] = s->fillPending[1] = s->fillPending[2] = 0;
+  memset((void *)s->fillPending, 0, sizeof(s->fillPending));
 
   // Reset HSTX peripheral.
   reset_block_num(RESET_HSTX);
@@ -397,9 +405,9 @@ void hstxOutFlashRelease(HstxOutState *s) {
   configureDmaChannels(s);
 
   // Reset scanline state so Core 1 starts from the beginning of the frame.
-  s->vScanline = 2;
+  s->vScanline = NUM_CHANS - 1;
   s->chNum = 0;
-  s->fillPending[0] = s->fillPending[1] = s->fillPending[2] = 0;
+  memset((void *)s->fillPending, 0, sizeof(s->fillPending));
   s->newFrame = false;
 
   // Re-launch Core 1; it sets up the DMA IRQ and starts channel 0.

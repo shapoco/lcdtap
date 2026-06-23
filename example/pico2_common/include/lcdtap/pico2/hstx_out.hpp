@@ -36,6 +36,12 @@ static constexpr uint32_t HSTX_VACTIVE_HEADER_WORDS = 7u;
 static constexpr uint32_t HSTX_MAX_LINE_BUF_WORDS =
     HSTX_VACTIVE_HEADER_WORDS + 1280u / 2u;
 
+// Number of DMA channels in the round-robin ring.
+// Each channel gives Core 1 one extra scanline of fill budget.
+// With N channels, a single fill can spike up to (N-1) scanline periods
+// without causing a race condition with the DMA readout.
+static constexpr int HSTX_NUM_CHANS = 5;
+
 struct HstxOutState {
   // --- caller-visible fields ---
   HstxOutConfig cfg;
@@ -49,25 +55,27 @@ struct HstxOutState {
 
   // Fill requests from DMA IRQ to Core 1 main loop (same-core; IRQ sets, loop
   // clears). Single-byte per slot: single-byte writes are atomic on Cortex-M33.
-  volatile uint8_t fillPending[3];  // 1 = slot needs refilling
-  uint16_t fillY[3];  // y value per slot; written by IRQ before setting pending
+  volatile uint8_t fillPending[HSTX_NUM_CHANS];  // 1 = slot needs refilling
+  uint16_t fillY[HSTX_NUM_CHANS];  // y value per slot; written by IRQ before
+                                   // setting pending
 
   // --- internal (managed by hstx_out.cpp) ---
-  uint32_t *lineBufs;        // malloc'd DMA line buffers: 3 x lineBufTotalLen
-  uint32_t lineBufTotalLen;  // HSTX_VACTIVE_HEADER_WORDS + dviW/2
-  uint32_t dmaChannels[3];   // claimed DMA channel numbers
-  volatile int vScanline;    // scanline counter (wraps at vTotalActiveLines)
-  int vSyncStart;         // = v_front_porch (cached so IRQ never reads flash)
-  int vSyncEnd;           // = v_front_porch + v_sync_width (cached)
-  int vInactiveTotal;     // v_front_porch + v_sync_width + v_back_porch
-  int vTotalActiveLines;  // vInactiveTotal + v_active_lines
-  uint32_t chNum;         // index into dmaChannels[] that last completed
+  uint32_t
+      *lineBufs;  // malloc'd DMA line buffers: HSTX_NUM_CHANS x lineBufTotalLen
+  uint32_t lineBufTotalLen;              // HSTX_VACTIVE_HEADER_WORDS + dviW/2
+  uint32_t dmaChannels[HSTX_NUM_CHANS];  // claimed DMA channel numbers
+  volatile int vScanline;  // scanline counter (wraps at vTotalActiveLines)
+  int vSyncStart;          // = v_front_porch (cached so IRQ never reads flash)
+  int vSyncEnd;            // = v_front_porch + v_sync_width (cached)
+  int vInactiveTotal;      // v_front_porch + v_sync_width + v_back_porch
+  int vTotalActiveLines;   // vInactiveTotal + v_active_lines
+  uint32_t chNum;          // index into dmaChannels[] that last completed
   uint32_t frame;
   bool led;
 };
 
 // Configure clocks for HSTX output.
-// PLL_USB -> clk_sys=288 MHz, clk_usb=48 MHz, clk_peri=144 MHz.
+// PLL_USB -> clk_sys=360 MHz, clk_usb=48 MHz, clk_peri=144 MHz.
 // PLL_SYS -> clk_hstx = timing->bit_clk_khz / 2.
 // Call before hstxOutInit() and before any peripheral (SPI/I2C/USB) init.
 void hstxOutClockInit(const dvi_timing *timing);
