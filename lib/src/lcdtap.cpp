@@ -940,7 +940,6 @@ void LcdTap::dumpAbort() { dumpState_ = DumpState::COMPLETE; }
 
 const uint16_t* LcdTap::dumpGetBuffer() const { return dumpBuffer_; }
 
-template <bool inverted>
 void LCDTAP_INLINE scaleLine(const uint16_t* src, uint16_t* dest,
                              uint32_t destW, uint32_t hAccum, uint32_t hStep,
                              uint32_t stride) {
@@ -960,28 +959,20 @@ void LCDTAP_INLINE scaleLine(const uint16_t* src, uint16_t* dest,
     uint32_t word;
     word = src[interp_pop_full_result(interp0) * stride];
     word |= src[interp_pop_full_result(interp0) * stride] << 16;
-    if constexpr (inverted) word = ~word;
     *dest32++ = word;
     word = src[interp_pop_full_result(interp0) * stride];
     word |= src[interp_pop_full_result(interp0) * stride] << 16;
-    if constexpr (inverted) word = ~word;
     *dest32++ = word;
     word = src[interp_pop_full_result(interp0) * stride];
     word |= src[interp_pop_full_result(interp0) * stride] << 16;
-    if constexpr (inverted) word = ~word;
     *dest32++ = word;
     word = src[interp_pop_full_result(interp0) * stride];
     word |= src[interp_pop_full_result(interp0) * stride] << 16;
-    if constexpr (inverted) word = ~word;
     *dest32++ = word;
   }
   dest += destWdiv8 * UNROLL_SIZE;
   for (uint32_t x = destW % UNROLL_SIZE; x != 0; --x) {
-    if constexpr (inverted) {
-      *dest++ = ~src[interp_pop_full_result(interp0) * stride];
-    } else {
-      *dest++ = src[interp_pop_full_result(interp0) * stride];
-    }
+    *dest++ = src[interp_pop_full_result(interp0) * stride];
   }
 #else
   for (uint32_t x = destWdiv8; x != 0; --x) {
@@ -990,34 +981,26 @@ void LCDTAP_INLINE scaleLine(const uint16_t* src, uint16_t* dest,
     hAccum += hStep;
     word |= src[(hAccum >> FIXPT_PREC) * stride] << 16;
     hAccum += hStep;
-    if constexpr (inverted) word = ~word;
     *dest32++ = word;
     word = src[(hAccum >> FIXPT_PREC) * stride];
     hAccum += hStep;
     word |= src[(hAccum >> FIXPT_PREC) * stride] << 16;
     hAccum += hStep;
-    if constexpr (inverted) word = ~word;
     *dest32++ = word;
     word = src[(hAccum >> FIXPT_PREC) * stride];
     hAccum += hStep;
     word |= src[(hAccum >> FIXPT_PREC) * stride] << 16;
     hAccum += hStep;
-    if constexpr (inverted) word = ~word;
     *dest32++ = word;
     word = src[(hAccum >> FIXPT_PREC) * stride];
     hAccum += hStep;
     word |= src[(hAccum >> FIXPT_PREC) * stride] << 16;
     hAccum += hStep;
-    if constexpr (inverted) word = ~word;
     *dest32++ = word;
   }
   dest += destWdiv8 * UNROLL_SIZE;
   for (uint32_t x = destW % UNROLL_SIZE; x != 0; --x) {
-    if constexpr (inverted) {
-      *dest++ = ~src[(hAccum >> FIXPT_PREC) * stride];
-    } else {
-      *dest++ = src[(hAccum >> FIXPT_PREC) * stride];
-    }
+    *dest++ = src[(hAccum >> FIXPT_PREC) * stride];
     hAccum += hStep;
   }
 #endif
@@ -1081,7 +1064,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       uint32_t hAccum =
           rev ? ((srcW - 1) << FIXPT_PREC) + ((1 << FIXPT_PREC) - 1) : 0;
       const uint32_t hStep = rev ? (uint32_t)(-(int32_t)stepH) : stepH;
-      scaleLine<false>(src, dest, destW, hAccum, hStep, 1);
+      scaleLine(src, dest, destW, hAccum, hStep, 1);
       break;
     }
     case 1:
@@ -1094,7 +1077,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       uint32_t hAccum =
           rev ? (srcH << FIXPT_PREC) + ((1 << FIXPT_PREC) - 1) : 0;
       const uint32_t hStep = rev ? (uint32_t)(-(int32_t)stepH) : stepH;
-      scaleLine<false>(src, dest, destW, hAccum, hStep, stride);
+      scaleLine(src, dest, destW, hAccum, hStep, stride);
       break;
     }
   }

@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
 
   <meta name="keywords"
-    content="LcdTap, LcdTap-Pico2, Raspberry Pi Pico 2, PicoDVI, LCD Controller, ST7789, ILI9341, ILI9488, SSD1306, SSD1309, SSD1331" />
+    content="LcdTap, LcdTap-Pico2, Raspberry Pi Pico 2, PicoDVI, DVHSTX, DVI for HSTX, LCD Controller, ST7789, ILI9341, ILI9488, SSD1306, SSD1309, SSD1331" />
   <meta name="description"
     content="LcdTap is a library and its implementation that receives LCD controller commands and outputs the framebuffer as a DVI-D signal.">
 
@@ -72,9 +72,7 @@
 
     <ul>
       <li>Receives LCD controller commands and reconstructs images into the framebuffer</li>
-      <li>Outputs framebuffer contents as DVI-D signal (using <a href="https://github.com/Wren6991/PicoDVI"
-          target="_blank">PicoDVI</a>)
-      </li>
+      <li>Outputs framebuffer contents as DVI-D signal (via <a href="https://github.com/MichaelBell/dvhstx" target="_blank">DVI for HSTX</a>).</li>
       <li>Programmable screen sizes (up to 480x320 supported on Pico2)</li>
       <li>Command Dump: Captures and displays LCD control commands</li>
       <li>Supported Controllers: ST7789, ILI9341, ILI9488, SSD1306, SSD1309, SSD1331, and some variants</li>
