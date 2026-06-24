@@ -56,7 +56,7 @@ void Ssd1331Controller::updateWriteCache() {
     cachedVOffset = mx ? (config.buffWidth - 1) : 0;
     cachedVStep = mx ? -1 : +1;
   }
-  if (framebuf) writePtr = framebuf + physIndex(ramwrX, ramwrY);
+  if (frameBuffer) writePtr = frameBuffer + physIndex(ramwrX, ramwrY);
 }
 
 void Ssd1331Controller::softReset() {
@@ -128,8 +128,8 @@ void Ssd1331Controller::dispatchCommand(uint8_t cmd) {
       displayOn = true;
       break;
     case CMD_DISPLAYALLOFF: sleeping = true; break;
-    case CMD_NORMALDISPLAY: inverted = config.inverted; break;
-    case CMD_INVERTDISPLAY: inverted = !config.inverted; break;
+    case CMD_NORMALDISPLAY: setInverted(config.inverted); break;
+    case CMD_INVERTDISPLAY: setInverted(!config.inverted); break;
     default: expectedParams = 0; break;
   }
 }
@@ -251,7 +251,7 @@ uint16_t Ssd1331Controller::makeColor(uint8_t r6, uint8_t g6,
 void Ssd1331Controller::setPixelAt(int16_t x, int16_t y, uint16_t color) {
   if (x < 0 || x >= static_cast<int16_t>(logicalWidth())) return;
   if (y < 0 || y >= static_cast<int16_t>(logicalHeight())) return;
-  framebuf[physIndex(static_cast<uint32_t>(x), static_cast<uint32_t>(y))] =
+  frameBuffer[physIndex(static_cast<uint32_t>(x), static_cast<uint32_t>(y))] =
       color;
 }
 
@@ -304,9 +304,10 @@ void Ssd1331Controller::fillRect(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
     int32_t idx = static_cast<int32_t>(
         physIndex(static_cast<uint32_t>(x0), static_cast<uint32_t>(y)));
     if (cachedHStep == 1) {
-      std::fill(framebuf + idx, framebuf + idx + w, color);
+      std::fill(frameBuffer + idx, frameBuffer + idx + w, color);
     } else {
-      for (int16_t x = 0; x < w; ++x, idx += cachedHStep) framebuf[idx] = color;
+      for (int16_t x = 0; x < w; ++x, idx += cachedHStep)
+        frameBuffer[idx] = color;
     }
   }
 }
@@ -337,12 +338,12 @@ void Ssd1331Controller::dimWindow(int16_t x0, int16_t y0, int16_t x1,
     int32_t idx = static_cast<int32_t>(
         physIndex(static_cast<uint32_t>(x0), static_cast<uint32_t>(y)));
     for (int16_t x = 0; x < w; ++x, idx += cachedHStep) {
-      uint16_t px = framebuf[idx];
+      uint16_t px = frameBuffer[idx];
       uint16_t r5 = (px >> 11) & 0x1Fu;
       uint16_t g6 = (px >> 5) & 0x3Fu;
       uint16_t b5 = px & 0x1Fu;
-      framebuf[idx] = static_cast<uint16_t>(((r5 >> 1) << 11) |
-                                            ((g6 >> 1) << 5) | (b5 >> 1));
+      frameBuffer[idx] = static_cast<uint16_t>(((r5 >> 1) << 11) |
+                                               ((g6 >> 1) << 5) | (b5 >> 1));
     }
   }
 }
@@ -399,7 +400,8 @@ void Ssd1331Controller::copyRegion(int16_t x0, int16_t y0, int16_t x1,
       if (xe_d >= lw)
         w_clamped = static_cast<int16_t>(w_clamped - (xe_d - lw + 1));
       if (w_clamped <= 0) continue;
-      std::copy(framebuf + src, framebuf + src + w_clamped, framebuf + dst);
+      std::copy(frameBuffer + src, frameBuffer + src + w_clamped,
+                frameBuffer + dst);
     } else {
       for (int16_t dx = 0; dx < w; ++dx) {
         int16_t xs = static_cast<int16_t>(x0 + dx);
@@ -409,7 +411,7 @@ void Ssd1331Controller::copyRegion(int16_t x0, int16_t y0, int16_t x1,
           dst += cachedHStep;
           continue;
         }
-        framebuf[dst] = framebuf[src];
+        frameBuffer[dst] = frameBuffer[src];
         src += cachedHStep;
         dst += cachedHStep;
       }

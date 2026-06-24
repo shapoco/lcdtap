@@ -191,6 +191,11 @@ static_assert(sizeof(CONFIG_PRESET_NAMES) / sizeof(CONFIG_PRESET_NAMES[0]) ==
               "CONFIG_PRESET_NAMES size must match ConfigPreset enum");
 
 //=============================================================================
+// Fixed-point scale factor for scaling calculations
+//=============================================================================
+static constexpr int FIXPT_PREC = 16;
+
+//=============================================================================
 // Configuration structure
 //=============================================================================
 struct LcdTapConfig {

@@ -40,7 +40,7 @@ static constexpr uint32_t HSTX_MAX_LINE_BUF_WORDS =
 // Each channel gives Core 1 one extra scanline of fill budget.
 // With N channels, a single fill can spike up to (N-1) scanline periods
 // without causing a race condition with the DMA readout.
-static constexpr int HSTX_NUM_CHANS = 5;
+static constexpr int HSTX_NUM_CHANS = 8;
 
 struct HstxOutState {
   // --- caller-visible fields ---

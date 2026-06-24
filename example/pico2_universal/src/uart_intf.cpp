@@ -660,7 +660,7 @@ static void execCommand(const Parser& p) {
 // Response flushing
 // =============================================================================
 
-// Map output pixel coordinate (dx, dy) to framebuf index within the trim
+// Map output pixel coordinate (dx, dy) to frameBuffer index within the trim
 // region (srcX, srcY, srcW, srcH), then to physical buffer index.
 static inline uint32_t fbIndexTrimmed(uint16_t dx, uint16_t dy, uint16_t srcX,
                                       uint16_t srcY, uint16_t srcW,

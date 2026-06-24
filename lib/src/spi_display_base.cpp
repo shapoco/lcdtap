@@ -55,7 +55,9 @@ void SpiDisplayBase::updateWriteCache() {
     cachedVOffset = mx ? (config.buffWidth - 1) : 0;
     cachedVStep = mx ? -1 : +1;
   }
-  if (framebuf) writePtr = framebuf + physIndex(ramwrX, ramwrY);
+  if (frameBuffer) {
+    writePtr = frameBuffer + physIndex(ramwrX, ramwrY);
+  }
 }
 
 void SpiDisplayBase::softReset() {
@@ -83,11 +85,11 @@ void SpiDisplayBase::dispatchCommand(uint8_t cmd) {
       log("SLPOUT");
       break;
     case CMD_INVOFF:
-      inverted = config.inverted;
+      setInverted(config.inverted);
       log("INVOFF");
       break;
     case CMD_INVON:
-      inverted = !config.inverted;
+      setInverted(!config.inverted);
       log("INVON");
       break;
     case CMD_DISPON:
@@ -99,7 +101,9 @@ void SpiDisplayBase::dispatchCommand(uint8_t cmd) {
       updateWriteCache();  // remaps hw→logical casetXS/rasetYS first
       ramwrX = casetXS;    // then reset write position to logical start
       ramwrY = rasetYS;
-      if (framebuf) writePtr = framebuf + physIndex(ramwrX, ramwrY);
+      if (frameBuffer) {
+        writePtr = frameBuffer + physIndex(ramwrX, ramwrY);
+      }
       break;
     // CMD_MADCTL / CMD_COLMOD / CMD_CASET / CMD_RASET wait for data bytes
     default: onDispatchCommand(cmd); break;

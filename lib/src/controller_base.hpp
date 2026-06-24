@@ -21,7 +21,8 @@ class ControllerBase {
   Status status;
   bool hwReset;
 
-  uint16_t* framebuf;  // lcdWidth × lcdHeight × sizeof(uint16_t) RGB565 buffer
+  uint16_t*
+      frameBuffer;  // lcdWidth × lcdHeight × sizeof(uint16_t) RGB565 buffer
 
   // Display control state
   bool sleeping;
@@ -50,14 +51,14 @@ class ControllerBase {
   uint16_t outDestY;  // LCD display area start Y on DVI
   uint16_t outDestW;  // LCD display area width on DVI
   uint16_t outDestH;  // LCD display area height on DVI
-  uint16_t outSrcX; // LCD framebuffer start X for scaling (logical coordinate)
-  uint16_t outSrcY; // LCD framebuffer start Y for scaling (logical coordinate)
-  uint16_t outSrcW; // LCD framebuffer width for scaling (logical coordinate)
-  uint16_t outSrcH; // LCD framebuffer height for scaling (logical coordinate)
-  uint32_t
-      outSrcStepH;  // horizontal fixed-point step (16.16 format: lcdW<<16 / outDestW)
-  uint32_t
-      outSrcStepV;  // vertical   fixed-point step (16.16 format: lcdH<<16 / outDestH)
+  uint16_t outSrcX;  // LCD framebuffer start X for scaling (logical coordinate)
+  uint16_t outSrcY;  // LCD framebuffer start Y for scaling (logical coordinate)
+  uint16_t outSrcW;  // LCD framebuffer width for scaling (logical coordinate)
+  uint16_t outSrcH;  // LCD framebuffer height for scaling (logical coordinate)
+  uint32_t outSrcStepH;  // horizontal fixed-point step (16.16 format: lcdW<<16
+                         // / outDestW)
+  uint32_t outSrcStepV;  // vertical   fixed-point step (16.16 format: lcdH<<16
+                         // / outDestH)
   uint8_t outputRotation;  // output rotation 0..3 (0:none, 1:90°CW, 2:180°,
                            // 3:270°CW)
 
@@ -66,6 +67,7 @@ class ControllerBase {
   bool cachedLittleEndian;  // true = pixel bytes LSB first (RAMCTRL ENDIAN bit)
   int32_t cachedHOffset, cachedHStep;
   int32_t cachedVOffset, cachedVStep;
+  uint16_t cachedInverter;
   uint16_t* writePtr;
 
   // --- Controller-specific virtual interface ---
@@ -107,10 +109,15 @@ class ControllerBase {
   // Reset common fields (called from the derived class softReset())
   void resetCommon();
 
-  // Expand the trim area to include the specified rectangle (logical coordinates)
+  // Set the output inversion state (true = inverted, false = normal)
+  void setInverted(bool inv);
+
+  // Expand the trim area to include the specified rectangle (logical
+  // coordinates)
   void expandTrimX(uint16_t x0, uint16_t x1);
 
-  // Expand the trim area to include the specified rectangle (logical coordinates)
+  // Expand the trim area to include the specified rectangle (logical
+  // coordinates)
   void expandTrimY(uint16_t y0, uint16_t y1);
 
   // Write one RGB565 pixel to the framebuffer (respects MADCTL BGR)
@@ -118,14 +125,14 @@ class ControllerBase {
     if (cachedBGR) {  // BGR: swap R[15:11] and B[4:0]
       px = ((px << 11) & 0xF800u) | (px & 0x07E0u) | ((px >> 11) & 0x1Fu);
     }
-    *writePtr = px;
+    *writePtr = px ^ cachedInverter;
     writePtr += cachedHStep;
     if (++ramwrX > casetXE) {
       ramwrX = casetXS;
       if (++ramwrY > rasetYE) {
         ramwrY = rasetYS;
       }
-      writePtr = framebuf + physIndex(ramwrX, ramwrY);
+      writePtr = frameBuffer + physIndex(ramwrX, ramwrY);
     }
   }
   // Process all RAMWR data at once (moves switch(interfaceFormat) outside the

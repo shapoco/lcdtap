@@ -539,8 +539,8 @@ void ControllerBase::calcScaleParams() {
   outSrcY = static_cast<uint16_t>(trimY);
   outSrcW = static_cast<uint16_t>(trimW);
   outSrcH = static_cast<uint16_t>(trimH);
-  outSrcStepH = ((uint32_t)srcW << 16) / outDestW;
-  outSrcStepV = ((uint32_t)srcH << 16) / outDestH;
+  outSrcStepH = ((uint32_t)srcW << FIXPT_PREC) / outDestW;
+  outSrcStepV = ((uint32_t)srcH << FIXPT_PREC) / outDestH;
 }
 
 void ControllerBase::log(const char* msg) const {
@@ -550,7 +550,7 @@ void ControllerBase::log(const char* msg) const {
 void ControllerBase::resetCommon() {
   sleeping = true;
   displayOn = false;
-  inverted = false;
+  setInverted(false);
   cachedLittleEndian = false;
   interfaceFormat = getDefaultInterfaceFormat(config.controllerFamily);
   currentCmd = 0x00;
@@ -569,6 +569,12 @@ void ControllerBase::resetCommon() {
     config.trimHeight = 0;
   }
   updateWriteCache();
+}
+
+// Set the output inversion state (true = inverted, false = normal)
+void ControllerBase::setInverted(bool inv) {
+  inverted = inv;
+  cachedInverter = inverted ? 0xFFFFu : 0x0000u;
 }
 
 // Expand the trim area to include the specified rectangle (logical coordinates)
@@ -843,7 +849,7 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
   ctrl->host = host;
   ctrl->status = Status::OK;
   ctrl->hwReset = false;
-  ctrl->framebuf = nullptr;
+  ctrl->frameBuffer = nullptr;
   ctrl->outputRotation = config.outputRotation & 3u;
 
   if (config.buffWidth == 0 || config.buffHeight == 0 || config.dviWidth == 0 ||
@@ -855,8 +861,8 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
 
   size_t fbSize =
       (size_t)config.buffWidth * config.buffHeight * sizeof(uint16_t);
-  ctrl->framebuf = static_cast<uint16_t*>(host.alloc(fbSize));
-  if (!ctrl->framebuf) {
+  ctrl->frameBuffer = static_cast<uint16_t*>(host.alloc(fbSize));
+  if (!ctrl->frameBuffer) {
     ctrl->status = Status::OUT_OF_MEMORY;
     impl_ = ctrl;
     return;
@@ -870,7 +876,7 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
 LcdTap::~LcdTap() {
   if (!impl_) return;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
-  if (ctrl->framebuf) ctrl->host.free(ctrl->framebuf);
+  if (ctrl->frameBuffer) ctrl->host.free(ctrl->frameBuffer);
   delete ctrl;
 }
 
@@ -934,10 +940,93 @@ void LcdTap::dumpAbort() { dumpState_ = DumpState::COMPLETE; }
 
 const uint16_t* LcdTap::dumpGetBuffer() const { return dumpBuffer_; }
 
+template <bool inverted>
+void LCDTAP_INLINE scaleLine(const uint16_t* src, uint16_t* dest,
+                             uint32_t destW, uint32_t hAccum, uint32_t hStep,
+                             uint32_t stride) {
+  constexpr int UNROLL_SIZE = 8;
+  uint32_t* dest32 __attribute__((aligned(4))) =
+      reinterpret_cast<uint32_t*>(dest);
+  uint32_t destWdiv8 = destW / UNROLL_SIZE;
+#ifdef PICO_RP2350
+  interp_config cfg = interp_default_config();
+  interp_config_set_shift(&cfg, FIXPT_PREC);
+  interp_config_set_mask(&cfg, 0, 15);
+  interp_config_set_add_raw(&cfg, true);
+  interp_set_config(interp0, 0, &cfg);
+  interp_set_base(interp0, 0, hStep);
+  interp_set_accumulator(interp0, 0, hAccum);
+  for (uint32_t x = destWdiv8; x != 0; --x) {
+    uint32_t word;
+    word = src[interp_pop_full_result(interp0) * stride];
+    word |= src[interp_pop_full_result(interp0) * stride] << 16;
+    if constexpr (inverted) word = ~word;
+    *dest32++ = word;
+    word = src[interp_pop_full_result(interp0) * stride];
+    word |= src[interp_pop_full_result(interp0) * stride] << 16;
+    if constexpr (inverted) word = ~word;
+    *dest32++ = word;
+    word = src[interp_pop_full_result(interp0) * stride];
+    word |= src[interp_pop_full_result(interp0) * stride] << 16;
+    if constexpr (inverted) word = ~word;
+    *dest32++ = word;
+    word = src[interp_pop_full_result(interp0) * stride];
+    word |= src[interp_pop_full_result(interp0) * stride] << 16;
+    if constexpr (inverted) word = ~word;
+    *dest32++ = word;
+  }
+  dest += destWdiv8 * UNROLL_SIZE;
+  for (uint32_t x = destW % UNROLL_SIZE; x != 0; --x) {
+    if constexpr (inverted) {
+      *dest++ = ~src[interp_pop_full_result(interp0) * stride];
+    } else {
+      *dest++ = src[interp_pop_full_result(interp0) * stride];
+    }
+  }
+#else
+  for (uint32_t x = destWdiv8; x != 0; --x) {
+    uint32_t word;
+    word = src[(hAccum >> FIXPT_PREC) * stride];
+    hAccum += hStep;
+    word |= src[(hAccum >> FIXPT_PREC) * stride] << 16;
+    hAccum += hStep;
+    if constexpr (inverted) word = ~word;
+    *dest32++ = word;
+    word = src[(hAccum >> FIXPT_PREC) * stride];
+    hAccum += hStep;
+    word |= src[(hAccum >> FIXPT_PREC) * stride] << 16;
+    hAccum += hStep;
+    if constexpr (inverted) word = ~word;
+    *dest32++ = word;
+    word = src[(hAccum >> FIXPT_PREC) * stride];
+    hAccum += hStep;
+    word |= src[(hAccum >> FIXPT_PREC) * stride] << 16;
+    hAccum += hStep;
+    if constexpr (inverted) word = ~word;
+    *dest32++ = word;
+    word = src[(hAccum >> FIXPT_PREC) * stride];
+    hAccum += hStep;
+    word |= src[(hAccum >> FIXPT_PREC) * stride] << 16;
+    hAccum += hStep;
+    if constexpr (inverted) word = ~word;
+    *dest32++ = word;
+  }
+  dest += destWdiv8 * UNROLL_SIZE;
+  for (uint32_t x = destW % UNROLL_SIZE; x != 0; --x) {
+    if constexpr (inverted) {
+      *dest++ = ~src[(hAccum >> FIXPT_PREC) * stride];
+    } else {
+      *dest++ = src[(hAccum >> FIXPT_PREC) * stride];
+    }
+    hAccum += hStep;
+  }
+#endif
+}
+
 void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   if (!impl_) return;
   const ControllerBase* ctrl = static_cast<const ControllerBase*>(impl_);
-  if (ctrl->status != Status::OK || !ctrl->framebuf) return;
+  if (ctrl->status != Status::OK || !ctrl->frameBuffer) return;
 
   const uint16_t dviW = ctrl->config.dviWidth;
 
@@ -947,7 +1036,8 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   const uint32_t srcH = ctrl->outSrcH;
   const uint32_t srcR = srcX + srcW - 1;
   const uint32_t srcB = srcY + srcH - 1;
-  const uint32_t destX = ctrl->outDestX;
+  const uint32_t destX =
+      ctrl->outDestX & 0xFFFEu;  // align to even pixel boundary
   const uint32_t destY = ctrl->outDestY;
   const uint32_t destW = ctrl->outDestW;
   const uint32_t destH = ctrl->outDestH;
@@ -964,7 +1054,8 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   }
 
   // Vertical mapping: compute LCD row via fixed-point multiply
-  const uint32_t lcdRowOut = (((uint32_t)(dviLine - destY) * stepV) >> 16);
+  const uint32_t lcdRowOut =
+      (((uint32_t)(dviLine - destY) * stepV) >> FIXPT_PREC);
 
   uint16_t* dest = dst;
 
@@ -974,10 +1065,9 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
 
   // Active area: horizontal scaling + brightness inversion + rotation
   // Inverse: XOR all RGB565 bits → (31-R, 63-G, 31-B) inverts each channel
-  const uint16_t inv = ctrl->inverted ? 0xFFFFu : 0u;
-  const uint16_t* fb = ctrl->framebuf;
+  const bool inverted = ctrl->inverted;
+  const uint16_t* fb = ctrl->frameBuffer;
   const uint32_t stride = ctrl->config.buffWidth;
-  const uint32_t inv32 = ctrl->inverted ? 0xFFFFFFFFu : 0u;
 
   switch (ctrl->outputRotation) {
     default:
@@ -988,27 +1078,10 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       const bool rev = (ctrl->outputRotation == 2);
       const uint16_t* src = rev ? fb + (srcB - lcdRowOut) * stride + srcX
                                 : fb + (lcdRowOut + srcY) * stride + srcX;
-      uint32_t hAccum = rev ? ((srcW - 1) << 16) + 0xFFFF : 0;
+      uint32_t hAccum =
+          rev ? ((srcW - 1) << FIXPT_PREC) + ((1 << FIXPT_PREC) - 1) : 0;
       const uint32_t hStep = rev ? (uint32_t)(-(int32_t)stepH) : stepH;
-#ifdef PICO_RP2350
-      {
-        interp_config cfg = interp_default_config();
-        interp_config_set_shift(&cfg, 16);
-        interp_config_set_mask(&cfg, 0, 15);
-        interp_config_set_add_raw(&cfg, true);
-        interp_set_config(interp0, 0, &cfg);
-        interp_set_base(interp0, 0, hStep);
-        interp_set_accumulator(interp0, 0, hAccum);
-        for (uint32_t x = 0; x < destW; ++x) {
-          *dest++ = src[interp_pop_full_result(interp0)] ^ inv;
-        }
-      }
-#else
-      for (uint32_t x = 0; x < destW; ++x) {
-        *dest++ = src[hAccum >> 16] ^ inv;
-        hAccum += hStep;
-      }
-#endif
+      scaleLine<false>(src, dest, destW, hAccum, hStep, 1);
       break;
     }
     case 1:
@@ -1018,30 +1091,14 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       const bool rev = (ctrl->outputRotation == 1);
       const uint16_t* src = rev ? fb + srcY * stride + lcdRowOut + srcX
                                 : fb + srcY * stride + (srcR - lcdRowOut);
-      uint32_t hAccum = rev ? (srcH << 16) + 0xFFFF : 0;
+      uint32_t hAccum =
+          rev ? (srcH << FIXPT_PREC) + ((1 << FIXPT_PREC) - 1) : 0;
       const uint32_t hStep = rev ? (uint32_t)(-(int32_t)stepH) : stepH;
-#ifdef PICO_RP2350
-      {
-        interp_config cfg = interp_default_config();
-        interp_config_set_shift(&cfg, 16);
-        interp_config_set_mask(&cfg, 0, 15);
-        interp_config_set_add_raw(&cfg, true);
-        interp_set_config(interp0, 0, &cfg);
-        interp_set_base(interp0, 0, hStep);
-        interp_set_accumulator(interp0, 0, hAccum);
-        for (uint32_t x = 0; x < destW; ++x) {
-          *dest++ = src[interp_pop_full_result(interp0) * stride] ^ inv;
-        }
-      }
-#else
-      for (uint32_t x = 0; x < destW; ++x) {
-        *dest++ = src[(hAccum >> 16) * stride] ^ inv;
-        hAccum += hStep;
-      }
-#endif
+      scaleLine<false>(src, dest, destW, hAccum, hStep, stride);
       break;
     }
   }
+  dest += destW;
 
   // Right black border
   memset(dest, 0, (size_t)(dviW - destX - destW) * sizeof(uint16_t));
@@ -1071,7 +1128,7 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   // commands).
   if (cfg.controllerFamily != ctrl->config.controllerFamily) {
     HostInterface host = ctrl->host;
-    if (ctrl->framebuf) host.free(ctrl->framebuf);
+    if (ctrl->frameBuffer) host.free(ctrl->frameBuffer);
     delete ctrl;
     impl_ = nullptr;
 
@@ -1095,12 +1152,12 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
     ctrl->host = host;
     ctrl->status = Status::OK;
     ctrl->hwReset = false;
-    ctrl->framebuf = nullptr;
+    ctrl->frameBuffer = nullptr;
     impl_ = ctrl;
 
     size_t fbSize = (size_t)cfg.buffWidth * cfg.buffHeight * sizeof(uint16_t);
-    ctrl->framebuf = static_cast<uint16_t*>(host.alloc(fbSize));
-    if (!ctrl->framebuf) return Status::OUT_OF_MEMORY;
+    ctrl->frameBuffer = static_cast<uint16_t*>(host.alloc(fbSize));
+    if (!ctrl->frameBuffer) return Status::OUT_OF_MEMORY;
 
     ctrl->config = cfg;
     ctrl->outputRotation = cfg.outputRotation & 3u;
@@ -1117,8 +1174,8 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   if (newFbSize > currFbSize) {
     uint16_t* newFb = static_cast<uint16_t*>(ctrl->host.alloc(newFbSize));
     if (!newFb) return Status::OUT_OF_MEMORY;
-    ctrl->host.free(ctrl->framebuf);
-    ctrl->framebuf = newFb;
+    ctrl->host.free(ctrl->frameBuffer);
+    ctrl->frameBuffer = newFb;
   }
 
   bool sleeping = ctrl->sleeping;
@@ -1156,7 +1213,7 @@ bool LcdTap::isOutputSwapRB() const {
 
 uint16_t* LcdTap::getFramebuf() {
   if (!impl_) return nullptr;
-  return static_cast<ControllerBase*>(impl_)->framebuf;
+  return static_cast<ControllerBase*>(impl_)->frameBuffer;
 }
 
 void LcdTap::getOutSrcRegion(uint16_t* x, uint16_t* y, uint16_t* w,

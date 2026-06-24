@@ -35,7 +35,7 @@ void Osd::init(const OsdConfig& cfg) {
   scrollOffset_ = 0;
   state_ = OsdState::HIDDEN;
   blinkOn_ = true;
-  lastInput_ = 0;
+  lastInput_ = 0xFFu; // prevent first-frame key repeat
   nextRepeatMs_ = 0;
   lastBlinkMs_ = 0;
   dumpScrollOffset_ = 0;
@@ -300,15 +300,20 @@ void Osd::fillScanline(uint16_t line, uint16_t* dst) const {
 
   for (int col = 0; col < COLS; ++col) {
     uint8_t ch = static_cast<uint8_t>(rowPtr[col]);
-    const uint8_t colByte = colPtr[col];
-    const uint16_t fg = OSD_PALETTE[colByte >> 4];
-    const uint16_t bg = OSD_PALETTE[colByte & 0xFu];
-    const uint8_t bits =
+    uint8_t bits =
         font8x16::bitmap[static_cast<uint32_t>(ch) * font8x16::GLYPH_HEIGHT +
                          static_cast<uint32_t>(pixRow)];
-    for (int j = 0; j < font8x16::GLYPH_WIDTH; ++j) {
-      *dst++ = ((bits >> j) & 1u) ? fg : bg;
-    }
+    uint8_t colByte = colPtr[col];
+    uint16_t fg = OSD_PALETTE[colByte >> 4];
+    uint16_t bg = OSD_PALETTE[colByte & 0xFu];
+    *dst++ = (bits & 0x01) ? fg : bg;
+    *dst++ = (bits & 0x02) ? fg : bg;
+    *dst++ = (bits & 0x04) ? fg : bg;
+    *dst++ = (bits & 0x08) ? fg : bg;
+    *dst++ = (bits & 0x10) ? fg : bg;
+    *dst++ = (bits & 0x20) ? fg : bg;
+    *dst++ = (bits & 0x40) ? fg : bg;
+    *dst++ = (bits & 0x80) ? fg : bg;
   }
 }
 

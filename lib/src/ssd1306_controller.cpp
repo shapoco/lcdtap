@@ -129,11 +129,11 @@ void Ssd1306Controller::dispatchCommand(uint8_t cmd) {
       log("SSD1306: DISPLAY_ON");
       break;
     case CMD_NORMAL_DISPLAY:
-      inverted = config.inverted;
+      setInverted(config.inverted);
       log("SSD1306: NORMAL_DISPLAY");
       break;
     case CMD_INVERT_DISPLAY:
-      inverted = !config.inverted;
+      setInverted(!config.inverted);
       log("SSD1306: INVERT_DISPLAY");
       break;
     case CMD_SEG_REMAP_0:
@@ -194,7 +194,7 @@ void Ssd1306Controller::processRamwrData(const uint8_t* data, uint32_t numElems,
         uint16_t physCol = effectiveSegmentRemap()
                                ? static_cast<uint16_t>(lcdW - 1u - ramwrX)
                                : ramwrX;
-        framebuf[physRow * lcdW + physCol] =
+        frameBuffer[physRow * lcdW + physCol] =
             static_cast<uint16_t>((byte & 1u) ? 0xFFFFu : 0x0000u);
       }
       byte >>= 1;
