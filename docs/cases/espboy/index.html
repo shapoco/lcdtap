@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@shapoco" />
+  <meta property="og:url" content="https://shapoco.github.io/lcdtap/cases/tinyjoypad/" />
+  <meta property="og:title" content="Capturing Screen of ESPboy | LcdTap" />
+  <meta property="og:description" content="How to capture the screen of ESPboy using LcdTap." />
+  <meta property="og:image" content="https://shapoco.github.io/lcdtap/cases/tinyjoypad/thumb.jpg" />
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
+  <script>
+    var remoteHost = window.location.hostname;
+    if (remoteHost == "localhost") {
+      console.log(`Google Analytics disabled on: '${remoteHost}'`);
+    }
+    else {
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-KJ53WNQ22G');
+    }
+  </script>
+
+  <link rel="stylesheet" href="../../style.css">
+  <title>Capturing Screen of ESPboy | LcdTap</title>
+</head>
+
+<body>
+  <header>
+    <a href="../../"><img src="../../image/logo.png" class="logo" />LcdTap</a> |
+    <a href="../../#cases">Cases</a>
+  </header>
+  <main>
+    <h1>Capturing Screen of ESPboy</h1>
+
+    <div id="shpcstamp_wrap"></div>
+    <script async src="/lcdtap/stamp/v1/widget.js?202606212157"></script>
+
+    <p><img src="./thumb.jpg" class="large-img" /></p>
+    <p>
+      See also:
+      <a href="https://blog.shapoco.net/2026/0626-espboy-with-large-monitor/">
+        LcdTap: ESPboy を大きなモニターで遊ぶ</a>
+    </p>
+
+    <h2>Using LcdTap-Pico2 Universal</h2>
+    <h3>Connection</h3>
+    <p>
+      ESPboy does not use a CS signal, so connect LcdTap's CS input to GND.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>LcdTap (Pico2)</th>
+          <th>Connection</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GND</td>
+          <td>ESPboy’s GND</td>
+        </tr>
+        <tr>
+          <td>RST</td>
+          <td>ESPboy’s RST</td>
+        </tr>
+        <tr>
+          <td>CS</td>
+          <td>GND</td>
+        </tr>
+        <tr>
+          <td>SCLK</td>
+          <td>ESPboy’s SCLK</td>
+        </tr>
+        <tr>
+          <td>DC</td>
+          <td>ESPboy’s DC</td>
+        </tr>
+        <tr>
+          <td>MOSI</td>
+          <td>ESPboy’s MOSI</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3>Configuration</h3>
+    <p>Load preset for ESPboy.</p>
+  </main>
+
+  <footer>
+    <a href="/">LcdTap</a> by <a href="https://x.com/shapoco" target="_blank">@shapoco</a>
+  </footer>
+</body>
+
+</html>
