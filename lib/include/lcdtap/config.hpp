@@ -1,0 +1,294 @@
+#ifndef LCDTAP_CONFIG_HPP
+#define LCDTAP_CONFIG_HPP
+
+#include <cstdint>
+#include <cstring>
+
+namespace lcdtap {
+    
+//=============================================================================
+// LCD controller families
+//=============================================================================
+enum class ControllerFamily : uint8_t {
+  ST7789,
+  SSD1306,
+  SSD1331,
+  ILI9341,
+  NUM_CONTROLLERS,
+};
+
+static const char* CONTROLLER_NAMES[] = {"ST7789", "SSD1306", "SSD1331",
+                                         "ILI9341"};
+static_assert(sizeof(CONTROLLER_NAMES) / sizeof(CONTROLLER_NAMES[0]) ==
+                  static_cast<size_t>(ControllerFamily::NUM_CONTROLLERS),
+              "CONTROLLER_NAMES size must match ControllerFamily enum");
+
+//=============================================================================
+// Bus types (physical interface between host and LCD controller)
+//=============================================================================
+
+enum class BusType : uint8_t {
+  I2C,
+  SPI_4LINE,
+  SPI_3LINE,
+  PARALLEL,
+  NUM_BUSES,
+};
+
+static const char* BUS_NAMES[] = {"I2C", "4-Line SPI", "3-Line SPI",
+                                  "Parallel8"};
+static_assert(sizeof(BUS_NAMES) / sizeof(BUS_NAMES[0]) ==
+                  static_cast<size_t>(BusType::NUM_BUSES),
+              "BUS_NAMES size must match lcdtap::BusType enum");
+
+static const char* BUS_SHORT_NAMES[] = {"I2C", "SPI4", "SPI3", "PAR8"};
+static_assert(sizeof(BUS_SHORT_NAMES) / sizeof(BUS_SHORT_NAMES[0]) ==
+                  static_cast<size_t>(BusType::NUM_BUSES),
+              "BUS_SHORT_NAMES size must match lcdtap::BusType enum");
+
+//=============================================================================
+// Interface Pixel format (SPI/I2C input side)
+//=============================================================================
+enum class InterfaceFormat : uint8_t {
+  // 1bpp monochrome, vertical 8-pixel pack, high-to-low
+  // e.g. SSD1306
+  GRAY1_VPACK8_H2L,
+
+  // 3bpp RGB, horizontal 2-pixel pack, high-to-low, 8bit right-aligned
+  // e.g. ILI9488
+  RGB111_HPACK2_H2L_RA8,
+
+  // 8bpp RGB, 3-3-2 bits
+  // e.g. SSD1331
+  RGB332,
+
+  // 12bpp, horizontal 2-pixel pack, high-to-low, big-endian
+  // e.g. ST7789
+  RGB444_HPACK2_H2L_BE,
+
+  // 16bpp, big-endian
+  RGB565_BE,
+
+  // 18bpp, unpacked, 8bit left-aligned, big-endian
+  RGB666_UNPACK_LA8_BE,
+
+  // 18bpp, unpacked, 8bit right-aligned, big-endian
+  RGB666_UNPACK_RA8_BE,
+
+  // Number of formats (not a valid format)
+  NUM_FORMATS,
+};
+
+static const char* INTERFACE_FORMAT_NAMES[] = {
+    "Off",    "GRAY1",  "RGB111",    "RGB332",
+    "RGB444", "RGB565", "RGB666-LA", "RGB666-RA"};
+static_assert(
+    sizeof(INTERFACE_FORMAT_NAMES) / sizeof(INTERFACE_FORMAT_NAMES[0]) ==
+        static_cast<size_t>(InterfaceFormat::NUM_FORMATS) + 1,
+    "INTERFACE_FORMAT_NAMES size must match InterfaceFormat enum + 1");
+
+//=============================================================================
+// Trim mode (cropping of framebuffer content before scaling to DVI output)
+//=============================================================================
+
+enum class TrimMode : uint8_t {
+  OFF,
+  AUTO,
+  CUSTOM,
+  NUM_MODES,
+};
+
+static const char* TRIM_MODE_NAMES[] = {"Off", "Auto", "Custom"};
+static_assert(sizeof(TRIM_MODE_NAMES) / sizeof(TRIM_MODE_NAMES[0]) ==
+                  static_cast<size_t>(TrimMode::NUM_MODES),
+              "TRIM_MODE_NAMES size must match TrimMode enum");
+
+//=============================================================================
+// Flip mode (horizontal/vertical mirroring of framebuffer content)
+//=============================================================================
+
+// bit[0]: Horizontal Flip, bit[1]: Vertical Flip
+enum class FlipMode : uint8_t {
+  OFF,
+  FLIP_H,
+  FLIP_V,
+  FLIP_HV,
+};
+
+static const char* FLIP_MODE_NAMES[] = {"Off", "Horizontal", "Vertical",
+                                        "Both"};
+static_assert(sizeof(FLIP_MODE_NAMES) / sizeof(FLIP_MODE_NAMES[0]) ==
+                  static_cast<size_t>(FlipMode::FLIP_HV) + 1,
+              "FLIP_MODE_NAMES size must match FlipMode enum");
+
+//=============================================================================
+// Scale mode (scaling of framebuffer content to DVI output)
+//=============================================================================
+
+enum class ScaleMode : uint8_t {
+  OFF,       // 1:1 pixel mapping; black padding around the image
+  INTEGRAL,  // Scale by integer factor; black padding around the image
+  FIT,       // Letterbox/pillarbox to preserve aspect ratio
+  STRETCH,   // Stretch to fill the full DVI area (ignores aspect ratio)
+  NUM_MODES,
+};
+
+static const char* SCALE_MODE_NAMES[] = {"Off", "Integral", "Fit", "Stretch"};
+static_assert(sizeof(SCALE_MODE_NAMES) / sizeof(SCALE_MODE_NAMES[0]) ==
+                  static_cast<size_t>(ScaleMode::NUM_MODES),
+              "SCALE_MODE_NAMES size must match ScaleMode enum");
+
+//=============================================================================
+// Configuration presets (predefined controller configs for common devices)
+//=============================================================================
+
+enum class ConfigPreset : uint8_t {
+  ILI9341,
+  ILI9342,
+  ILI9488,
+  SSD1306,
+  SSD1331,
+  ST7735,
+  ST7789,
+  ARDUBOY,
+  ESPBOY,
+  M5STACK_CORES3,
+  PICOPAD,
+  PICOSYSTEM,
+  THUMBY,
+  TINYJOYPAD,
+  WIO_TERMINAL,
+  XIAMOCON,
+  NUM_PRESETS,
+};
+
+static const char* CONFIG_PRESET_NAMES[] = {
+    "ILI9341", "ILI9342",        "ILI9488",      "SSD1306",
+    "SSD1331", "ST7735",         "ST7789",       "Arduboy",
+    "ESPboy",  "M5Stack CoreS3", "PicoPad",      "PicoSystem",
+    "Thumby",  "TinyJoypad",     "Wio Terminal", "Xiamocon",
+};
+static_assert(sizeof(CONFIG_PRESET_NAMES) / sizeof(CONFIG_PRESET_NAMES[0]) ==
+                  static_cast<size_t>(ConfigPreset::NUM_PRESETS),
+              "CONFIG_PRESET_NAMES size must match ConfigPreset enum");
+
+//=============================================================================
+// Configuration structure
+//=============================================================================
+struct LcdTapConfig {
+  ControllerFamily controllerFamily;
+  BusType busInterface;
+
+  uint16_t buffWidth;
+  uint16_t buffHeight;
+
+  bool inverted;  // true: INVON→non-inverted / INVOFF→inverted
+  bool swapRB;    // true: invert cachedBGR (swap R and B channels)
+
+  // When true, fillScanline() renders pixels regardless of the sleeping /
+  // displayOn state set by the LCD controller commands.
+  bool forcePowerOn;
+
+  // -1 = Off (interfaceFormat follows COLMOD/SETREMAP);
+  // 0..NUM_FORMATS-1 = forced pixel format regardless of COLMOD/SETREMAP.
+  int8_t interfaceFormatOverride;
+
+  TrimMode trimMode;
+  uint16_t trimX;
+  uint16_t trimY;
+  uint16_t trimWidth;
+  uint16_t trimHeight;
+
+  FlipMode flipMode;
+
+  uint16_t dviWidth;   // DVI active area width (pixels)
+  uint16_t dviHeight;  // DVI active area height (lines)
+  ScaleMode scaleMode;
+  uint8_t outputRotation;  // 0:none, 1:90°CW, 2:180°, 3:270°CW
+};
+
+enum class ConfigId : uint8_t {
+  CTRL_FAMILY,
+  BUS_INTERFACE,
+  BUFF_WIDTH,
+  BUFF_HEIGHT,
+  TRIM_MODE,
+  TRIM_X,
+  TRIM_Y,
+  TRIM_WIDTH,
+  TRIM_HEIGHT,
+  FLIP_MODE,
+  INVERSE,
+  SWAP_RB,
+  OUTPUT_ROT,
+  SCALE_MODE,
+  FORCE_PWR_ON,
+  INTF_FMT_OVR,
+  NUM_CONFIGS,
+};
+
+enum class ValueType : uint8_t {
+  INT16,
+  BOOL,
+  ENUM,
+};
+
+struct ConfigEntry {
+  ValueType type;        // Value type
+  const char* name;      // Item label
+  const char* unit;      // Unit string shown after the value (e.g. "px", "deg")
+  const char** options;  // Display strings for ENUM type (nullptr otherwise)
+  int16_t min;           // Minimum value (INTEGER / ENUM index)
+  int16_t max;           // Maximum value (INTEGER / ENUM index)
+  int16_t step;          // Increment per key press (INTEGER / ENUM)
+  int16_t value;         // Current value; for ACTION: OSD_ACTION_XXX
+  int16_t enableKeyId;
+  int16_t enableKeyValueMin;
+  int16_t enableKeyValueMax;
+};
+
+//=============================================================================
+// Common string tables
+//=============================================================================
+
+static const char* ON_OFF_NAMES[] = {"Off", "On"};
+static const char* ROTATION_NAMES[] = {"0", "90", "180", "270"};
+
+//=============================================================================
+// Get default configuration
+// Writes default values for the specified controller into cfg.
+// Override fields as needed before passing to the LcdTap constructor.
+//=============================================================================
+void getDefaultConfig(ControllerFamily type, LcdTapConfig* cfg);
+
+//=============================================================================
+// Get default interface format for a given controller family
+//=============================================================================
+InterfaceFormat getDefaultInterfaceFormat(ControllerFamily type);
+
+//=============================================================================
+// Configuration entry access
+//=============================================================================
+void getConfigEntryById(ConfigId id, ConfigEntry* e);
+int16_t getConfigValueById(const LcdTapConfig& cfg, ConfigId id);
+void setConfigValueById(LcdTapConfig* cfg, ConfigId id, int16_t value);
+void formatConfigValue(char* buf, int bufLen, const ConfigEntry& item);
+
+//=============================================================================
+// Get configuration preset
+// Writes a predefined configuration for a common device into cfg.
+//=============================================================================
+void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg);
+
+//=============================================================================
+// Command dump
+//=============================================================================
+struct DumpConfig {
+  // reserved for future use
+};
+
+DumpConfig getDefaultDumpConfig();
+
+}
+
+#endif

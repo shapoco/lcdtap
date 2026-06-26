@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(lcdtap STATIC
     src/lcdtap.cpp
+    src/config.cpp
     src/osd.cpp
     src/spi_display_base.cpp
     src/st7789_controller.cpp
