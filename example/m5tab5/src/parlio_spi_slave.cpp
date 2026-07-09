@@ -302,10 +302,6 @@ void parlioSpiSlaveProcess(ParlioSpiSlaveState *s) {
   uint32_t wr = s->rawWriteIdx;  // snapshot of volatile
   uint32_t rd = s->rawReadIdx;
   if (rd == wr) return;
-  if (!s->inst) {
-    s->rawReadIdx = wr;
-    return;
-  }
 
   uint32_t mask = s->rawRingBytes - 1u;
   while (rd != wr) {
@@ -322,10 +318,12 @@ void parlioSpiSlaveProcess(ParlioSpiSlaveState *s) {
       s->rawDumpLen = s->rawDumpLen + n;
     }
 
-    spiDeserProcess(&s->deser, raw, len, emitByte, s);
+    // Without an instance (e.g. bus-sniffer mode) only the dump is kept.
+    if (s->inst) spiDeserProcess(&s->deser, raw, len, emitByte, s);
     rd += len;
   }
   s->rawReadIdx = rd;
+  if (!s->inst) return;
 
   if (s->stagingLen) {
     s->inst->inputData(s->staging, s->stagingLen, 1);

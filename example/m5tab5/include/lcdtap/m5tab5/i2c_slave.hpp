@@ -32,12 +32,20 @@ struct I2cSlaveState {
   volatile I2cRxState rxState;
   volatile bool coSingleByte;  // Co=1: return to WAIT_CTRL after one byte
   volatile bool active;
+  // Diagnostics (incremented in the ISR):
+  volatile uint32_t isrCount;       // ISR invocations with a pending cause
+  volatile uint32_t rxByteCount;    // bytes drained from the RX FIFO
+  volatile uint32_t stopCount;      // TRANS_COMPLETE (STOP) interrupts
+  volatile uint32_t stretchCount;   // clock-stretch causes handled
+  volatile uint32_t startDetCount;  // START conditions detected
+  volatile uint32_t unmatchCount;   // slave address compare mismatches
 };
 
 // Initialize the I2C peripheral in slave mode via direct i2c_ll register
 // access (no IDF driver) and install an IRAM ISR pinned to core 0.
-// SDA/SCL are wired through the GPIO matrix as open-drain input/output so
-// that hardware clock stretching works (i2c_set_pin must NOT be used).
+// SDA/SCL are wired through the GPIO matrix as open-drain input/output
+// (i2c_set_pin must NOT be used). Clock stretching is disabled to stay
+// compatible with SSD1306 masters that never check SCL.
 // ringBuf is a caller-allocated array; ringWords must be a power of 2.
 // Only one I2cSlaveState instance can be active at a time.
 esp_err_t i2cSlaveInit(I2cSlaveState *s, const I2cSlaveConfig &cfg,
@@ -48,5 +56,9 @@ void i2cSlaveDeinit(I2cSlaveState *s);
 
 // Drain the ring buffer and dispatch commands/data to s->inst.
 void i2cSlaveProcess(I2cSlaveState *s);
+
+// Format a one-line diagnostic snapshot (counters + raw interrupt status
+// + FIFO count + ring write index) into buf. Safe to call from any task.
+void i2cSlaveDebugStatus(I2cSlaveState *s, char *buf, size_t len);
 
 }  // namespace lcdtap::m5tab5

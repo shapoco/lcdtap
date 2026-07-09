@@ -7,11 +7,16 @@
 // the first byte after START is a control byte (bit6 = D/C#, bit7 = Co),
 // following bytes are pushed to the ring buffer as [D/C << 8 | byte].
 //
-// The ESP32-P4 slave supports hardware clock stretching: SCL is held low
-// on address match / RX-full until the ISR services the FIFO, so no data
-// is lost regardless of ISR latency.
+// Clock stretching is intentionally disabled: a real SSD1306 never
+// stretches, so masters written for it (bit-banged AVR libraries etc.)
+// keep clocking through a stretch, which corrupts the slave's bit phase
+// and can wedge the bus low. Write-only traffic is handled with the
+// 32-byte FIFO and a LEVEL3 IRAM ISR instead; reads return dummy bytes
+// from a pre-filled TX FIFO (best effort).
 
 #include "lcdtap/m5tab5/i2c_slave.hpp"
+
+#include <cstdio>
 
 #include <sdkconfig.h>
 
@@ -23,10 +28,6 @@
 #include <soc/soc_caps.h>
 #if !defined(SOC_I2C_SUPPORT_SLAVE) || !SOC_I2C_SUPPORT_SLAVE
 #error "This chip has no I2C slave support."
-#endif
-#if !defined(SOC_I2C_SLAVE_CAN_GET_STRETCH_CAUSE) || \
-    !SOC_I2C_SLAVE_CAN_GET_STRETCH_CAUSE
-#error "This module assumes a stretch-capable I2C slave (ESP32-P4)."
 #endif
 
 #include <driver/gpio.h>
@@ -48,6 +49,9 @@ static esp_err_t sInitResult = ESP_FAIL;
 static constexpr uint32_t INT_RX_WM = I2C_RXFIFO_WM_INT_ENA_M;
 static constexpr uint32_t INT_TX_WM = I2C_TXFIFO_WM_INT_ENA_M;
 static constexpr uint32_t INT_TRANS_COMPLETE = I2C_TRANS_COMPLETE_INT_ENA_M;
+// Diagnostics only (counted in the ISR):
+static constexpr uint32_t INT_DET_START = I2C_DET_START_INT_ENA_M;
+static constexpr uint32_t INT_ADDR_UNMATCH = I2C_SLAVE_ADDR_UNMATCH_INT_ENA_M;
 
 //=============================================================================
 // ISR internals
@@ -57,6 +61,7 @@ static constexpr uint32_t INT_TRANS_COMPLETE = I2C_TRANS_COMPLETE_INT_ENA_M;
 // push payload bytes into the ring buffer.
 static void IRAM_ATTR drainRxFifo(I2cSlaveState *s, uint32_t count) {
   uint8_t buf[SOC_I2C_FIFO_LEN];
+  s->rxByteCount = s->rxByteCount + count;
   while (count) {
     uint8_t c = (count > SOC_I2C_FIFO_LEN) ? SOC_I2C_FIFO_LEN : (uint8_t)count;
     i2c_ll_read_rxfifo(sDev, buf, c);
@@ -102,6 +107,7 @@ static void IRAM_ATTR i2cIsrHandler(void *) {
   i2c_ll_get_intr_mask(dev, &ints);
   if (ints == 0) return;
   i2c_ll_clear_intr_mask(dev, ints);
+  ++s->isrCount;
 
   uint32_t rxCount = 0;
   i2c_ll_get_rxfifo_cnt(dev, &rxCount);
@@ -128,44 +134,20 @@ static void IRAM_ATTR i2cIsrHandler(void *) {
   // --- (3) STOP (transaction complete) ---------------------------------------
   // Unconditional TX cleanup: see the reference example for why this must not
   // be guarded by isRead (a pending address match may have overwritten it).
+  if (ints & INT_DET_START) ++s->startDetCount;
+  if (ints & INT_ADDR_UNMATCH) ++s->unmatchCount;
+
   if (ints & INT_TRANS_COMPLETE) {
+    ++s->stopCount;
     i2c_ll_disable_intr_mask(dev, INT_TX_WM);
+    // Rebuild the best-effort read reply (dummy bytes) for a potential
+    // next read transaction; without clock stretching this pre-fill is
+    // the only way to serve reads.
     i2c_ll_txfifo_rst(dev);
+    fillTxFifoDummy();
     // Next transaction starts with a fresh control byte.
     s->rxState = I2cRxState::WAIT_CTRL;
     s->coSingleByte = false;
-  }
-
-  // --- (4) Clock stretch handling --------------------------------------------
-  if (ints & I2C_SLAVE_STRETCH_INT_ENA_M) {
-    i2c_slave_stretch_cause_t cause;
-    i2c_ll_slave_get_stretch_cause(dev, &cause);
-    switch (cause) {
-      case I2C_SLAVE_STRETCH_CAUSE_ADDRESS_MATCH:
-        if (isRead) {
-          i2c_ll_txfifo_rst(dev);
-          fillTxFifoDummy();
-          i2c_ll_enable_intr_mask(dev, INT_TX_WM);
-        }
-        i2c_ll_slave_clear_stretch(dev);
-        break;
-
-      case I2C_SLAVE_STRETCH_CAUSE_TX_EMPTY:
-        fillTxFifoDummy();
-        i2c_ll_slave_clear_stretch(dev);
-        break;
-
-      case I2C_SLAVE_STRETCH_CAUSE_RX_FULL:
-        i2c_ll_get_rxfifo_cnt(dev, &rxCount);
-        if (rxCount) {
-          drainRxFifo(s, rxCount);
-          notify = true;
-        }
-        i2c_ll_slave_clear_stretch(dev);
-        break;
-
-      default: i2c_ll_slave_clear_stretch(dev); break;
-    }
   }
 
   // --- (5) Wake the drain task -----------------------------------------------
@@ -237,8 +219,8 @@ static esp_err_t initPeripheral(I2cSlaveState *s) {
 
   i2c_ll_set_slave_addr(dev, s->cfg.slaveAddr, false);
   i2c_ll_set_tout(dev, I2C_LL_MAX_TIMEOUT);
-  i2c_ll_set_sda_timing(dev, 10, 10);
-  i2c_ll_master_set_filter(dev, 7);
+  i2c_ll_set_sda_timing(dev, 3, 3);
+  i2c_ll_master_set_filter(dev, 3);
 
   // (e) FIFO watermarks at half depth (~16-byte ISR cadence).
   i2c_ll_set_rxfifo_full_thr(dev, SOC_I2C_FIFO_LEN / 2);
@@ -247,9 +229,13 @@ static esp_err_t initPeripheral(I2cSlaveState *s) {
   dev->fifo_conf.fifo_prt_en = 1;
   dev->fifo_conf.fifo_addr_cfg_en = 0;
 
-  // (f) Clock stretching.
-  i2c_ll_slave_enable_scl_stretch(dev, true);
-  i2c_ll_slave_set_stretch_protect_num(dev, 0x3ff);
+  // (f) Clock stretching is deliberately DISABLED. A real SSD1306 never
+  // stretches SCL, so masters written for it (e.g. bit-banged AVR
+  // libraries) do not check SCL and keep clocking through a stretch:
+  // the slave's bit phase slips (corrupted bytes) and an unreleased
+  // stretch wedges the whole bus low. Write-only traffic is served fine
+  // by the 32-byte FIFO + LEVEL3 IRAM ISR without stretching.
+  i2c_ll_slave_enable_scl_stretch(dev, false);
   i2c_ll_slave_clear_stretch(dev);
 
   // (g) IRAM ISR; runs on the core that called esp_intr_alloc (core 0 via
@@ -259,10 +245,14 @@ static esp_err_t initPeripheral(I2cSlaveState *s) {
                                  i2cIsrHandler, nullptr, &sIntr);
   if (err != ESP_OK) return err;
 
+  // Pre-fill the best-effort read reply (dummy bytes).
+  i2c_ll_txfifo_rst(dev);
+  fillTxFifoDummy();
+
   // (h) Enable only the interrupts we use. INT_TX_WM is enabled dynamically
   // when a read transaction starts.
   i2c_ll_enable_intr_mask(
-      dev, INT_RX_WM | INT_TRANS_COMPLETE | I2C_SLAVE_STRETCH_INT_ENA_M);
+      dev, INT_RX_WM | INT_TRANS_COMPLETE | INT_DET_START | INT_ADDR_UNMATCH);
   i2c_ll_update(dev);
 
   return ESP_OK;
@@ -286,6 +276,12 @@ esp_err_t i2cSlaveInit(I2cSlaveState *s, const I2cSlaveConfig &cfg,
   s->readIdx = 0;
   s->rxState = I2cRxState::WAIT_CTRL;
   s->coSingleByte = false;
+  s->isrCount = 0;
+  s->rxByteCount = 0;
+  s->stopCount = 0;
+  s->stretchCount = 0;
+  s->startDetCount = 0;
+  s->unmatchCount = 0;
 
   sInitDone = false;
   sInitResult = ESP_FAIL;
@@ -351,6 +347,25 @@ void i2cSlaveProcess(I2cSlaveState *s) {
     s->inst->inputData((uint8_t *)&s->ringBuf[dataStart], dataLen,
                        sizeof(uint32_t));
   }
+}
+
+void i2cSlaveDebugStatus(I2cSlaveState *s, char *buf, size_t len) {
+  uint32_t intRaw = 0;
+  uint32_t fifoCnt = 0;
+  uint32_t addrReg = 0;
+  if (s->active && sDev) {
+    intRaw = sDev->int_raw.val;
+    addrReg = sDev->slave_addr.val;
+    i2c_ll_get_rxfifo_cnt(sDev, &fifoCnt);
+  }
+  snprintf(buf, len,
+           "i2cIsr=%lu rxB=%lu stop=%lu stretch=%lu start=%lu unmatch=%lu "
+           "fifo=%lu raw=%08lx addrReg=%08lx ringW=%lu",
+           (unsigned long)s->isrCount, (unsigned long)s->rxByteCount,
+           (unsigned long)s->stopCount, (unsigned long)s->stretchCount,
+           (unsigned long)s->startDetCount, (unsigned long)s->unmatchCount,
+           (unsigned long)fifoCnt, (unsigned long)intRaw,
+           (unsigned long)addrReg, (unsigned long)s->writeIdx);
 }
 
 }  // namespace lcdtap::m5tab5

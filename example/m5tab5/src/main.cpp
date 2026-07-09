@@ -23,6 +23,7 @@
 
 #include "app_config.h"
 #include "lcdtap/m5tab5/display_out.hpp"
+#include "lcdtap/m5tab5/i2c_selftest.hpp"
 #include "lcdtap/m5tab5/i2c_slave.hpp"
 #include "lcdtap/m5tab5/imu_orient.hpp"
 #include "lcdtap/m5tab5/keypad.hpp"
@@ -61,6 +62,11 @@ static volatile bool gResxFell = false;
 // Capture-recovery request from the display task's watchdog, consumed by
 // the input task (realign must not race with ring/deserializer access).
 static volatile bool gSpiRealignReq = false;
+
+// I2C bus activity indicator: SDA/SCL levels are sampled in the input
+// task loop (~1 kHz); level changes between samples increment this.
+// Not an edge count — just proof that the master is toggling the bus.
+static volatile uint32_t gI2cBusActivity = 0;
 
 //=============================================================================
 // Host interface (framebuffer in PSRAM)
@@ -104,6 +110,8 @@ static void switchInterface(lcdtap::BusType newIface) {
   if (gIfaceActive) {
     if (gCurrentIface == lcdtap::BusType::I2C) {
       i2cSlaveDeinit(&gI2c);
+      // The PARLIO unit may be running as an I2C bus sniffer.
+      if (gSpi.active) parlioSpiSlaveDeinit(&gSpi);
     } else {
       parlioSpiSlaveDeinit(&gSpi);
     }
@@ -118,13 +126,44 @@ static void switchInterface(lcdtap::BusType newIface) {
     // Use the I2C port that M5Unified did not claim for the internal
     // touch/IMU bus.
     int internalPort = M5.In_I2C.getPort();
-    I2cSlaveConfig i2cCfg = {internalPort == 0 ? 1 : 0, PIN_I2C_SDA,
-                             PIN_I2C_SCL, I2C_SLAVE_ADDR};
+    int slavePort = internalPort == 0 ? 1 : 0;
+    I2cSlaveConfig i2cCfg = {slavePort, PIN_I2C_SDA, PIN_I2C_SCL,
+                             I2C_SLAVE_ADDR};
     gI2c.inst = gInst;
     gI2c.drainTask = gInputTask;
     esp_err_t err = i2cSlaveInit(&gI2c, i2cCfg, i2cRingBuf, I2C_RING_BUF_WORDS);
-    if (err != ESP_OK) {
-      Serial.printf("[main] i2cSlaveInit failed: %d\n", (int)err);
+    Serial.printf(
+        "[main] i2c slave: port=%d (In_I2C port=%d) sda=%d scl=%d addr=0x%02X "
+        "err=%d\n",
+        slavePort, internalPort, PIN_I2C_SDA, PIN_I2C_SCL, I2C_SLAVE_ADDR,
+        (int)err);
+
+    if (I2C_SNIFF_ENABLE) {
+      // Diagnostic bus sniffer: sample SDA on every SCL rising edge with
+      // the PARLIO unit, in parallel with the I2C slave (input-only GPIO
+      // matrix fan-out, does not disturb the bus). The raw dump then
+      // shows the exact wire bit stream. CS lanes are tied to PIN_PRIME
+      // (idles low = "in frame") so all bits are captured.
+      ParlioSpiSlaveConfig sniffCfg = {PIN_I2C_SCL, PIN_I2C_SDA,
+                                       PIN_I2C_SDA, PIN_PRIME,
+                                       PIN_PRIME,   PIN_PRIME_DATA};
+      gSpi.inst = nullptr;  // capture only; nothing is fed to LcdTap
+      gSpi.drainTask = gInputTask;
+      gSpi.rawDumpEnabled = true;
+      err = parlioSpiSlaveInit(&gSpi, sniffCfg, spiRawRing, SPI_RAW_RING_BYTES,
+                               spiStaging, SPI_STAGING_BYTES);
+      Serial.printf("[main] i2c sniffer (parlio on SCL/SDA): err=%d\n",
+                    (int)err);
+    }
+
+    if (I2C_SELFTEST_ENABLE) {
+      I2cSelftestConfig stCfg = {PIN_SELFTEST_SDA, PIN_SELFTEST_SCL,
+                                 I2C_SLAVE_ADDR};
+      i2cSelftestInit(stCfg);
+      Serial.printf(
+          "[main] i2c selftest master ready: jumper G%d->G%d (SDA), "
+          "G%d->G%d (SCL)\n",
+          PIN_SELFTEST_SDA, PIN_I2C_SDA, PIN_SELFTEST_SCL, PIN_I2C_SCL);
     }
   } else {
     ParlioSpiSlaveConfig spiCfg = {PIN_SPI_SCK, PIN_SPI_MOSI, PIN_SPI_DC,
@@ -185,6 +224,16 @@ static void inputTask(void *) {
     if (!gIfaceActive) continue;
     if (gCurrentIface == lcdtap::BusType::I2C) {
       i2cSlaveProcess(&gI2c);
+      if (gSpi.active) parlioSpiSlaveProcess(&gSpi);  // bus sniffer drain
+      // Bus activity sampling (diagnostics).
+      static int prevSda = -1, prevScl = -1;
+      int sda = gpio_get_level((gpio_num_t)PIN_I2C_SDA);
+      int scl = gpio_get_level((gpio_num_t)PIN_I2C_SCL);
+      if (sda != prevSda || scl != prevScl) {
+        if (prevSda >= 0) gI2cBusActivity = gI2cBusActivity + 1;
+        prevSda = sda;
+        prevScl = scl;
+      }
     } else {
       parlioSpiSlaveProcess(&gSpi);
     }
@@ -276,15 +325,26 @@ static void displayTask(void *) {
     // Periodic diagnostics + capture watchdog.
     if (nowMs - lastStatsMs >= 5000) {
       uint32_t frames = gDisp.frameCount - lastStatsFrames;
-      Serial.printf(
-          "[main] fps=%.1f iface=%d spiOvf=%lu csFrames=%lu bitDrop=%lu "
-          "isrChunks=%lu rx=%lu\n",
-          frames * 1000.0f / (float)(nowMs - lastStatsMs), (int)gCurrentIface,
-          (unsigned long)gSpi.ringOverflowCount,
-          (unsigned long)gSpi.deser.frameStartCount,
-          (unsigned long)gSpi.deser.partialBitDropCount,
-          (unsigned long)gSpi.isrChunkCount,
-          (unsigned long)gSpi.deser.emitCount);
+      float fps = frames * 1000.0f / (float)(nowMs - lastStatsMs);
+      if (gCurrentIface == lcdtap::BusType::I2C) {
+        if (I2C_SELFTEST_ENABLE) i2cSelftestRun();
+        char i2cStatus[160];
+        i2cSlaveDebugStatus(&gI2c, i2cStatus, sizeof(i2cStatus));
+        Serial.printf("[main] fps=%.1f iface=%d %s sda=%d scl=%d act=%lu\n",
+                      fps, (int)gCurrentIface, i2cStatus,
+                      gpio_get_level((gpio_num_t)PIN_I2C_SDA),
+                      gpio_get_level((gpio_num_t)PIN_I2C_SCL),
+                      (unsigned long)gI2cBusActivity);
+      } else {
+        Serial.printf(
+            "[main] fps=%.1f iface=%d spiOvf=%lu csFrames=%lu bitDrop=%lu "
+            "isrChunks=%lu rx=%lu\n",
+            fps, (int)gCurrentIface, (unsigned long)gSpi.ringOverflowCount,
+            (unsigned long)gSpi.deser.frameStartCount,
+            (unsigned long)gSpi.deser.partialBitDropCount,
+            (unsigned long)gSpi.isrChunkCount,
+            (unsigned long)gSpi.deser.emitCount);
+      }
 
       // If no DMA chunk arrived for a whole stats period, the capture is
       // either idle (master quiet — realign is harmless then) or dead

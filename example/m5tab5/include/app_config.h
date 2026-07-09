@@ -56,6 +56,20 @@ static constexpr uint32_t SPI_STAGING_BYTES = 4096u;
 // (bit placement / frame start verification). Re-armed by RESX flush.
 static constexpr bool SPI_RAW_DUMP_ENABLE = true;
 
+// Diagnostic I2C bus sniffer: run the PARLIO unit in parallel with the
+// I2C slave, sampling SDA on every SCL rising edge, and expose the wire
+// bit stream through the raw dump.
+static constexpr bool I2C_SNIFF_ENABLE = true;
+
+// Diagnostic I2C self-master test: a textbook-timing bit-banged I2C
+// master on spare M5-Bus pins. Jumper PIN_SELFTEST_SDA -> PIN_I2C_SDA
+// (G47 -> G53) and PIN_SELFTEST_SCL -> PIN_I2C_SCL (G48 -> G54), then
+// the master sends known SSD1306 sequences every few seconds while the
+// slave diagnostics show what was received.
+static constexpr bool I2C_SELFTEST_ENABLE = false;
+static constexpr int PIN_SELFTEST_SDA = 47;
+static constexpr int PIN_SELFTEST_SCL = 48;
+
 // I2C word ring ([bit8 = D/C, bits7:0 = byte]). Power of two.
 static constexpr uint32_t I2C_RING_BUF_WORDS = 1024u;
 
