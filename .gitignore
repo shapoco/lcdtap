@@ -22,3 +22,6 @@ _autosave-*
 *.ses
 *.net
 *.xml
+
+# PlatformIO
+.pio/

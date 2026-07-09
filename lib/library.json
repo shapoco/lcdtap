@@ -1,0 +1,15 @@
+{
+  "name": "lcdtap",
+  "version": "0.1.0",
+  "description": "LCD controller command interpreter and renderer (MCU-independent core)",
+  "keywords": ["lcd", "display", "spi", "i2c", "st7789", "ili9341", "ssd1306", "ssd1331"],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": "lcdtap/lcdtap.hpp",
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include",
+    "flags": ["-std=gnu++17"]
+  }
+}
