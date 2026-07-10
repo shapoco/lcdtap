@@ -662,7 +662,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       const uint16_t* src = rev ? fb + srcY * stride + lcdRowOut + srcX
                                 : fb + srcY * stride + (srcR - lcdRowOut);
       uint32_t hAccum =
-          rev ? (srcH << FIXPT_PREC) + ((1 << FIXPT_PREC) - 1) : 0;
+          rev ? ((srcH - 1) << FIXPT_PREC) + ((1 << FIXPT_PREC) - 1) : 0;
       const uint32_t hStep = rev ? (uint32_t)(-(int32_t)stepH) : stepH;
       scaleLine(src, dest, destW, hAccum, hStep, stride);
       break;
