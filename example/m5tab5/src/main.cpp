@@ -23,7 +23,6 @@
 
 #include "app_config.h"
 #include "lcdtap/m5tab5/display_out.hpp"
-#include "lcdtap/m5tab5/i2c_selftest.hpp"
 #include "lcdtap/m5tab5/i2c_slave.hpp"
 #include "lcdtap/m5tab5/imu_orient.hpp"
 #include "lcdtap/m5tab5/keypad.hpp"
@@ -154,16 +153,6 @@ static void switchInterface(lcdtap::BusType newIface) {
                                spiStaging, SPI_STAGING_BYTES);
       Serial.printf("[main] i2c sniffer (parlio on SCL/SDA): err=%d\n",
                     (int)err);
-    }
-
-    if (I2C_SELFTEST_ENABLE) {
-      I2cSelftestConfig stCfg = {PIN_SELFTEST_SDA, PIN_SELFTEST_SCL,
-                                 I2C_SLAVE_ADDR};
-      i2cSelftestInit(stCfg);
-      Serial.printf(
-          "[main] i2c selftest master ready: jumper G%d->G%d (SDA), "
-          "G%d->G%d (SCL)\n",
-          PIN_SELFTEST_SDA, PIN_I2C_SDA, PIN_SELFTEST_SCL, PIN_I2C_SCL);
     }
   } else {
     ParlioSpiSlaveConfig spiCfg = {PIN_SPI_SCK, PIN_SPI_MOSI, PIN_SPI_DC,
@@ -327,7 +316,6 @@ static void displayTask(void *) {
       uint32_t frames = gDisp.frameCount - lastStatsFrames;
       float fps = frames * 1000.0f / (float)(nowMs - lastStatsMs);
       if (gCurrentIface == lcdtap::BusType::I2C) {
-        if (I2C_SELFTEST_ENABLE) i2cSelftestRun();
         char i2cStatus[160];
         i2cSlaveDebugStatus(&gI2c, i2cStatus, sizeof(i2cStatus));
         Serial.printf("[main] fps=%.1f iface=%d %s sda=%d scl=%d act=%lu\n",
