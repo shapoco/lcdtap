@@ -1,6 +1,6 @@
 // SPI slave input driver for ESP32-P4 using the PARLIO RX unit.
 //
-// Capture scheme (see also spi_deser.hpp):
+// Capture scheme (see also spi_deser.hpp and parlio_spi_slave.hpp):
 //   - SCK drives the PARLIO RX unit as a gated external clock; every
 //     rising edge samples 4 lanes (MOSI, D/C, CS, CS-duplicate).
 //   - A soft delimiter streams samples continuously into DMA. The level
@@ -9,25 +9,39 @@
 //     assertion are lost (observed as a 2-bit shift of every byte).
 //     Capturing CS in-band and framing in software avoids the enable
 //     path entirely, like the pico2 PIO capture.
-//   - The driver's on_partial_receive callback copies each finished DMA
-//     node into a raw ring buffer. on_receive_done is NOT used for data:
-//     in partial mode its event data points at the whole user buffer
-//     with a cumulative byte count, so pushing it would duplicate data.
-//   - indirect_mount=1 (the driver mounts its own internal DMA buffer and
-//     copies each finished chunk into dmaBuf) is required for continuous
-//     capture. A direct-mount (indirect_mount=0) zero-copy variant was
-//     tried: per the driver header, direct mount only supports a
-//     "finite" payload, and on hardware the reported chunk pointers did
-//     not follow the ring position a free-running write index assumed
-//     (observed near-100% mismatch), corrupting the byte stream even for
-//     previously-working low-speed masters. Do not remove this copy
-//     without re-verifying direct mount's continuous-wraparound behavior
-//     on hardware first.
+//   - Zero-copy: with indirect_mount=0 the ESP-IDF driver mounts dmaBuf
+//     directly to the DMA descriptors, performs NO memcpy, and
+//     esp_cache_msync()s each finished descriptor before invoking
+//     on_partial_receive (verified in esp-idf v5.5 parlio_rx.c,
+//     parlio_rx_default_desc_done_callback). The ISR only queues the
+//     chunk's (offset, length); the drain task decodes in arrival order.
+//
+// Why chunk references instead of a linear ring (lesson from a failed
+// revision): the soft-delimiter EOF closes each DMA descriptor early, so
+// consecutive chunks do NOT sit at consecutive buffer offsets — they sit
+// at their descriptors' addresses (the driver carves the buffer into
+// nodes of up to ~4 KB), leaving holes where a descriptor was closed
+// before it was full. Reading the buffer linearly interleaves stale hole
+// bytes into the stream. edata->data/recv_bytes are the ground truth.
+//
+// Also note (same source dive): indirect_mount=1 makes the driver memcpy
+// each chunk into the user payload in the ISR, but its destination
+// offset is reset by the per-EOF callback, so the payload buffer is NOT
+// a contiguous ring either — reading it positionally is unsound. Copying
+// out of edata->data in the ISR (the previous working design) was the
+// only sound use of it, and that costs a 31 MB/s memcpy at full rate.
+//
+// Overrun semantics: the DMA descriptor ring wraps regardless of the
+// consumer, so if the drain task falls behind by about a buffer's worth
+// of samples the referenced data is overwritten in place. Each chunk
+// carries a cumulative byte position; the drain drops chunks whose data
+// may have been lapped (counted in ringOverflowCount) and the
+// deserializer realigns on the next CS idle samples.
 //
 // Known trade-off: without the CS-deassert EOF flush, the tail of a
 // burst becomes visible only when the DMA node / soft-delimiter frame it
-// belongs to completes (bounded by SPI_SOFT_EOF_BYTES). Continuous
-// masters are unaffected.
+// belongs to completes (bounded by SOFT_EOF_BYTES). Continuous masters
+// are unaffected.
 
 #include "lcdtap/m5tab5/parlio_spi_slave.hpp"
 
@@ -43,40 +57,57 @@ namespace lcdtap::m5tab5 {
 
 static constexpr uint32_t EXT_CLK_FREQ_HZ = 62'500'000;  // max supported SCK
 
-// Soft-delimiter frame length in raw bytes (2 samples/byte). Bounds both
-// the EOF interrupt rate at full speed and the worst-case tail latency.
-static constexpr uint32_t SOFT_EOF_BYTES = 2048;
+// Soft-delimiter frame length in raw bytes (2 samples/byte). Bounds the
+// EOF interrupt rate at full speed and the worst-case tail latency.
+// 4032 matches the driver's 64-byte-aligned max DMA node size, so most
+// frames close their descriptor exactly full: fewer split chunks/holes
+// in dmaBuf (better lap tolerance) and half the interrupt rate compared
+// to 2048. Correctness does not depend on this matching — chunks are
+// consumed by explicit (offset, length) references.
+static constexpr uint32_t SOFT_EOF_BYTES = 4032;
+
+// Alignment for the DMA buffer. Covers both the L1 (64 B) and L2 (128 B)
+// cache line sizes of the ESP32-P4 so the driver mounts it without
+// stash-buffer splitting.
+static constexpr uint32_t CACHE_ALIGN = 128;
+
+// A queued chunk is considered lapped (overwritten by the wrapping DMA)
+// once this many bytes were captured after it. The DMA descriptor ring
+// covers dmaBufBytes minus the per-cycle EOF holes; keep a conservative
+// margin below that.
+static constexpr uint32_t STALE_MARGIN_BYTES = 16u * 1024u;
 
 //=============================================================================
 // ISR callback
 //=============================================================================
 
-static void IRAM_ATTR pushRaw(ParlioSpiSlaveState *s, const uint8_t *data,
-                              uint32_t len) {
-  if (!len) return;
-  uint32_t mask = s->rawRingBytes - 1u;
-  uint32_t wr = s->rawWriteIdx;
-  uint32_t used = wr - s->rawReadIdx;
-  if (used + len > s->rawRingBytes) {
-    // Consumer too slow; drop the chunk. The deserializer realigns on the
-    // next CS idle samples.
-    ++s->ringOverflowCount;
-    return;
-  }
-  uint32_t first = s->rawRingBytes - (wr & mask);
-  if (first > len) first = len;
-  memcpy(s->rawRing + (wr & mask), data, first);
-  if (len > first) memcpy(s->rawRing, data + first, len - first);
-  s->rawWriteIdx = wr + len;
-}
-
 static bool IRAM_ATTR onPartialReceive(parlio_rx_unit_handle_t,
                                        const parlio_rx_event_data_t *edata,
                                        void *userData) {
   ParlioSpiSlaveState *s = static_cast<ParlioSpiSlaveState *>(userData);
-  ++s->isrChunkCount;
-  pushRaw(s, static_cast<const uint8_t *>(edata->data),
-          (uint32_t)edata->recv_bytes);
+  s->isrChunkCount = s->isrChunkCount + 1;
+  const uint8_t *chunk = static_cast<const uint8_t *>(edata->data);
+  uint32_t len = (uint32_t)edata->recv_bytes;
+  if (chunk >= s->dmaBuf && chunk + len <= s->dmaBuf + s->dmaBufBytes) {
+    uint32_t cum = s->isrCumBytes + len;
+    s->isrCumBytes = cum;
+    uint32_t wr = s->chunkWr;
+    if (wr - s->chunkRd < SPI_CHUNK_QUEUE_LEN) {
+      SpiChunkRef &ref = s->chunkQueue[wr & (SPI_CHUNK_QUEUE_LEN - 1u)];
+      ref.offset = (uint32_t)(chunk - s->dmaBuf);
+      ref.len = len;
+      ref.cumEnd = cum;
+      s->chunkWr = wr + 1;
+    } else {
+      // Queue full = consumer more than a whole buffer behind; the data
+      // of the oldest references is overwritten anyway. Drop this chunk
+      // (never touch chunkRd from the ISR: single-consumer invariant).
+      s->ringOverflowCount = s->ringOverflowCount + 1;
+    }
+  } else {
+    // Not expected: the driver reported a pointer outside dmaBuf.
+    s->isrDesyncCount = s->isrDesyncCount + 1;
+  }
   BaseType_t woken = pdFALSE;
   if (s->drainTask) vTaskNotifyGiveFromISR(s->drainTask, &woken);
   return woken != pdFALSE;
@@ -87,16 +118,20 @@ static bool IRAM_ATTR onPartialReceive(parlio_rx_unit_handle_t,
 //=============================================================================
 
 esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
-                             const ParlioSpiSlaveConfig &cfg, uint8_t *rawRing,
-                             uint32_t rawRingBytes, uint8_t *staging,
+                             const ParlioSpiSlaveConfig &cfg,
+                             uint32_t dmaBufBytes, uint8_t *staging,
                              uint32_t stagingBytes) {
+  if (dmaBufBytes < 2 * SOFT_EOF_BYTES || dmaBufBytes % CACHE_ALIGN != 0) {
+    return ESP_ERR_INVALID_ARG;
+  }
+
   s->cfg = cfg;
   s->rxUnit = nullptr;
   s->delim = nullptr;
-  s->rawRing = rawRing;
-  s->rawRingBytes = rawRingBytes;
-  s->rawWriteIdx = 0;
-  s->rawReadIdx = 0;
+  s->dmaBufBytes = dmaBufBytes;
+  s->chunkWr = 0;
+  s->chunkRd = 0;
+  s->isrCumBytes = 0;
   spiDeserInit(&s->deser);
   s->sink.dataBuf = staging;
   s->sink.dataCap = stagingBytes;
@@ -112,17 +147,17 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
   s->sink.user = s;
   s->ringOverflowCount = 0;
   s->isrChunkCount = 0;
+  s->isrDesyncCount = 0;
   s->rawDumpLen = 0;
   s->started = false;
 
-  s->dmaBytes = 16u * 1024u;
   s->dmaBuf = (uint8_t *)heap_caps_aligned_calloc(
-      64, 1, s->dmaBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+      CACHE_ALIGN, 1, dmaBufBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
   if (!s->dmaBuf) return ESP_ERR_NO_MEM;
 
   parlio_rx_unit_config_t unitCfg = {};
   unitCfg.trans_queue_depth = 4;
-  unitCfg.max_recv_size = s->dmaBytes;
+  unitCfg.max_recv_size = dmaBufBytes;
   unitCfg.data_width = 4;
   unitCfg.clk_src = PARLIO_CLK_SRC_EXTERNAL;
   unitCfg.ext_clk_freq_hz = EXT_CLK_FREQ_HZ;
@@ -155,7 +190,7 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
   {
     parlio_rx_event_callbacks_t cbs = {};
     cbs.on_partial_receive = onPartialReceive;
-    cbs.on_receive_done = nullptr;  // would duplicate data in partial mode
+    cbs.on_receive_done = nullptr;  // fires per soft EOF; data comes in chunks
     cbs.on_timeout = nullptr;
     err = parlio_rx_unit_register_event_callbacks(s->rxUnit, &cbs, s);
     if (err != ESP_OK) goto fail;
@@ -233,7 +268,12 @@ esp_err_t parlioSpiSlaveRealign(ParlioSpiSlaveState *s) {
     parlio_rx_unit_disable(s->rxUnit);
   }
 
-  s->rawReadIdx = s->rawWriteIdx;
+  // The next receive remounts the descriptor ring from scratch; clear
+  // the chunk queue. The ISR is quiescent here (unit disabled or not yet
+  // started).
+  s->chunkWr = 0;
+  s->chunkRd = 0;
+  s->isrCumBytes = 0;
   spiDeserReset(&s->deser);
   s->deser.discardUntilIdle = true;
   s->sink.dataLen = 0;
@@ -245,11 +285,10 @@ esp_err_t parlioSpiSlaveRealign(ParlioSpiSlaveState *s) {
   parlio_receive_config_t recvCfg = {};
   recvCfg.delimiter = s->delim;
   recvCfg.flags.partial_rx_en = 1;
-  // Let the driver mount its own internal DMA buffer and copy chunks out
-  // in the ISR; this is the documented configuration for infinite
-  // transactions.
-  recvCfg.flags.indirect_mount = 1;
-  err = parlio_rx_unit_receive(s->rxUnit, s->dmaBuf, s->dmaBytes, &recvCfg);
+  // Direct mount: dmaBuf is attached to the DMA descriptors as-is and
+  // the driver ISR does not copy anything (see file header).
+  recvCfg.flags.indirect_mount = 0;
+  err = parlio_rx_unit_receive(s->rxUnit, s->dmaBuf, s->dmaBufBytes, &recvCfg);
   if (err == ESP_OK) {
     err = parlio_rx_soft_delimiter_start_stop(s->rxUnit, s->delim, true);
   }
@@ -301,37 +340,45 @@ void parlioSpiSlaveDeinit(ParlioSpiSlaveState *s) {
 //=============================================================================
 
 void parlioSpiSlaveProcess(ParlioSpiSlaveState *s) {
-  uint32_t wr = s->rawWriteIdx;  // snapshot of volatile
-  uint32_t rd = s->rawReadIdx;
+  uint32_t wr = s->chunkWr;  // snapshot of volatile
+  uint32_t rd = s->chunkRd;
   if (rd == wr) return;
 
-  uint32_t mask = s->rawRingBytes - 1u;
+  const uint32_t staleAge = s->dmaBufBytes - STALE_MARGIN_BYTES;
   while (rd != wr) {
-    // Process the largest linear (non-wrapping) run.
-    uint32_t len = wr - rd;
-    uint32_t linear = s->rawRingBytes - (rd & mask);
-    if (len > linear) len = linear;
-    const uint8_t *raw = s->rawRing + (rd & mask);
+    // Copy the reference; the slot is not reused until chunkRd advances.
+    SpiChunkRef ref = s->chunkQueue[rd & (SPI_CHUNK_QUEUE_LEN - 1u)];
+    ++rd;
+    if (s->isrCumBytes - ref.cumEnd > staleAge) {
+      // The wrapping DMA has likely overwritten this chunk already.
+      s->ringOverflowCount = s->ringOverflowCount + 1;
+      s->chunkRd = rd;
+      continue;
+    }
+    const uint8_t *raw = s->dmaBuf + ref.offset;
 
     if (s->rawDumpEnabled && s->rawDumpLen < sizeof(s->rawDumpBuf)) {
       uint32_t n = sizeof(s->rawDumpBuf) - s->rawDumpLen;
-      if (n > len) n = len;
+      if (n > ref.len) n = ref.len;
       memcpy(s->rawDumpBuf + s->rawDumpLen, raw, n);
       s->rawDumpLen = s->rawDumpLen + n;
     }
 
     // Without an instance (e.g. bus-sniffer mode) only the dump is kept.
-    if (s->inst) spiDeserProcess(&s->deser, raw, len, &s->sink);
-    rd += len;
+    if (s->inst) spiDeserProcess(&s->deser, raw, ref.len, &s->sink);
+    // If the chunk went stale while it was being decoded, garbage was
+    // emitted; count it (the deserializer realigns on the next CS idle).
+    if (s->isrCumBytes - ref.cumEnd > staleAge)
+      s->ringOverflowCount = s->ringOverflowCount + 1;
+    s->chunkRd = rd;
   }
-  s->rawReadIdx = rd;
   if (!s->inst) return;
 
   spiDeserFlushData(&s->sink);
 }
 
 void parlioSpiSlaveFlush(ParlioSpiSlaveState *s) {
-  s->rawReadIdx = s->rawWriteIdx;
+  s->chunkRd = s->chunkWr;
   spiDeserReset(&s->deser);
   s->sink.dataLen = 0;
   s->rawDumpLen = 0;  // re-arm the bring-up dump

@@ -24,18 +24,18 @@ namespace lcdtap::m5tab5 {
 // spi_deser.hpp. SCK only toggles during transfers, so idle periods
 // produce no samples.
 //
-// Capture path: partial_rx_en + indirect_mount=1, i.e. the driver mounts
-// its OWN internal DMA buffer to the descriptors and copies each finished
-// chunk into our small `dmaBuf` payload during the ISR. A direct-mount
-// (indirect_mount=0) zero-copy variant was tried and reverted: per the
-// driver header, direct mount only supports a "finite" payload, and on
-// hardware the reported chunk pointers did not follow the ring position
-// our free-running index assumed (near-100% mismatch), corrupting the
-// byte stream. indirect_mount=1 is the driver's documented configuration
-// for continuous ("infinite") transactions and is what's proven to work.
-// The ISR's copy is unavoidable; our own pushRaw() adds a second copy
-// into a larger ring (rawRing) so the drain task has more slack than
-// dmaBuf alone would give it.
+// Zero-copy capture (verified against the ESP-IDF v5.5 parlio_rx.c
+// sources): the receive buffer is mounted directly to the DMA
+// descriptors (indirect_mount=0), so the driver performs NO memcpy at
+// all, and it esp_cache_msync()s every finished descriptor before the
+// on_partial_receive callback, so the chunk data is CPU-coherent.
+// IMPORTANT: the soft-delimiter EOF (every SOFT_EOF_BYTES) closes DMA
+// descriptors EARLY, so the sample stream is NOT laid out contiguously
+// in the buffer — each chunk lands at its descriptor's buffer address,
+// potentially leaving unused holes behind. (An earlier revision assumed
+// a contiguous ring and read interleaved garbage.) The ISR therefore
+// queues each chunk's exact (offset, length) as reported by the driver,
+// and the drain task decodes the chunks in arrival order.
 
 struct ParlioSpiSlaveConfig {
   int pinSck;
@@ -50,6 +50,18 @@ struct ParlioSpiSlaveConfig {
   int pinPrimeData;
 };
 
+// One finished DMA chunk inside dmaBuf, as reported by the driver ISR.
+struct SpiChunkRef {
+  uint32_t offset;  // chunk start inside dmaBuf
+  uint32_t len;     // chunk length in bytes
+  uint32_t cumEnd;  // isrCumBytes right after this chunk (staleness check)
+};
+
+// Chunk-reference queue length (power of two). Sized so that the queue
+// can hold more chunks than the DMA buffer can hold data; a full queue
+// therefore implies the referenced data has been lapped already.
+static constexpr uint32_t SPI_CHUNK_QUEUE_LEN = 64;
+
 struct ParlioSpiSlaveState {
   // Set by caller before parlioSpiSlaveProcess calls:
   lcdtap::LcdTap *inst;
@@ -63,13 +75,16 @@ struct ParlioSpiSlaveState {
   ParlioSpiSlaveConfig cfg;
   parlio_rx_unit_handle_t rxUnit;
   parlio_rx_delimiter_handle_t delim;
-  uint8_t *dmaBuf;  // driver payload buffer (DMA-capable internal RAM)
-  uint32_t dmaBytes;
-  uint8_t *rawRing;  // raw sample ring (internal RAM), power-of-two size
-  uint32_t rawRingBytes;
-  // Free-running indices (wrap via power-of-two masking on access):
-  volatile uint32_t rawWriteIdx;
-  volatile uint32_t rawReadIdx;
+  // Receive buffer mounted directly to the RX DMA descriptors (internal
+  // DMA-capable RAM, cache-line aligned).
+  uint8_t *dmaBuf;
+  uint32_t dmaBufBytes;
+  // Chunk-reference queue: single producer (PARLIO ISR), single consumer
+  // (drain task), both pinned to the same core. Free-running indices.
+  SpiChunkRef chunkQueue[SPI_CHUNK_QUEUE_LEN];
+  volatile uint32_t chunkWr;
+  volatile uint32_t chunkRd;
+  volatile uint32_t isrCumBytes;  // total bytes reported by the ISR
   // Deserializer state and decoded-byte sink (drain-task context). The
   // sink's dataBuf is the caller-provided staging buffer.
   SpiDeser deser;
@@ -77,16 +92,18 @@ struct ParlioSpiSlaveState {
   bool active;
   bool started;  // capture transaction has been started at least once
   // Diagnostics:
-  volatile uint32_t ringOverflowCount;
-  volatile uint32_t isrChunkCount;  // DMA chunks delivered by the ISR
+  volatile uint32_t ringOverflowCount;  // chunks dropped/stale (DMA lapped)
+  volatile uint32_t isrChunkCount;      // DMA chunks reported by the ISR
+  volatile uint32_t isrDesyncCount;     // chunk pointer outside dmaBuf
 };
 
 // Create and enable the PARLIO RX unit and start an infinite streaming
-// receive. rawRing/staging are caller-allocated; rawRingBytes must be a
-// power of 2. Only one instance can be active at a time.
+// receive into an internally allocated DMA buffer of dmaBufBytes.
+// staging is the caller-allocated data run buffer. Only one instance can
+// be active at a time.
 esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
-                             const ParlioSpiSlaveConfig &cfg, uint8_t *rawRing,
-                             uint32_t rawRingBytes, uint8_t *staging,
+                             const ParlioSpiSlaveConfig &cfg,
+                             uint32_t dmaBufBytes, uint8_t *staging,
                              uint32_t stagingBytes);
 
 // Stop the receive stream and release the PARLIO unit.

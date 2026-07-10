@@ -35,7 +35,6 @@ using namespace lcdtap::m5tab5;
 //=============================================================================
 // Buffers
 //=============================================================================
-static uint8_t spiRawRing[SPI_RAW_RING_BYTES];
 static uint8_t spiStaging[SPI_STAGING_BYTES];
 static uint32_t i2cRingBuf[I2C_RING_BUF_WORDS];
 
@@ -187,8 +186,8 @@ static void switchInterface(lcdtap::BusType newIface) {
       gSpi.inst = nullptr;  // capture only; nothing is fed to LcdTap
       gSpi.drainTask = gInputTask;
       gSpi.rawDumpEnabled = true;
-      err = parlioSpiSlaveInit(&gSpi, sniffCfg, spiRawRing, SPI_RAW_RING_BYTES,
-                               spiStaging, SPI_STAGING_BYTES);
+      err = parlioSpiSlaveInit(&gSpi, sniffCfg, SPI_DMA_BUF_BYTES, spiStaging,
+                               SPI_STAGING_BYTES);
       Serial.printf("[main] i2c sniffer (parlio on SCL/SDA): err=%d\n",
                     (int)err);
     }
@@ -198,9 +197,8 @@ static void switchInterface(lcdtap::BusType newIface) {
     gSpi.inst = gInst;
     gSpi.drainTask = gInputTask;
     gSpi.rawDumpEnabled = SPI_RAW_DUMP_ENABLE;
-    esp_err_t err =
-        parlioSpiSlaveInit(&gSpi, spiCfg, spiRawRing, SPI_RAW_RING_BYTES,
-                           spiStaging, SPI_STAGING_BYTES);
+    esp_err_t err = parlioSpiSlaveInit(&gSpi, spiCfg, SPI_DMA_BUF_BYTES,
+                                       spiStaging, SPI_STAGING_BYTES);
     if (err != ESP_OK) {
       Serial.printf("[main] parlioSpiSlaveInit failed: %d\n", (int)err);
     }
@@ -422,9 +420,10 @@ static void displayTask(void *) {
                       (unsigned long)gI2cBusActivity);
       } else {
         Serial.printf(
-            "[main] fps=%.1f iface=%d spiOvf=%lu csFrames=%lu bitDrop=%lu "
-            "isrChunks=%lu rx=%lu\n",
+            "[main] fps=%.1f iface=%d spiOvf=%lu desync=%lu csFrames=%lu "
+            "bitDrop=%lu isrChunks=%lu rx=%lu\n",
             fps, (int)gCurrentIface, (unsigned long)gSpi.ringOverflowCount,
+            (unsigned long)gSpi.isrDesyncCount,
             (unsigned long)gSpi.deser.frameStartCount,
             (unsigned long)gSpi.deser.partialBitDropCount,
             (unsigned long)gSpi.isrChunkCount,

@@ -179,7 +179,9 @@ int main() {
     runCase(rng, s, false, 4, 0, "doc-0xA5-cmd");
   }
 
-  const uint32_t caps[] = {1, 3, 7, 4096};
+  // Small caps exercise the flush boundaries: 1/3 keep the quad path
+  // disabled (dataCap < 4), 4/5/7 hit the quad pre/post-flush edges.
+  const uint32_t caps[] = {1, 3, 4, 5, 7, 4096};
   for (int iter = 0; iter < 500; ++iter) {
     std::vector<Sample> s = randomStream(rng, (iter & 1) != 0);
     for (uint32_t cap : caps) {

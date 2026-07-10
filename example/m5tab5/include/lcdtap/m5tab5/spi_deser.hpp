@@ -129,18 +129,37 @@ inline void spiDeserSample(SpiDeser *d, uint8_t nibble, SpiDeserSink *sink) {
 }
 
 // Raw-word access types for the bulk path. may_alias permits reading the
-// uint8_t sample stream as 32-bit words; the aligned(1) variant tells the
-// compiler the address may be unaligned (frame starts land on arbitrary
-// raw-byte offsets, and the resulting phase persists for the whole
-// burst). GCC lowers the unaligned variant to byte loads on strict-
-// alignment targets, which is still far cheaper than the per-sample path.
-typedef uint32_t __attribute__((may_alias)) SpiDeserWord;
-typedef uint32_t __attribute__((may_alias, aligned(1))) SpiDeserWordU;
+// uint8_t sample stream as 32-bit words; the packed variant makes the
+// compiler emit alignment-safe (byte) loads for unaligned addresses
+// (frame starts land on arbitrary raw-byte offsets, and the resulting
+// phase persists for the whole burst). These must be distinct STRUCT
+// types: alignment attributes on a plain typedef are ignored when used
+// as a template argument, silently collapsing both instantiations into
+// one (observed with GCC).
+struct SpiDeserWord {
+  uint32_t v;
+} __attribute__((may_alias));
+struct SpiDeserWordU {
+  uint32_t v;
+} __attribute__((packed, may_alias));
+
+// Decode one 32-bit raw word (= 8 samples with CS active) into its
+// payload byte. MOSI bits sit at word bits {4,0,12,8,20,16,28,24} for
+// samples s0..s7 (earlier sample in the high nibble of each raw byte).
+// Gather them MSB-first (s0 -> bit7) with a shift tree; all intermediate
+// positions are alias-free under the masks.
+[[gnu::always_inline]] inline uint8_t spiDeserDecodeWord(uint32_t w) {
+  uint32_t m = w & 0x11111111u;
+  uint32_t p = (m | (m >> 3)) & 0x03030303u;
+  return (uint8_t)((p << 6) | (p >> 4) | (p >> 14) | (p >> 24));
+}
 
 // Bulk decode loop: one payload byte per 32-bit word (= 8 samples) while
-// CS stays active. Returns the new raw index; stops at a word containing
-// a CS idle sample or at the last whole word. WORD selects the aligned
-// (single word load) or unaligned flavor.
+// CS stays active. The steady state (a data burst with D/C=1) is handled
+// 4 words at a time so the CS/DC tests and the loop overhead are shared
+// across 4 payload bytes. Returns the new raw index; stops at a word
+// containing a CS idle sample or at the last whole word. WORD selects
+// the aligned (single word load) or unaligned flavor.
 template <typename WORD>
 inline uint32_t spiDeserBulk(SpiDeser *d, const uint8_t *raw, uint32_t i,
                              uint32_t len, SpiDeserSink *sink) {
@@ -151,20 +170,46 @@ inline uint32_t spiDeserBulk(SpiDeser *d, const uint8_t *raw, uint32_t i,
   const uint32_t bufCap = sink->dataCap;
   uint32_t bufLen = sink->dataLen;
   uint32_t emitted = 0;
+  const bool quadOk = bufCap >= 4;  // quad path stores 4 bytes at once
   while (len - i >= 4) {
-    uint32_t w = *reinterpret_cast<const WORD *>(raw + i);
-    if (w & 0x44444444u) break;  // a CS idle sample: slow path
-    // 8 consecutive CS-active samples = one whole payload byte.
-    // MOSI bits sit at word bits {4,0,12,8,20,16,28,24} for samples
-    // s0..s7 (earlier sample in the high nibble of each raw byte).
-    // Gather them MSB-first (s0 -> bit7) with a shift tree; all
-    // intermediate positions are alias-free under the masks.
-    uint32_t m = w & 0x11111111u;
-    uint32_t p = (m | (m >> 3)) & 0x03030303u;
-    uint8_t byte = (uint8_t)((p << 6) | (p >> 4) | (p >> 14) | (p >> 24));
+    uint32_t w0 = reinterpret_cast<const WORD *>(raw + i)->v;
+    if (quadOk && len - i >= 16) {
+      uint32_t w1 = reinterpret_cast<const WORD *>(raw + i + 4)->v;
+      uint32_t w2 = reinterpret_cast<const WORD *>(raw + i + 8)->v;
+      uint32_t w3 = reinterpret_cast<const WORD *>(raw + i + 12)->v;
+      // Quad fast path: 32 samples with CS active and D/C=1 throughout
+      // (bit25 = D/C of each word's last sample; D/C is byte-uniform on
+      // the wire during data runs, so testing the last sample per word
+      // matches the per-word emit semantics).
+      if (((w0 | w1 | w2 | w3) & 0x44444444u) == 0 &&
+          (((w0 & w1 & w2 & w3) >> 25) & 1u) != 0) {
+        if (bufLen + 4 > bufCap) {  // flush early; run splitting is harmless
+          sink->dataLen = bufLen;
+          spiDeserFlushData(sink);
+          bufLen = 0;
+        }
+        buf[bufLen + 0] = spiDeserDecodeWord(w0);
+        buf[bufLen + 1] = spiDeserDecodeWord(w1);
+        buf[bufLen + 2] = spiDeserDecodeWord(w2);
+        buf[bufLen + 3] = spiDeserDecodeWord(w3);
+        bufLen += 4;
+        if (bufLen >= bufCap) {
+          sink->dataLen = bufLen;
+          spiDeserFlushData(sink);
+          bufLen = 0;
+        }
+        i += 16;
+        emitted += 4;
+        continue;
+      }
+      // CS idle or a D/C=0 byte somewhere in the quad: fall through and
+      // handle w0 alone, then retry the quad from the next word.
+    }
+    if (w0 & 0x44444444u) break;  // a CS idle sample: slow path
+    uint8_t byte = spiDeserDecodeWord(w0);
     i += 4;
     ++emitted;
-    if (w & (1u << 25)) {  // D/C of the last sample (s7)
+    if (w0 & (1u << 25)) {  // D/C of the last sample (s7)
       buf[bufLen++] = byte;
       if (bufLen >= bufCap) {
         sink->dataLen = bufLen;

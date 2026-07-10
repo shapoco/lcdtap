@@ -58,11 +58,12 @@ static constexpr uint16_t STRIP_LINES = 40;
 // Input buffers
 //=============================================================================
 
-// Raw PARLIO sample ring (2 bits per SCK edge). Power of two.
-static constexpr uint32_t SPI_RAW_RING_BYTES = 64u * 1024u;
-
-// PARLIO DMA payload buffer handed to the driver.
-static constexpr uint32_t SPI_CHUNK_BYTES = 16u * 1024u;
+// PARLIO receive buffer, mounted directly to the RX DMA descriptors
+// (zero-copy; allocated from internal DMA-capable heap by the driver
+// wrapper). The raw stream is 31.25 MB/s at the maximum 62.5 MHz SCK, so
+// 64 KiB gives the drain task roughly 1.5-2 ms of slack before the
+// wrapping DMA overwrites unread chunks.
+static constexpr uint32_t SPI_DMA_BUF_BYTES = 64u * 1024u;
 
 // Staging buffer for deserialized same-D/C byte runs.
 static constexpr uint32_t SPI_STAGING_BYTES = 4096u;
