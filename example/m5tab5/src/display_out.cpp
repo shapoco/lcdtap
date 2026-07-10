@@ -18,6 +18,7 @@
 #include "lcdtap/m5tab5/display_out.hpp"
 
 #include <esp_heap_caps.h>
+#include <esp_timer.h>
 #include <sdkconfig.h>
 
 namespace lcdtap::m5tab5 {
@@ -30,6 +31,11 @@ bool displayOutInit(DisplayOutState *s, M5GFX *gfx,
   s->stripLines = cfg.stripLines;
   s->frameCount = 0;
   s->curBuf = 0;
+  s->waitUs = 0;
+  s->fillUs = 0;
+  s->stripUs = 0;
+  s->submitUs = 0;
+  s->drainUs = 0;
 
   // Strip buffers live in PSRAM, so they must be aligned to the L2 (PSRAM)
   // cache line size, not the (smaller) L1 one -- esp_cache_msync() in
@@ -64,14 +70,19 @@ void displayOutRenderFrame(DisplayOutState *s, FillScanlineFn fill,
     s->curBuf ^= 1;
     // Wait until PPA (or, in the fallback path, the previous pushImage)
     // is done reading this slot before overwriting it.
+    int64_t t0 = esp_timer_get_time();
     xSemaphoreTake(s->stripFree[idx], portMAX_DELAY);
     uint16_t *strip = s->strip[idx];
 
+    int64_t t1 = esp_timer_get_time();
     for (uint16_t i = 0; i < numLines; ++i) {
       fill((uint16_t)(yTop + i), strip + (uint32_t)i * s->width, userData);
     }
+
+    int64_t t2 = esp_timer_get_time();
     if (stripFn) stripFn(yTop, numLines, strip, userData);
 
+    int64_t t3 = esp_timer_get_time();
     if (s->usePpa) {
       if (!ppaBlitSubmitStripAsync(&s->ppa, yTop, numLines, s->width, strip,
                                    s->stripFree[idx])) {
@@ -84,8 +95,15 @@ void displayOutRenderFrame(DisplayOutState *s, FillScanlineFn fill,
                      (const lgfx::rgb565_t *)strip);
       xSemaphoreGive(s->stripFree[idx]);
     }
+    int64_t t4 = esp_timer_get_time();
+
+    s->waitUs += t1 - t0;
+    s->fillUs += t2 - t1;
+    s->stripUs += t3 - t2;
+    s->submitUs += t4 - t3;
   }
 
+  int64_t td0 = esp_timer_get_time();
   if (s->usePpa) {
     // Drain any in-flight PPA transactions so frameCount/fps reflect full
     // frame completion, and so the next frame doesn't race a transfer
@@ -97,6 +115,7 @@ void displayOutRenderFrame(DisplayOutState *s, FillScanlineFn fill,
   } else {
     gfx->endWrite();
   }
+  s->drainUs += esp_timer_get_time() - td0;
   ++s->frameCount;
 }
 

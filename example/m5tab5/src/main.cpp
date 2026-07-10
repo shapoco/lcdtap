@@ -75,6 +75,13 @@ static uint16_t *gOsdBuf = nullptr;
 static bool gOsdVisible = false;
 static uint8_t gOsdOrient = 0;
 
+// Cumulative timing (microseconds, since boot) for the parts of the
+// display task's per-frame loop outside of displayOutRenderFrame(), which
+// has its own breakdown in DisplayOutState. Diffed against a periodic
+// snapshot in displayTask() to report per-frame averages, same as fps.
+static uint64_t gInputPollUs = 0;  // M5.update() + touch/IMU/keypad/OSD state
+static uint64_t gOsdRasterUs = 0;  // Osd::fillScanline() loop into gOsdBuf
+
 //=============================================================================
 // Host interface (framebuffer in PSRAM)
 //=============================================================================
@@ -305,9 +312,13 @@ static void displayTask(void *) {
   uint64_t lastStatsMs = millis64();
   uint32_t lastStatsFrames = 0;
   uint32_t lastIsrChunks = 0;
+  uint64_t lastInputUs = 0, lastOsdRasterUs = 0;
+  uint64_t lastWaitUs = 0, lastFillUs = 0, lastStripUs = 0, lastSubmitUs = 0,
+           lastDrainUs = 0;
 
   while (true) {
     uint64_t nowMs = millis64();
+    int64_t tInput0 = esp_timer_get_time();
 
     M5.update();
 
@@ -356,6 +367,9 @@ static void displayTask(void *) {
       }
     }
 
+    int64_t tInput1 = esp_timer_get_time();
+    gInputPollUs += tInput1 - tInput0;
+
     // Render the OSD into its offscreen raster and snapshot the values
     // the compositor (fillScanlineCb, same task) uses for this frame.
     gOsdOrient = imuOrientGet(&gOrient);
@@ -366,6 +380,7 @@ static void displayTask(void *) {
         gOsd.fillScanline(row, gOsdBuf + (uint32_t)row * lcdtap::OSD_WIDTH);
       }
     }
+    gOsdRasterUs += esp_timer_get_time() - tInput1;
 
     displayOutRenderFrame(&gDisp, fillScanlineCb, fillStripCb, nullptr);
 
@@ -390,6 +405,39 @@ static void displayTask(void *) {
             (unsigned long)gSpi.deser.partialBitDropCount,
             (unsigned long)gSpi.isrChunkCount,
             (unsigned long)gSpi.deser.emitCount);
+      }
+
+      // Per-frame timing breakdown, to see which stage of the display
+      // pipeline is the bottleneck. "wait" is time blocked waiting for a
+      // strip buffer's previous PPA (or pushImage) transfer to finish --
+      // large wait means the PPA/panel transfer is the bottleneck, not the
+      // CPU; large fill/osdRaster/input means the CPU compute is.
+      if (frames > 0) {
+        float frameUs = fps > 0.0f ? 1000000.0f / fps : 0.0f;
+        float avgInput = (float)(gInputPollUs - lastInputUs) / frames;
+        float avgOsdRaster = (float)(gOsdRasterUs - lastOsdRasterUs) / frames;
+        float avgWait = (float)(gDisp.waitUs - lastWaitUs) / frames;
+        float avgFill = (float)(gDisp.fillUs - lastFillUs) / frames;
+        float avgStrip = (float)(gDisp.stripUs - lastStripUs) / frames;
+        float avgSubmit = (float)(gDisp.submitUs - lastSubmitUs) / frames;
+        float avgDrain = (float)(gDisp.drainUs - lastDrainUs) / frames;
+        auto pct = [&](float us) {
+          return frameUs > 0.0f ? 100.0f * us / frameUs : 0.0f;
+        };
+        Serial.printf(
+            "[main] timing us/frame: input=%.0f(%.0f%%) osdRaster=%.0f(%.0f%%) "
+            "wait=%.0f(%.0f%%) fill=%.0f(%.0f%%) strip=%.0f(%.0f%%) "
+            "submit=%.0f(%.0f%%) drain=%.0f(%.0f%%)\n",
+            avgInput, pct(avgInput), avgOsdRaster, pct(avgOsdRaster), avgWait,
+            pct(avgWait), avgFill, pct(avgFill), avgStrip, pct(avgStrip),
+            avgSubmit, pct(avgSubmit), avgDrain, pct(avgDrain));
+        lastInputUs = gInputPollUs;
+        lastOsdRasterUs = gOsdRasterUs;
+        lastWaitUs = gDisp.waitUs;
+        lastFillUs = gDisp.fillUs;
+        lastStripUs = gDisp.stripUs;
+        lastSubmitUs = gDisp.submitUs;
+        lastDrainUs = gDisp.drainUs;
       }
 
       // If no DMA chunk arrived for a whole stats period, the capture is

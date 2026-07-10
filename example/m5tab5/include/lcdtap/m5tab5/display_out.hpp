@@ -44,6 +44,19 @@ struct DisplayOutState {
   bool usePpa;
   PpaBlitState ppa;
   uint32_t frameCount;
+
+  // Cumulative timing (microseconds, since boot) for bottleneck analysis.
+  // Callers diff these against a periodic snapshot to report per-frame
+  // averages, the same way frameCount is diffed to compute fps.
+  uint64_t waitUs;    // blocked on xSemaphoreTake: waiting for the PPA (or
+                      // pushImage, in the fallback path) transfer that was
+                      // still using this buffer slot to finish
+  uint64_t fillUs;    // time spent in the per-scanline fill() callback
+  uint64_t stripUs;   // time spent in the per-strip stripFn() callback
+  uint64_t submitUs;  // time spent handing the strip off (PPA async submit,
+                      // or pushImage() in the fallback path)
+  uint64_t drainUs;   // time spent waiting for in-flight PPA transfers to
+                      // finish at the end of the frame
 };
 
 // Allocate the strip buffers and cache the output geometry.
