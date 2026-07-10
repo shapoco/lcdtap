@@ -2,7 +2,8 @@
 //
 // Receives LCD controller commands as an SPI slave (PARLIO RX capture) or
 // I2C slave (i2c_ll direct) on the back-side ports and displays the
-// resulting framebuffer on the Tab5's 1280x720 MIPI-DSI panel via M5GFX.
+// resulting framebuffer on the Tab5's 720x1280 MIPI-DSI panel via M5GFX,
+// at the panel's native (portrait) orientation.
 //
 // Task layout:
 //   core 0: PARLIO/I2C ISRs + inputTask (ring drain -> LcdTap)
@@ -313,9 +314,7 @@ static void displayTask(void *) {
   uint32_t lastStatsFrames = 0;
   uint32_t lastIsrChunks = 0;
   uint64_t lastInputUs = 0, lastOsdRasterUs = 0;
-  uint64_t lastWaitUs = 0, lastFillUs = 0, lastStripUs = 0, lastSubmitUs = 0,
-           lastDrainUs = 0;
-  uint64_t lastPpaBusyUs = 0;
+  uint64_t lastFillUs = 0, lastStripUs = 0, lastSubmitUs = 0;
 
   while (true) {
     uint64_t nowMs = millis64();
@@ -409,42 +408,27 @@ static void displayTask(void *) {
       }
 
       // Per-frame timing breakdown, to see which stage of the display
-      // pipeline is the bottleneck. "wait" is time blocked waiting for a
-      // strip buffer's previous PPA (or pushImage) transfer to finish --
-      // large wait means the PPA/panel transfer is the bottleneck, not the
-      // CPU; large fill/osdRaster/input means the CPU compute is.
+      // pipeline is the bottleneck.
       if (frames > 0) {
         float frameUs = fps > 0.0f ? 1000000.0f / fps : 0.0f;
         float avgInput = (float)(gInputPollUs - lastInputUs) / frames;
         float avgOsdRaster = (float)(gOsdRasterUs - lastOsdRasterUs) / frames;
-        float avgWait = (float)(gDisp.waitUs - lastWaitUs) / frames;
         float avgFill = (float)(gDisp.fillUs - lastFillUs) / frames;
         float avgStrip = (float)(gDisp.stripUs - lastStripUs) / frames;
         float avgSubmit = (float)(gDisp.submitUs - lastSubmitUs) / frames;
-        float avgDrain = (float)(gDisp.drainUs - lastDrainUs) / frames;
-        // Ground-truth PPA hardware execution time (submit to completion
-        // callback) -- unlike wait/drain, this isn't inflated or hidden by
-        // however much CPU work happened to overlap it.
-        float avgPpaBusy = (float)(gDisp.ppa.busyUs - lastPpaBusyUs) / frames;
         auto pct = [&](float us) {
           return frameUs > 0.0f ? 100.0f * us / frameUs : 0.0f;
         };
         Serial.printf(
             "[main] timing us/frame: input=%.0f(%.0f%%) osdRaster=%.0f(%.0f%%) "
-            "wait=%.0f(%.0f%%) fill=%.0f(%.0f%%) strip=%.0f(%.0f%%) "
-            "submit=%.0f(%.0f%%) drain=%.0f(%.0f%%) ppaBusy=%.0f(%.0f%%)\n",
-            avgInput, pct(avgInput), avgOsdRaster, pct(avgOsdRaster), avgWait,
-            pct(avgWait), avgFill, pct(avgFill), avgStrip, pct(avgStrip),
-            avgSubmit, pct(avgSubmit), avgDrain, pct(avgDrain), avgPpaBusy,
-            pct(avgPpaBusy));
+            "fill=%.0f(%.0f%%) strip=%.0f(%.0f%%) submit=%.0f(%.0f%%)\n",
+            avgInput, pct(avgInput), avgOsdRaster, pct(avgOsdRaster), avgFill,
+            pct(avgFill), avgStrip, pct(avgStrip), avgSubmit, pct(avgSubmit));
         lastInputUs = gInputPollUs;
         lastOsdRasterUs = gOsdRasterUs;
-        lastWaitUs = gDisp.waitUs;
         lastFillUs = gDisp.fillUs;
         lastStripUs = gDisp.stripUs;
         lastSubmitUs = gDisp.submitUs;
-        lastPpaBusyUs = gDisp.ppa.busyUs;
-        lastDrainUs = gDisp.drainUs;
       }
 
       // If no DMA chunk arrived for a whole stats period, the capture is
@@ -489,9 +473,13 @@ void setup() {
   Serial.setTxTimeoutMs(0);
   delay(1000);  // give the USB serial a moment to start up
 
-  // Landscape (1280x720). Rotation 3 (not 1) makes the panel match the
-  // expected 0-degree orientation verified on hardware.
-  M5.Display.setRotation(3);
+  // Native physical orientation (portrait, 720x1280) -- matching logical
+  // and physical orientation lets M5GFX's fast contiguous-memcpy blit
+  // path apply directly, avoiding the slow generic per-pixel rotate path
+  // (and the PPA workaround for it) that a landscape setRotation(1/3)
+  // would require. Touch/OSD/keypad coordinate handling still assumes the
+  // old landscape layout as of this change and needs separate follow-up.
+  M5.Display.setRotation(0);
   M5.Display.setColorDepth(16);
 
   Serial.printf("LcdTap M5Tab5  PSRAM=%u board=%d display=%dx%d\n",
