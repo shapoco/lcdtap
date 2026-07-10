@@ -36,7 +36,9 @@ static constexpr uint8_t I2C_SLAVE_ADDR = 0x3C;
 //=============================================================================
 
 // Number of scanlines rendered and pushed to the panel at a time.
-// 1280 x 40 x 2 bytes = 100 KB per strip buffer (internal SRAM).
+// 1280 x 40 x 2 bytes = 100 KB per strip buffer (PSRAM, aligned to
+// CONFIG_CACHE_L2_CACHE_LINE_SIZE; two buffers are allocated for ping-pong
+// CPU-fill/PPA-transfer overlap, see display_out.hpp).
 static constexpr uint16_t STRIP_LINES = 40;
 
 //=============================================================================
