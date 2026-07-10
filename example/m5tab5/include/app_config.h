@@ -36,18 +36,25 @@ static constexpr uint8_t I2C_SLAVE_ADDR = 0x3C;
 //=============================================================================
 
 // Number of scanlines rendered and PPA-transferred to the panel at a time.
-// Set to the full panel height (one PPA transaction per frame) rather than
-// a small strip: the PPA output block's height is always the full 1280
-// physical rows regardless of this value (only its width -- this value --
-// changes), so a small STRIP_LINES multiplies the number of short,
-// strided row bursts PPA has to issue into the panel framebuffer for no
-// benefit. STRIP_LINES=720 makes each of the 1280 output rows a single
-// full-width (1440-byte), fully contiguous burst instead of 18 separate
-// 80-byte ones -- see the perf-tuning plan doc for the row-burst-count
-// derivation. 1280 x 720 x 2 bytes = 1.8 MB per strip buffer (PSRAM,
-// aligned to CONFIG_CACHE_L2_CACHE_LINE_SIZE; two buffers are allocated
-// for ping-pong CPU-fill/PPA-transfer overlap, see display_out.hpp).
-static constexpr uint16_t STRIP_LINES = 720;
+// This is a tradeoff between two competing effects (see the perf-tuning
+// plan doc for the measurements behind both):
+//  - Bigger chunks are more PPA-efficient: the PPA output block's height
+//    is always the full 1280 physical rows regardless of this value (only
+//    its width -- this value -- changes), so a small STRIP_LINES
+//    multiplies the number of short, strided row bursts PPA has to issue
+//    into the panel framebuffer.
+//  - But too few chunks per frame (the extreme being STRIP_LINES=720, one
+//    PPA transaction for the whole frame) lose the double-buffered
+//    pipeline's ability to overlap CPU fill work for the next chunk with
+//    the PPA hardware transferring the previous one -- measured to cost
+//    far more (16->13 fps) than the per-transaction efficiency gained.
+// 120 (6 chunks/frame) keeps enough pipeline depth while still cutting the
+// row-burst count to 1/3 of the original STRIP_LINES=40 (18 chunks). Tune
+// empirically against the `[main] timing us/frame:` log if revisiting.
+// 1280 x 120 x 2 bytes = 300 KB per strip buffer (PSRAM, aligned to
+// CONFIG_CACHE_L2_CACHE_LINE_SIZE; two buffers are allocated for
+// ping-pong CPU-fill/PPA-transfer overlap, see display_out.hpp).
+static constexpr uint16_t STRIP_LINES = 120;
 
 //=============================================================================
 // Input buffers
