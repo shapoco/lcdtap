@@ -23,6 +23,19 @@ namespace lcdtap::m5tab5 {
 // byte alignment) is done in software by the deserializer in
 // spi_deser.hpp. SCK only toggles during transfers, so idle periods
 // produce no samples.
+//
+// Capture path: partial_rx_en + indirect_mount=1, i.e. the driver mounts
+// its OWN internal DMA buffer to the descriptors and copies each finished
+// chunk into our small `dmaBuf` payload during the ISR. A direct-mount
+// (indirect_mount=0) zero-copy variant was tried and reverted: per the
+// driver header, direct mount only supports a "finite" payload, and on
+// hardware the reported chunk pointers did not follow the ring position
+// our free-running index assumed (near-100% mismatch), corrupting the
+// byte stream. indirect_mount=1 is the driver's documented configuration
+// for continuous ("infinite") transactions and is what's proven to work.
+// The ISR's copy is unavoidable; our own pushRaw() adds a second copy
+// into a larger ring (rawRing) so the drain task has more slack than
+// dmaBuf alone would give it.
 
 struct ParlioSpiSlaveConfig {
   int pinSck;
@@ -57,11 +70,10 @@ struct ParlioSpiSlaveState {
   // Free-running indices (wrap via power-of-two masking on access):
   volatile uint32_t rawWriteIdx;
   volatile uint32_t rawReadIdx;
-  // Deserializer state (drain-task context):
+  // Deserializer state and decoded-byte sink (drain-task context). The
+  // sink's dataBuf is the caller-provided staging buffer.
   SpiDeser deser;
-  uint8_t *staging;  // same-D/C data run buffer
-  uint32_t stagingBytes;
-  uint32_t stagingLen;
+  SpiDeserSink sink;
   bool active;
   bool started;  // capture transaction has been started at least once
   // Diagnostics:

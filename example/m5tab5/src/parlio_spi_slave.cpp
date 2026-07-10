@@ -13,6 +13,16 @@
 //     node into a raw ring buffer. on_receive_done is NOT used for data:
 //     in partial mode its event data points at the whole user buffer
 //     with a cumulative byte count, so pushing it would duplicate data.
+//   - indirect_mount=1 (the driver mounts its own internal DMA buffer and
+//     copies each finished chunk into dmaBuf) is required for continuous
+//     capture. A direct-mount (indirect_mount=0) zero-copy variant was
+//     tried: per the driver header, direct mount only supports a
+//     "finite" payload, and on hardware the reported chunk pointers did
+//     not follow the ring position a free-running write index assumed
+//     (observed near-100% mismatch), corrupting the byte stream even for
+//     previously-working low-speed masters. Do not remove this copy
+//     without re-verifying direct mount's continuous-wraparound behavior
+//     on hardware first.
 //
 // Known trade-off: without the CS-deassert EOF flush, the tail of a
 // burst becomes visible only when the DMA node / soft-delimiter frame it
@@ -88,9 +98,18 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
   s->rawWriteIdx = 0;
   s->rawReadIdx = 0;
   spiDeserInit(&s->deser);
-  s->staging = staging;
-  s->stagingBytes = stagingBytes;
-  s->stagingLen = 0;
+  s->sink.dataBuf = staging;
+  s->sink.dataCap = stagingBytes;
+  s->sink.dataLen = 0;
+  s->sink.onDataFull = [](void *user) {
+    ParlioSpiSlaveState *st = static_cast<ParlioSpiSlaveState *>(user);
+    st->inst->inputData(st->sink.dataBuf, st->sink.dataLen, 1);
+  };
+  s->sink.onCommand = [](void *user, uint8_t byte) {
+    // The deserializer has already flushed the pending data run.
+    static_cast<ParlioSpiSlaveState *>(user)->inst->inputCommand(byte);
+  };
+  s->sink.user = s;
   s->ringOverflowCount = 0;
   s->isrChunkCount = 0;
   s->rawDumpLen = 0;
@@ -217,7 +236,7 @@ esp_err_t parlioSpiSlaveRealign(ParlioSpiSlaveState *s) {
   s->rawReadIdx = s->rawWriteIdx;
   spiDeserReset(&s->deser);
   s->deser.discardUntilIdle = true;
-  s->stagingLen = 0;
+  s->sink.dataLen = 0;
   s->rawDumpLen = 0;  // re-arm the bring-up dump
 
   esp_err_t err = parlio_rx_unit_enable(s->rxUnit, true);
@@ -250,7 +269,7 @@ void parlioSpiSlaveInjectBarrier(ParlioSpiSlaveState *s) {
   // before the barrier and is dropped; the injected CS-idle samples end
   // the discard window and realign the bit accumulator.
   s->deser.discardUntilIdle = true;
-  s->stagingLen = 0;
+  s->sink.dataLen = 0;
   s->rawDumpLen = 0;  // re-arm the bring-up dump
   primePipeline(s);
 }
@@ -281,23 +300,6 @@ void parlioSpiSlaveDeinit(ParlioSpiSlaveState *s) {
 // Drain (input-task context)
 //=============================================================================
 
-static void emitByte(void *user, uint8_t byte, bool dc) {
-  ParlioSpiSlaveState *s = static_cast<ParlioSpiSlaveState *>(user);
-  if (dc) {
-    s->staging[s->stagingLen++] = byte;
-    if (s->stagingLen >= s->stagingBytes) {
-      s->inst->inputData(s->staging, s->stagingLen, 1);
-      s->stagingLen = 0;
-    }
-  } else {
-    if (s->stagingLen) {
-      s->inst->inputData(s->staging, s->stagingLen, 1);
-      s->stagingLen = 0;
-    }
-    s->inst->inputCommand(byte);
-  }
-}
-
 void parlioSpiSlaveProcess(ParlioSpiSlaveState *s) {
   uint32_t wr = s->rawWriteIdx;  // snapshot of volatile
   uint32_t rd = s->rawReadIdx;
@@ -319,22 +321,19 @@ void parlioSpiSlaveProcess(ParlioSpiSlaveState *s) {
     }
 
     // Without an instance (e.g. bus-sniffer mode) only the dump is kept.
-    if (s->inst) spiDeserProcess(&s->deser, raw, len, emitByte, s);
+    if (s->inst) spiDeserProcess(&s->deser, raw, len, &s->sink);
     rd += len;
   }
   s->rawReadIdx = rd;
   if (!s->inst) return;
 
-  if (s->stagingLen) {
-    s->inst->inputData(s->staging, s->stagingLen, 1);
-    s->stagingLen = 0;
-  }
+  spiDeserFlushData(&s->sink);
 }
 
 void parlioSpiSlaveFlush(ParlioSpiSlaveState *s) {
   s->rawReadIdx = s->rawWriteIdx;
   spiDeserReset(&s->deser);
-  s->stagingLen = 0;
+  s->sink.dataLen = 0;
   s->rawDumpLen = 0;  // re-arm the bring-up dump
 }
 

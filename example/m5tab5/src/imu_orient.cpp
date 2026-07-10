@@ -38,7 +38,7 @@ static constexpr uint8_t ORIENT_CORRECTION = 2;
 void imuOrientInit(ImuOrientState *s) {
   s->fx = s->fy = s->fz = 0.0f;
   s->filterInit = false;
-  s->orient = 0;
+  s->orient = 1;
   s->candidate = 0;
   s->candidateSinceMs = 0;
 }
