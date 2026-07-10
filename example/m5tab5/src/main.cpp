@@ -86,12 +86,22 @@ static uint64_t gOsdRasterUs = 0;  // Osd::fillScanline() loop into gOsdBuf
 //=============================================================================
 // Host interface (LcdTap controller framebuffer)
 //=============================================================================
-// Internal SRAM first (both the write side -- incoming pixel data -- and
-// the read side -- fillScanline()'s scanline gather, which is a strided
-// column read for odd rotations -- are much cheaper there than on PSRAM),
-// falling back to PSRAM if the requested size (varies by controller/
-// preset, up to a few hundred KB) doesn't fit. Same pattern as gOsdBuf's
-// allocation below.
+// A static pool (mirroring example/pico2_universal/src/main.cpp's
+// memPool/poolAlloc) was tried here first, to avoid heap fragmentation
+// from repeated alloc/free on every controller switch. It doesn't fit:
+// this build's DIRAM budget is 445392 bytes total, ~207000 already
+// statically claimed by the rest of the firmware, and even a 145KiB
+// static reservation (already too small for the 150KiB default ST7789/
+// ILI9341 framebuffer) was the largest that still linked -- ESP-IDF's
+// `--enable-non-contiguous-regions` linker pass fails outright rather
+// than degrading gracefully once a static allocation doesn't fit,
+// unlike a heap allocation returning nullptr. So: internal SRAM first
+// via the heap, falling back to PSRAM if the requested size (varies by
+// controller/preset, up to a few hundred KB) doesn't fit -- both the
+// write side (incoming pixel data) and the read side (fillScanline()'s
+// scanline gather, a strided column read for odd rotations) are much
+// cheaper on internal SRAM than PSRAM, so this is still worth doing
+// despite going through the heap.
 static void *smartAlloc(size_t size) {
   void *p = heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   if (p) return p;
@@ -596,20 +606,18 @@ void setup() {
   lcdtap::getDefaultOsdConfig(&osdCfg);
   gOsd.init(osdCfg);
 
-  // Offscreen OSD raster for orientation-following compositing. Internal
-  // SRAM preferred (the rotated blit reads it with a strided pattern);
-  // PSRAM is an acceptable fallback since it is touched only while the
-  // OSD is open.
+  // Offscreen OSD raster for orientation-following compositing. PSRAM,
+  // not internal SRAM: competing with the LcdTap framebuffer (smartAlloc
+  // above) and the DMA engine's own working memory (async_blit.cpp) for
+  // internal SRAM was measured to starve GDMA's link-list allocation
+  // ("no mem for link list items") and corrupt the display. PSRAM is an
+  // acceptable place for this buffer since it's touched only while the
+  // OSD is open, not every frame.
   {
     size_t osdBytes =
         (size_t)lcdtap::OSD_WIDTH * lcdtap::OSD_HEIGHT * sizeof(uint16_t);
-    gOsdBuf = (uint16_t *)heap_caps_malloc(
-        osdBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (!gOsdBuf) {
-      gOsdBuf = (uint16_t *)heap_caps_malloc(
-          osdBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-      Serial.println("[main] OSD raster allocated in PSRAM");
-    }
+    gOsdBuf = (uint16_t *)heap_caps_malloc(osdBytes,
+                                           MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!gOsdBuf) {
       Serial.println("[main] OSD raster allocation failed");
     }
