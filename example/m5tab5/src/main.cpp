@@ -315,6 +315,7 @@ static void displayTask(void *) {
   uint64_t lastInputUs = 0, lastOsdRasterUs = 0;
   uint64_t lastWaitUs = 0, lastFillUs = 0, lastStripUs = 0, lastSubmitUs = 0,
            lastDrainUs = 0;
+  uint64_t lastPpaBusyUs = 0;
 
   while (true) {
     uint64_t nowMs = millis64();
@@ -421,22 +422,28 @@ static void displayTask(void *) {
         float avgStrip = (float)(gDisp.stripUs - lastStripUs) / frames;
         float avgSubmit = (float)(gDisp.submitUs - lastSubmitUs) / frames;
         float avgDrain = (float)(gDisp.drainUs - lastDrainUs) / frames;
+        // Ground-truth PPA hardware execution time (submit to completion
+        // callback) -- unlike wait/drain, this isn't inflated or hidden by
+        // however much CPU work happened to overlap it.
+        float avgPpaBusy = (float)(gDisp.ppa.busyUs - lastPpaBusyUs) / frames;
         auto pct = [&](float us) {
           return frameUs > 0.0f ? 100.0f * us / frameUs : 0.0f;
         };
         Serial.printf(
             "[main] timing us/frame: input=%.0f(%.0f%%) osdRaster=%.0f(%.0f%%) "
             "wait=%.0f(%.0f%%) fill=%.0f(%.0f%%) strip=%.0f(%.0f%%) "
-            "submit=%.0f(%.0f%%) drain=%.0f(%.0f%%)\n",
+            "submit=%.0f(%.0f%%) drain=%.0f(%.0f%%) ppaBusy=%.0f(%.0f%%)\n",
             avgInput, pct(avgInput), avgOsdRaster, pct(avgOsdRaster), avgWait,
             pct(avgWait), avgFill, pct(avgFill), avgStrip, pct(avgStrip),
-            avgSubmit, pct(avgSubmit), avgDrain, pct(avgDrain));
+            avgSubmit, pct(avgSubmit), avgDrain, pct(avgDrain), avgPpaBusy,
+            pct(avgPpaBusy));
         lastInputUs = gInputPollUs;
         lastOsdRasterUs = gOsdRasterUs;
         lastWaitUs = gDisp.waitUs;
         lastFillUs = gDisp.fillUs;
         lastStripUs = gDisp.stripUs;
         lastSubmitUs = gDisp.submitUs;
+        lastPpaBusyUs = gDisp.ppa.busyUs;
         lastDrainUs = gDisp.drainUs;
       }
 

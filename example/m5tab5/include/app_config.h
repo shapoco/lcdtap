@@ -35,11 +35,19 @@ static constexpr uint8_t I2C_SLAVE_ADDR = 0x3C;
 // Display output
 //=============================================================================
 
-// Number of scanlines rendered and pushed to the panel at a time.
-// 1280 x 40 x 2 bytes = 100 KB per strip buffer (PSRAM, aligned to
-// CONFIG_CACHE_L2_CACHE_LINE_SIZE; two buffers are allocated for ping-pong
-// CPU-fill/PPA-transfer overlap, see display_out.hpp).
-static constexpr uint16_t STRIP_LINES = 40;
+// Number of scanlines rendered and PPA-transferred to the panel at a time.
+// Set to the full panel height (one PPA transaction per frame) rather than
+// a small strip: the PPA output block's height is always the full 1280
+// physical rows regardless of this value (only its width -- this value --
+// changes), so a small STRIP_LINES multiplies the number of short,
+// strided row bursts PPA has to issue into the panel framebuffer for no
+// benefit. STRIP_LINES=720 makes each of the 1280 output rows a single
+// full-width (1440-byte), fully contiguous burst instead of 18 separate
+// 80-byte ones -- see the perf-tuning plan doc for the row-burst-count
+// derivation. 1280 x 720 x 2 bytes = 1.8 MB per strip buffer (PSRAM,
+// aligned to CONFIG_CACHE_L2_CACHE_LINE_SIZE; two buffers are allocated
+// for ping-pong CPU-fill/PPA-transfer overlap, see display_out.hpp).
+static constexpr uint16_t STRIP_LINES = 720;
 
 //=============================================================================
 // Input buffers

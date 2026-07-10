@@ -21,6 +21,14 @@ struct PpaBlitState {
   void *client = nullptr;  // ppa_client_handle_t, kept opaque to avoid
                            // pulling <driver/ppa.h> into this public header
   bool ok = false;
+
+  // Cumulative ESP32-P4 PPA hardware execution time (submit to completion
+  // callback), in microseconds since boot -- ground-truth PPA throughput,
+  // as opposed to DisplayOutState::waitUs/drainUs, which only indirectly
+  // reflect it (they're CPU idle time, which can be partly hidden behind
+  // other CPU work). Callers diff this against a periodic snapshot the
+  // same way frameCount is diffed to compute fps.
+  uint64_t busyUs = 0;
 };
 
 // Registers a PPA SRM client and locates the physical DSI panel framebuffer

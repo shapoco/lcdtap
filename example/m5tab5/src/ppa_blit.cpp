@@ -3,6 +3,7 @@
 #include <driver/ppa.h>
 #include <esp_cache.h>
 #include <esp_log.h>
+#include <esp_timer.h>
 
 #include "lgfx/v1/platforms/esp32p4/Panel_DSI.hpp"
 
@@ -30,9 +31,27 @@ constexpr ppa_srm_rotation_angle_t kRotationAngle = PPA_SRM_ROTATION_ANGLE_90;
 constexpr bool kMirrorX = false;
 constexpr bool kMirrorY = false;
 
+// This app only ever runs one PpaBlitState with at most 2 transactions in
+// flight (matching DisplayOutState's 2 ping-pong strip buffers), so a
+// fixed 2-slot table -- indexed by a counter that alternates in lockstep
+// with the caller's own ping-pong index -- is enough to recover, in
+// onTransDone(), which PpaBlitState/semaphore/submit-time a completion
+// belongs to (ppa_event_callback_t only carries one per-transaction
+// void* of context).
+struct PendingOp {
+  PpaBlitState *state = nullptr;
+  SemaphoreHandle_t sem = nullptr;
+  int64_t submitUs = 0;
+};
+PendingOp gPending[2];
+int gNextSlot = 0;
+
 bool onTransDone(ppa_client_handle_t, ppa_event_data_t *, void *userData) {
+  auto *p = (PendingOp *)userData;
+  p->state->busyUs += esp_timer_get_time() - p->submitUs;
+  if (!p->sem) return false;  // blocking-mode caller isn't waiting on this
   BaseType_t woken = pdFALSE;
-  xSemaphoreGiveFromISR((SemaphoreHandle_t)userData, &woken);
+  xSemaphoreGiveFromISR(p->sem, &woken);
   return woken == pdTRUE;
 }
 }  // namespace
@@ -76,7 +95,7 @@ bool ppaBlitInit(PpaBlitState *s, M5GFX *gfx) {
 namespace {
 bool submitStrip(PpaBlitState *s, uint16_t logicalY, uint16_t numLines,
                  uint16_t logicalW, const uint16_t *stripBuf,
-                 ppa_trans_mode_t mode, void *userData) {
+                 ppa_trans_mode_t mode, SemaphoreHandle_t doneSem) {
   if (!s->ok) return false;
 
   // The strip buffer was written by the CPU; PPA reads it as a DMA bus
@@ -86,6 +105,10 @@ bool submitStrip(PpaBlitState *s, uint16_t logicalY, uint16_t numLines,
   esp_cache_msync(
       (void *)stripBuf, bytes,
       ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_TYPE_DATA);
+
+  int slot = gNextSlot;
+  gNextSlot ^= 1;
+  gPending[slot] = {s, doneSem, esp_timer_get_time()};
 
   ppa_srm_oper_config_t op = {};
   op.in.buffer = stripBuf;
@@ -109,7 +132,7 @@ bool submitStrip(PpaBlitState *s, uint16_t logicalY, uint16_t numLines,
   op.mirror_x = kMirrorX;
   op.mirror_y = kMirrorY;
   op.mode = mode;
-  op.user_data = userData;
+  op.user_data = &gPending[slot];
 
   esp_err_t err =
       ppa_do_scale_rotate_mirror((ppa_client_handle_t)s->client, &op);
@@ -132,7 +155,7 @@ bool ppaBlitSubmitStripAsync(PpaBlitState *s, uint16_t logicalY,
                              const uint16_t *stripBuf,
                              SemaphoreHandle_t doneSem) {
   return submitStrip(s, logicalY, numLines, logicalW, stripBuf,
-                     PPA_TRANS_MODE_NON_BLOCKING, (void *)doneSem);
+                     PPA_TRANS_MODE_NON_BLOCKING, doneSem);
 }
 
 }  // namespace lcdtap::m5tab5
