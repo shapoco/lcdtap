@@ -2,20 +2,20 @@
 //
 // LcdTap renders one scanline at a time; this module batches STRIP_LINES
 // scanlines into a strip buffer, lets the caller composite overlays (OSD,
-// virtual keypad), then hands the strip to the ESP32-P4 PPA hardware
-// (ppa_blit.hpp), which writes it directly into the physical DSI panel
-// framebuffer asynchronously -- the panel runs at its native orientation
-// (see main.cpp's setRotation(0)) so no rotation is needed, but the
-// straight copy alone (measured via gfx->pushImage(), ~49ms for a full
-// 720x1280 frame) is still the dominant per-frame cost. Submitting it to
-// PPA asynchronously with two ping-pong strip buffers lets the CPU fill
-// the next strip while PPA transfers the previous one, hiding fill work
-// behind the transfer instead of adding to it.
+// virtual keypad), then hands the strip to an async DMA copy
+// (async_blit.hpp, ESP32-P4 GDMA via esp_async_memcpy), which writes it
+// directly into the physical DSI panel framebuffer -- the panel runs at
+// its native orientation (see main.cpp's setRotation(0)) so no rotation
+// is needed, but the straight copy alone (measured via gfx->pushImage(),
+// ~49ms for a full 720x1280 frame) is still the dominant per-frame cost.
+// Submitting it asynchronously with two ping-pong strip buffers lets the
+// CPU fill the next strip while the DMA engine transfers the previous
+// one, hiding fill work behind the transfer instead of adding to it.
 //
-// Falls back to the plain gfx->pushImage() path if PPA/panel-buffer setup
-// fails (ppaBlitInit() returns false), so the example still runs (slower,
-// but synchronous and always correct) if the direct-panel-buffer
-// assumptions don't hold.
+// Falls back to the plain gfx->pushImage() path if the DMA driver/panel-
+// buffer setup fails (asyncBlitInit() returns false), so the example
+// still runs (slower, but synchronous and always correct) if the
+// direct-panel-buffer assumptions don't hold.
 
 #include "lcdtap/m5tab5/display_out.hpp"
 
@@ -41,7 +41,7 @@ bool displayOutInit(DisplayOutState *s, M5GFX *gfx,
 
   // Strip buffers live in PSRAM, so they must be aligned to the L2 (PSRAM)
   // cache line size, not the (smaller) L1 one -- esp_cache_msync() in
-  // ppa_blit.cpp rejects anything less. width*2 is a multiple of any
+  // async_blit.cpp rejects anything less. width*2 is a multiple of any
   // realistic cache line size, so stripBytes stays aligned regardless of
   // STRIP_LINES.
   size_t stripBytes = (size_t)s->width * s->stripLines * sizeof(uint16_t);
@@ -55,14 +55,14 @@ bool displayOutInit(DisplayOutState *s, M5GFX *gfx,
     xSemaphoreGive(s->stripFree[i]);  // buffers start free
   }
 
-  s->usePpa = ppaBlitInit(&s->ppa, gfx);
+  s->useAsyncBlit = asyncBlitInit(&s->blit, gfx);
   return true;
 }
 
 void displayOutRenderFrame(DisplayOutState *s, FillScanlineFn fill,
                            FillStripFn stripFn, void *userData) {
   M5GFX *gfx = s->gfx;
-  if (!s->usePpa) gfx->startWrite();
+  if (!s->useAsyncBlit) gfx->startWrite();
 
   for (uint16_t yTop = 0; yTop < s->height; yTop += s->stripLines) {
     uint16_t numLines = s->stripLines;
@@ -70,8 +70,8 @@ void displayOutRenderFrame(DisplayOutState *s, FillScanlineFn fill,
 
     int idx = s->curBuf;
     s->curBuf ^= 1;
-    // Wait until PPA (or, in the fallback path, the previous pushImage)
-    // is done reading this slot before overwriting it.
+    // Wait until the async transfer (or, in the fallback path, the
+    // previous pushImage) is done reading this slot before overwriting it.
     int64_t t0 = esp_timer_get_time();
     xSemaphoreTake(s->stripFree[idx], portMAX_DELAY);
     uint16_t *strip = s->strip[idx];
@@ -85,9 +85,9 @@ void displayOutRenderFrame(DisplayOutState *s, FillScanlineFn fill,
     if (stripFn) stripFn(yTop, numLines, strip, userData);
 
     int64_t t3 = esp_timer_get_time();
-    if (s->usePpa) {
-      if (!ppaBlitSubmitStripAsync(&s->ppa, yTop, numLines, s->width, strip,
-                                   s->stripFree[idx])) {
+    if (s->useAsyncBlit) {
+      if (!asyncBlitSubmitStripAsync(&s->blit, yTop, numLines, s->width, strip,
+                                     s->stripFree[idx])) {
         // Submit failed after init succeeded (shouldn't normally happen)
         // -- release the slot so we don't deadlock; this strip is dropped.
         xSemaphoreGive(s->stripFree[idx]);
@@ -106,10 +106,10 @@ void displayOutRenderFrame(DisplayOutState *s, FillScanlineFn fill,
   }
 
   int64_t td0 = esp_timer_get_time();
-  if (s->usePpa) {
-    // Drain any in-flight PPA transactions so frameCount/fps reflect full
-    // frame completion, and so the next frame doesn't race a transfer
-    // still in flight beyond the ping-pong depth.
+  if (s->useAsyncBlit) {
+    // Drain any in-flight async transactions so frameCount/fps reflect
+    // full frame completion, and so the next frame doesn't race a
+    // transfer still in flight beyond the ping-pong depth.
     for (int i = 0; i < DISPLAY_OUT_NUM_STRIP_BUFFERS; ++i) {
       xSemaphoreTake(s->stripFree[i], portMAX_DELAY);
       xSemaphoreGive(s->stripFree[i]);
