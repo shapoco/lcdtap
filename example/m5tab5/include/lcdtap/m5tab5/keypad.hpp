@@ -36,9 +36,9 @@ void keypadInit(KeypadState *s, uint16_t screenW, uint16_t screenH);
 void keypadNotifyActivity(KeypadState *s, uint64_t nowMs);
 
 // Call once per frame with the current touch points.
-// Returns the OSD_KEY_* bitmask, with direction keys already remapped so
-// that an arrow pointing toward the panel's top edge sends OSD_KEY_UP
-// (the OSD raster is drawn in fixed panel orientation).
+// Returns the OSD_KEY_* bitmask. Direction keys map to their user-view
+// roles directly (no rotation compensation): the OSD is composited with
+// the same orientation as the keypad, so user-up is always menu-up.
 uint8_t keypadUpdate(KeypadState *s, uint64_t nowMs, const KeypadTouch *pts,
                      int numPts, uint8_t orient);
 

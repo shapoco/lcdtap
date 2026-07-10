@@ -67,6 +67,14 @@ static volatile bool gSpiRealignReq = false;
 // Not an edge count — just proof that the master is toggling the bus.
 static volatile uint32_t gI2cBusActivity = 0;
 
+// Offscreen OSD raster (OSD_WIDTH x OSD_HEIGHT, RGB565). The OSD is
+// rendered here once per frame and composited onto the panel rotated by
+// the IMU orientation, so it always appears upright to the user.
+// Written and read only by the display task.
+static uint16_t *gOsdBuf = nullptr;
+static bool gOsdVisible = false;
+static uint8_t gOsdOrient = 0;
+
 //=============================================================================
 // Host interface (framebuffer in PSRAM)
 //=============================================================================
@@ -234,15 +242,54 @@ static void inputTask(void *) {
 //=============================================================================
 static void fillScanlineCb(uint16_t scanY, uint16_t *dst, void *) {
   gInst->fillScanline(scanY, dst);
+  if (!gOsdVisible) return;
 
-  // OSD overlay, centered.
+  // Composite the offscreen OSD raster, centered and rotated by the IMU
+  // orientation so it reads upright from the user's point of view.
+  // Coordinate conventions follow keypad.cpp's userToPanel: raster
+  // u (user-right) / v (user-down) axes map onto the panel per orient.
   uint16_t screenW, screenH;
   gInst->getOutputScreenSize(&screenW, &screenH);
-  uint16_t yStart = (screenH - lcdtap::OSD_HEIGHT) / 2;
-  uint16_t yEnd = yStart + lcdtap::OSD_HEIGHT;
-  uint16_t xStart = (screenW - lcdtap::OSD_WIDTH) / 2;
-  if (yStart <= scanY && scanY < yEnd) {
-    gOsd.fillScanline(scanY - yStart, dst + xStart);
+  const bool swapped = (gOsdOrient & 1) != 0;
+  const uint16_t boxW = swapped ? lcdtap::OSD_HEIGHT : lcdtap::OSD_WIDTH;
+  const uint16_t boxH = swapped ? lcdtap::OSD_WIDTH : lcdtap::OSD_HEIGHT;
+  const uint16_t x0 = (screenW - boxW) / 2;
+  const uint16_t y0 = (screenH - boxH) / 2;
+  if (scanY < y0 || scanY >= (uint16_t)(y0 + boxH)) return;
+  const uint16_t dy = scanY - y0;
+  uint16_t *out = dst + x0;
+
+  switch (gOsdOrient & 3u) {
+    default:
+    case 0:  // raster rows map to panel rows directly
+      memcpy(out, gOsdBuf + (uint32_t)dy * lcdtap::OSD_WIDTH,
+             (size_t)boxW * sizeof(uint16_t));
+      break;
+    case 2: {  // 180 degrees: reversed row order and direction
+      const uint16_t *src =
+          gOsdBuf +
+          (uint32_t)(lcdtap::OSD_HEIGHT - 1 - dy) * lcdtap::OSD_WIDTH +
+          (lcdtap::OSD_WIDTH - 1);
+      for (uint16_t i = 0; i < boxW; ++i) *out++ = *src--;
+      break;
+    }
+    case 1: {  // user's bottom = panel right: u -> -panelY, v -> +panelX
+      const uint16_t *src = gOsdBuf + (lcdtap::OSD_WIDTH - 1 - dy);
+      for (uint16_t i = 0; i < boxW; ++i) {
+        *out++ = *src;
+        src += lcdtap::OSD_WIDTH;
+      }
+      break;
+    }
+    case 3: {  // user's bottom = panel left: u -> +panelY, v -> -panelX
+      const uint16_t *src =
+          gOsdBuf + (uint32_t)(lcdtap::OSD_HEIGHT - 1) * lcdtap::OSD_WIDTH + dy;
+      for (uint16_t i = 0; i < boxW; ++i) {
+        *out++ = *src;
+        src -= lcdtap::OSD_WIDTH;
+      }
+      break;
+    }
   }
 }
 
@@ -306,6 +353,17 @@ static void displayTask(void *) {
 
       if (newIface != gCurrentIface) {
         switchInterface(newIface);
+      }
+    }
+
+    // Render the OSD into its offscreen raster and snapshot the values
+    // the compositor (fillScanlineCb, same task) uses for this frame.
+    gOsdOrient = imuOrientGet(&gOrient);
+    gOsdVisible =
+        gOsdBuf != nullptr && gOsd.getState() != lcdtap::OsdState::HIDDEN;
+    if (gOsdVisible) {
+      for (uint16_t row = 0; row < lcdtap::OSD_HEIGHT; ++row) {
+        gOsd.fillScanline(row, gOsdBuf + (uint32_t)row * lcdtap::OSD_WIDTH);
       }
     }
 
@@ -385,6 +443,16 @@ void setup() {
                 (unsigned)ESP.getPsramSize(), (int)M5.getBoard(),
                 M5.Display.width(), M5.Display.height());
 
+  // M5.begin() runs M5.Imu.begin() very early (before Display.init() and
+  // other setup that takes noticeable time); the BMI270 has occasionally
+  // been observed not yet ready at that point, leaving M5.Imu disabled
+  // for the rest of the session. Retry the (idempotent, side-effect-free
+  // on failure) begin() call now that more time has passed.
+  for (int attempt = 0; !M5.Imu.isEnabled() && attempt < 3; ++attempt) {
+    if (attempt > 0) delay(50);
+    M5.Imu.begin(&M5.In_I2C, M5.getBoard());
+  }
+
   // Hold a touch on the panel during boot to start with default settings
   // (the Tab5 has no physical buttons).
   M5.update();
@@ -454,6 +522,25 @@ void setup() {
   lcdtap::OsdConfig osdCfg;
   lcdtap::getDefaultOsdConfig(&osdCfg);
   gOsd.init(osdCfg);
+
+  // Offscreen OSD raster for orientation-following compositing. Internal
+  // SRAM preferred (the rotated blit reads it with a strided pattern);
+  // PSRAM is an acceptable fallback since it is touched only while the
+  // OSD is open.
+  {
+    size_t osdBytes =
+        (size_t)lcdtap::OSD_WIDTH * lcdtap::OSD_HEIGHT * sizeof(uint16_t);
+    gOsdBuf = (uint16_t *)heap_caps_malloc(
+        osdBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!gOsdBuf) {
+      gOsdBuf = (uint16_t *)heap_caps_malloc(
+          osdBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+      Serial.println("[main] OSD raster allocated in PSRAM");
+    }
+    if (!gOsdBuf) {
+      Serial.println("[main] OSD raster allocation failed");
+    }
+  }
 
   keypadInit(&gKeypad, M5.Display.width(), M5.Display.height());
   imuOrientInit(&gOrient);

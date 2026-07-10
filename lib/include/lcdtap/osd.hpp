@@ -110,6 +110,9 @@ class Osd {
   // dst  : buffer of dviWidth uint16_t values (modified in-place for OSD rows).
   void fillScanline(uint16_t line, uint16_t* dst) const;
 
+  // Current display state (e.g. to skip compositing while hidden).
+  OsdState getState() const { return state_; }
+
   int getItemCount() const;
   int getSelectedIndex() const;
   void setSelectedIndex(int index);

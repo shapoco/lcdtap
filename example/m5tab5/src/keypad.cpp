@@ -40,7 +40,8 @@ enum : uint8_t {
 // User-frame offsets of each key from the cluster center, in pitch units.
 static constexpr int8_t KEY_OFS_X[NUM_KEYS] = {0, 0, -1, 1, 0};
 static constexpr int8_t KEY_OFS_Y[NUM_KEYS] = {-1, 1, 0, 0, 0};
-// Glyph rotation of the "up" arrow for each direction key (90° CW steps).
+// Glyph rotation of the "up" arrow for each direction key (90° CW steps,
+// matching sampleMask's rotation direction), at orient=0.
 static constexpr uint8_t KEY_GLYPH_ROT[NUM_KEYS] = {0, 2, 3, 1, 0};
 
 //=============================================================================
@@ -212,17 +213,18 @@ void keypadNotifyActivity(KeypadState *s, uint64_t nowMs) {
   s->lastActivityMs = nowMs;
 }
 
-// Map a pressed key role to the OSD key bit, compensating the IMU
-// orientation so arrows act in panel (= OSD raster) space.
-static uint8_t roleToOsdKey(uint8_t role, uint8_t orient) {
-  if (role == KEY_ENTER) return lcdtap::OSD_KEY_ENTER;
-  // Clockwise direction cycle: UP → RIGHT → DOWN → LEFT.
-  static constexpr uint8_t CW_OF_ROLE[4] = {0, 2, 3, 1};  // UP,DOWN,LEFT,RIGHT
-  static constexpr uint8_t OSD_OF_CW[4] = {
-      lcdtap::OSD_KEY_UP, lcdtap::OSD_KEY_RIGHT, lcdtap::OSD_KEY_DOWN,
-      lcdtap::OSD_KEY_LEFT};
-  uint8_t cw = (uint8_t)((CW_OF_ROLE[role] - orient) & 3u);
-  return OSD_OF_CW[cw];
+// Map a pressed key role to the OSD key bit. The mapping is identity:
+// the OSD raster is composited rotated by the same orientation as the
+// keypad, so a key's user-view direction always matches the on-screen
+// menu direction.
+static uint8_t roleToOsdKey(uint8_t role) {
+  switch (role) {
+    case KEY_UP: return lcdtap::OSD_KEY_UP;
+    case KEY_DOWN: return lcdtap::OSD_KEY_DOWN;
+    case KEY_LEFT: return lcdtap::OSD_KEY_LEFT;
+    case KEY_RIGHT: return lcdtap::OSD_KEY_RIGHT;
+    default: return lcdtap::OSD_KEY_ENTER;
+  }
 }
 
 uint8_t keypadUpdate(KeypadState *s, uint64_t nowMs, const KeypadTouch *pts,
@@ -285,7 +287,7 @@ uint8_t keypadUpdate(KeypadState *s, uint64_t nowMs, const KeypadTouch *pts,
 
   uint8_t osdKeys = 0;
   for (int k = 0; k < NUM_KEYS; ++k) {
-    if (pressed & (1u << k)) osdKeys |= roleToOsdKey((uint8_t)k, s->orient);
+    if (pressed & (1u << k)) osdKeys |= roleToOsdKey((uint8_t)k);
   }
   return osdKeys;
 }
@@ -310,7 +312,11 @@ void keypadFillStrip(const KeypadState *s, uint16_t yTop, uint16_t numLines,
     if (y0 >= y1) continue;
 
     const uint8_t *mask = (k == KEY_ENTER) ? s->maskEnter : s->maskArrow;
-    int rot = (KEY_GLYPH_ROT[k] + s->orient) & 3;
+    // Subtracting orient (not adding) rotates the glyph opposite to the
+    // key's own userToPanel placement rotation, which is what keeps the
+    // drawn arrow pointing toward the key's role direction (e.g. the
+    // UP key's arrow keeps pointing away from Enter) as orient changes.
+    int rot = (KEY_GLYPH_ROT[k] + 4 - s->orient) & 3;
 
     // The mask already encodes FILL_OPACITY at its peak; the pressed key
     // is boosted toward full opacity for visual feedback.

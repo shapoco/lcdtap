@@ -17,6 +17,14 @@ static constexpr float MIN_IN_PLANE_G = 0.5f;
 static constexpr float TAN_30_DEG = 0.5774f;
 static constexpr uint64_t ORIENT_HOLD_MS = 300;
 
+// Empirically determined on hardware: the raw device accel axes map to
+// panel orientation one quadrant short of the convention documented in
+// imu_orient.hpp (real tilt data was only available once a BMI270
+// bring-up issue was worked around, so this mapping had never been
+// validated against actual tilt before). Correct by advancing the
+// quantized quadrant by one 90° CW step.
+static constexpr uint8_t ORIENT_CORRECTION = 1;
+
 void imuOrientInit(ImuOrientState *s) {
   s->fx = s->fy = s->fz = 0.0f;
   s->filterInit = false;
@@ -40,9 +48,8 @@ bool imuOrientUpdate(ImuOrientState *s, uint64_t nowMs, float ax, float ay,
 
   // Map device accel axes to panel coordinates. gx points toward the
   // panel's +X (right) edge, gy toward +Y (bottom) edge when gravity
-  // pulls that way. Signs flipped together with the display rotation
-  // change (1 -> 3); still to be verified on hardware — adjust
-  // signs/swaps here if the keypad appears on a wrong edge.
+  // pulls that way (verified on hardware; see ORIENT_CORRECTION below
+  // for the residual quadrant offset this mapping still needs).
   float gx = -s->fx;
   float gy = -s->fy;
 
@@ -62,6 +69,7 @@ bool imuOrientUpdate(ImuOrientState *s, uint64_t nowMs, float ax, float ay,
     if (absY > absX * TAN_30_DEG) return false;
     cand = (gx > 0) ? 1 : 3;  // right : left
   }
+  cand = (uint8_t)((cand + ORIENT_CORRECTION) & 3u);
 
   if (cand == s->orient) {
     s->candidate = cand;

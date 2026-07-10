@@ -22,7 +22,7 @@ bool displayOutInit(DisplayOutState *s, M5GFX *gfx,
 
   size_t stripBytes = (size_t)s->width * s->stripLines * sizeof(uint16_t);
   s->strip = (uint16_t *)heap_caps_malloc(
-      stripBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+      stripBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   return s->strip != nullptr;
 }
 
