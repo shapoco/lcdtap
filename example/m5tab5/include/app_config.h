@@ -35,15 +35,22 @@ static constexpr uint8_t I2C_SLAVE_ADDR = 0x3C;
 // Display output
 //=============================================================================
 
-// Number of scanlines rendered and pushed to the panel (via
-// gfx->pushImage()) at a time -- just a batching granularity for the
-// strip buffer, not tied to any transfer-hardware constraint (the panel
-// runs at its native orientation, see main.cpp's setRotation(0), so
-// pushImage() takes M5GFX's fast contiguous-memcpy path directly and
-// needs no rotation workaround). Tune against the
-// `[main] timing us/frame:` log if the strip buffer size vs. pushImage()
-// call-count tradeoff turns out to matter.
-// 720 x 40 x 2 bytes = 56.25 KB per strip buffer (PSRAM).
+// Number of scanlines rendered and PPA-transferred to the panel at a
+// time. The panel runs at its native orientation (see main.cpp's
+// setRotation(0)), so PPA does a straight (unrotated) copy per strip --
+// unlike the old rotated design, the output block here is just
+// `numLines` rows starting at row `logicalY`, so there's no fixed
+// "always full panel height" row-crossing cost to amortize by going
+// bigger. What this value does control is pipeline granularity: small
+// enough that the CPU (fill+strip, a few hundred us/strip) reliably
+// finishes well before PPA (~1.5ms/strip at this size) so fill work
+// stays fully hidden behind the transfer, per the ping-pong double
+// buffering in display_out.cpp. Tune against the
+// `[main] timing us/frame:` log (wait/ppaBusy in particular) if
+// revisiting.
+// 720 x 40 x 2 bytes = 56.25 KB per strip buffer (PSRAM, aligned to
+// CONFIG_CACHE_L2_CACHE_LINE_SIZE; two buffers are allocated for
+// ping-pong CPU-fill/PPA-transfer overlap, see display_out.hpp).
 static constexpr uint16_t STRIP_LINES = 40;
 
 //=============================================================================
