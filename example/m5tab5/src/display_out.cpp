@@ -39,16 +39,28 @@ bool displayOutInit(DisplayOutState *s, M5GFX *gfx,
   s->submitUs = 0;
   s->drainUs = 0;
 
-  // Strip buffers live in PSRAM, so they must be aligned to the L2 (PSRAM)
-  // cache line size, not the (smaller) L1 one -- esp_cache_msync() in
-  // async_blit.cpp rejects anything less. width*2 is a multiple of any
+  // Strip buffers are the async-copy source (async_blit.cpp), so they
+  // must be aligned to the L2 (PSRAM) cache line size, not the smaller L1
+  // (internal SRAM) one -- esp_cache_msync() rejects anything less, and
+  // using the larger alignment unconditionally is harmless even when the
+  // allocation below lands in internal SRAM. width*2 is a multiple of any
   // realistic cache line size, so stripBytes stays aligned regardless of
   // STRIP_LINES.
+  //
+  // Prefer internal SRAM: these buffers are read by the DMA engine on
+  // every strip, and internal SRAM doesn't share PSRAM's bus/bandwidth
+  // with the panel framebuffer the DMA engine is writing to. Falls back
+  // to PSRAM (the original placement) if they don't fit.
   size_t stripBytes = (size_t)s->width * s->stripLines * sizeof(uint16_t);
   for (int i = 0; i < DISPLAY_OUT_NUM_STRIP_BUFFERS; ++i) {
     s->strip[i] = (uint16_t *)heap_caps_aligned_alloc(
         CONFIG_CACHE_L2_CACHE_LINE_SIZE, stripBytes,
-        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!s->strip[i]) {
+      s->strip[i] = (uint16_t *)heap_caps_aligned_alloc(
+          CONFIG_CACHE_L2_CACHE_LINE_SIZE, stripBytes,
+          MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    }
     if (!s->strip[i]) return false;
     s->stripFree[i] = xSemaphoreCreateBinary();
     if (!s->stripFree[i]) return false;

@@ -84,13 +84,25 @@ static uint64_t gInputPollUs = 0;  // M5.update() + touch/IMU/keypad/OSD state
 static uint64_t gOsdRasterUs = 0;  // Osd::fillScanline() loop into gOsdBuf
 
 //=============================================================================
-// Host interface (framebuffer in PSRAM)
+// Host interface (LcdTap controller framebuffer)
 //=============================================================================
-static void *psramAlloc(size_t size) {
+// Internal SRAM first (both the write side -- incoming pixel data -- and
+// the read side -- fillScanline()'s scanline gather, which is a strided
+// column read for odd rotations -- are much cheaper there than on PSRAM),
+// falling back to PSRAM if the requested size (varies by controller/
+// preset, up to a few hundred KB) doesn't fit. Same pattern as gOsdBuf's
+// allocation below.
+static void *smartAlloc(size_t size) {
+  void *p = heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (p) return p;
+  Serial.printf(
+      "[main] smartAlloc: %u bytes didn't fit internal SRAM, "
+      "falling back to PSRAM\n",
+      (unsigned)size);
   return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 }
 
-static void psramFree(void *ptr) { heap_caps_free(ptr); }
+static void smartFree(void *ptr) { heap_caps_free(ptr); }
 
 static void hostLog(void *, const char *message) {
   Serial.printf("[lcdtap] %s\n", message);
@@ -498,9 +510,11 @@ void setup() {
   M5.Display.setRotation(0);
   M5.Display.setColorDepth(16);
 
-  Serial.printf("LcdTap M5Tab5  PSRAM=%u board=%d display=%dx%d\n",
-                (unsigned)ESP.getPsramSize(), (int)M5.getBoard(),
-                M5.Display.width(), M5.Display.height());
+  Serial.printf(
+      "LcdTap M5Tab5  PSRAM=%u internalFree=%u board=%d display=%dx%d\n",
+      (unsigned)ESP.getPsramSize(),
+      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+      (int)M5.getBoard(), M5.Display.width(), M5.Display.height());
 
   // M5.begin() runs M5.Imu.begin() very early (before Display.init() and
   // other setup that takes noticeable time); the BMI270 has occasionally
@@ -541,8 +555,8 @@ void setup() {
   }
 
   lcdtap::HostInterface host;
-  host.alloc = psramAlloc;
-  host.free = psramFree;
+  host.alloc = smartAlloc;
+  host.free = smartFree;
   host.log = hostLog;
   host.userData = nullptr;
 
