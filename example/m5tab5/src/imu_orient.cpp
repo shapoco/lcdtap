@@ -21,9 +21,19 @@ static constexpr uint64_t ORIENT_HOLD_MS = 300;
 // panel orientation one quadrant short of the convention documented in
 // imu_orient.hpp (real tilt data was only available once a BMI270
 // bring-up issue was worked around, so this mapping had never been
-// validated against actual tilt before). Correct by advancing the
-// quantized quadrant by one 90° CW step.
-static constexpr uint8_t ORIENT_CORRECTION = 1;
+// validated against actual tilt before). Originally corrected by
+// advancing the quantized quadrant by one 90° CW step (value 1).
+//
+// main.cpp's switch from M5.Display.setRotation(3) to setRotation(0)
+// (panel's native physical orientation, see project perf-tuning notes)
+// shifted the panel's own presentation by one quadrant, which showed up
+// as OSD/keypad content rendering rotated 90° CW from correct. Since
+// this correction already exists purely to align the quantized IMU
+// quadrant with the panel's presentation, undoing exactly one CW step
+// (1 -> 0) cancels it out -- confirmed against the observed symptom
+// (content tilted CW by exactly one quadrant, not a mirrored/broken
+// pattern), so no other rotation math needed to change.
+static constexpr uint8_t ORIENT_CORRECTION = 2;
 
 void imuOrientInit(ImuOrientState *s) {
   s->fx = s->fy = s->fz = 0.0f;
