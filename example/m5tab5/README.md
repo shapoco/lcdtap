@@ -60,22 +60,31 @@ I2C 接続の注意:
 - クロックストレッチは行わないため、SCL を確認しないビットバング
   マスタとも共存できる (代わりに読み出しはダミー値のベストエフォート)。
 
-ピン割り当ては `include/app_config.h` で変更できる。
+ピン割り当ては `main/include/app_config.h` で変更できる。
 
 ## ビルド
 
-公式 platformio の espressif32 プラットフォームは ESP32-P4 に対応していない
-ため、community の pioarduino プラットフォーム (Arduino-ESP32 3.x /
-ESP-IDF v5.5 ベース) を使用する。`platformio.ini` に設定済み。
+ネイティブ ESP-IDF (idf.py) を使用する。**ESP-IDF v5.5 系が必須**
+(M5GFX/M5Unified の ESP-IDF ビルドは v5.5 系までしか検証されておらず、
+`i2c_slave.cpp` も `ESP_IDF_VERSION >= 5.5` を要求する。v6.0 は非対応)。
 
 ```sh
-pio run              # ビルド
-pio run -t upload    # 書き込み
-pio device monitor   # シリアルログ (115200 bps)
+source <ESP-IDFのパス>/export.sh
+idf.py set-target esp32p4
+idf.py build              # ビルド
+idf.py -p <PORT> flash    # 書き込み
+idf.py -p <PORT> monitor  # シリアルログ (115200 bps)
 ```
 
-コアライブラリ `lib/` は `lib_deps = lcdtap=symlink://../../lib` で参照
-される (`lib/library.json` により PlatformIO ライブラリとして認識)。
+表示・タッチ・IMU・電源ブリングアップは M5Unified/M5GFX を ESP-IDF
+コンポーネントとして使用する (`main/idf_component.yml` で導入、
+`m5stack/m5gfx` は `async_blit.cpp` が内部ヘッダ経由で DSI パネルの
+生フレームバッファを取得しているためバージョン完全固定)。
+
+コアライブラリ `lib/` は `CMakeLists.txt` の `EXTRA_COMPONENT_DIRS` で
+IDF コンポーネントとして取り込まれる (`lib/CMakeLists.txt` の
+`ESP_PLATFORM` 分岐)。IDF 上でのコンポーネント名はディレクトリ名由来の
+`lib` になる (`main/CMakeLists.txt` の `REQUIRES` を参照)。
 
 ## 制約・注意事項
 
@@ -94,7 +103,7 @@ pio device monitor   # シリアルログ (115200 bps)
   遅延することがある。連続的に描画するマスタでは実害なし。
 - CS デアサート時にバイト境界に満たないビットは破棄され、`bitDrop`
   カウンタでシリアルログから観測できる。`csFrames` は CS フレーム数。
-- `app_config.h` の `SPI_RAW_DUMP_ENABLE` を有効にすると、受信 raw
+- `main/include/app_config.h` の `SPI_RAW_DUMP_ENABLE` を有効にすると、受信 raw
   サンプルの先頭 64 byte がシリアルへ hex ダンプされる (ビット配置の
   実機検証用。RESX で再アーム)。
 - NVS 書き込み中は PARLIO の ISR が一時停止する (キャプチャが短時間
