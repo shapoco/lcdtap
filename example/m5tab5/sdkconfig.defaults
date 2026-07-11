@@ -1,0 +1,35 @@
+# LcdTap M5Tab5 (ESP32-P4) default configuration.
+#
+# Mirrors the values already proven under the Arduino/pioarduino build
+# (CPU 400MHz, SPIRAM HEX @ 200MHz, L2 256KB/128B line, tick=1000Hz) --
+# those are unchanged here. The one deliberate change vs. the Arduino
+# prebuilt libraries is the compiler optimization level: Arduino's
+# prebuilt IDF libraries are always -Os, so -O2 on the project code alone
+# never reached the FreeRTOS/GDMA/PARLIO/esp_cache hot paths the capture
+# and blit pipeline spend most of their time in. Building the whole tree
+# natively lets COMPILER_OPTIMIZATION_PERF apply everywhere.
+CONFIG_IDF_TARGET="esp32p4"
+
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_400=y
+
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_HEX=y
+CONFIG_SPIRAM_SPEED_200M=y
+
+CONFIG_CACHE_L2_CACHE_256KB=y
+CONFIG_CACHE_L2_CACHE_LINE_128B=y
+
+CONFIG_FREERTOS_HZ=1000
+
+# Route stdout/stderr/esp_log and the console to the USB-Serial/JTAG port
+# (Tab5's USB-C), like ARDUINO_USB_CDC_ON_BOOT did under the Arduino
+# build -- the generic esp32p4 target otherwise defaults console to
+# UART0, which is not wired out on this board.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"

@@ -1,0 +1,8 @@
+dependencies:
+  # Pinned exact (not a caret range): async_blit.cpp reaches into M5GFX's
+  # internal Panel_DSI/Panel_FrameBufferBase headers (not re-exported by
+  # M5GFX.h) to locate the physical panel framebuffer. Bump deliberately
+  # and re-verify those internals if this version changes.
+  m5stack/m5gfx: "0.2.25"
+  m5stack/m5unified: "^0.2.17"
+  idf: ">=5.5"
