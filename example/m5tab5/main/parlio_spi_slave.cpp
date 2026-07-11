@@ -185,6 +185,17 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
     goto fail;
   }
 
+  // CS idles high (active-low). Without this, a realign that happens to
+  // run while the host hasn't connected yet (e.g. the capture watchdog's
+  // periodic re-realign firing before the master ever started) can prime
+  // against a floating CS line; if it settles low, the deserializer's
+  // discardUntilIdle barrier -- which only clears on a genuine CS-idle
+  // sample -- never clears, and the interface is stuck decoding nothing
+  // for the rest of the session even after the master starts for real.
+  // Matches the existing pico2 SPI slave, which pulls up its CS pin for
+  // the same reason (example/pico2_common/src/spi_slave.cpp).
+  gpio_set_pull_mode((gpio_num_t)cfg.pinCs, GPIO_PULLUP_ONLY);
+
   {
     parlio_rx_soft_delimiter_config_t delimCfg = {};
     delimCfg.sample_edge = PARLIO_SAMPLE_EDGE_POS;  // SPI mode 0
