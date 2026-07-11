@@ -33,3 +33,11 @@ CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# ESP-IDF 5.5's default targets chip revision >=v3.1 only; rev <3.0 and
+# >=3.0 are mutually exclusive hardware generations in IDF's model, and
+# actual Tab5 units observed so far report rev v1.0. Without this, the
+# bootloader refuses to boot ("requires chip revision in range
+# [v3.1 - v3.99] (this chip is revision v1.0)").
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+CONFIG_ESP32P4_REV_MIN_0=y
