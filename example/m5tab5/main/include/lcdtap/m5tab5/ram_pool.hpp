@@ -1,7 +1,9 @@
 #ifndef LCDTAP_M5TAB5_SRAM_POOL_HPP
 #define LCDTAP_M5TAB5_SRAM_POOL_HPP
 
-#include <M5Unified.h>
+#include <cstdint>
+
+#include <esp_err.h>
 
 namespace lcdtap::m5tab5 {
 

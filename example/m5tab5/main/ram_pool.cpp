@@ -1,5 +1,7 @@
 #include "lcdtap/m5tab5/ram_pool.hpp"
 
+#include <esp_heap_caps.h>
+
 namespace lcdtap::m5tab5 {
 
 void *spiDmaMemPool = nullptr;

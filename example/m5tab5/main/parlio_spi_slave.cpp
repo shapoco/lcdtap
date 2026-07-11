@@ -46,16 +46,19 @@
 #include "lcdtap/m5tab5/parlio_spi_slave.hpp"
 #include "lcdtap/m5tab5/ram_pool.hpp"
 
-#include <M5Unified.h>
-
 #include <cstring>
 
 #include <driver/gpio.h>
+#include <esp_log.h>
 #include <esp_rom_gpio.h>
 #include <esp_rom_sys.h>
 #include <soc/parlio_periph.h>
 
 namespace lcdtap::m5tab5 {
+
+namespace {
+constexpr const char *TAG = "parlio_spi_slave";
+}
 
 static constexpr uint32_t EXT_CLK_FREQ_HZ = 62'500'000;  // max supported SCK
 
@@ -119,7 +122,7 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
                              uint32_t dmaBufBytes, uint8_t *staging,
                              uint32_t stagingBytes) {
   if (dmaBufBytes < 2 * SOFT_EOF_BYTES || dmaBufBytes % CACHE_ALIGN != 0) {
-    Serial.printf("[parlioSpiSlaveInit] dmaBufBytes=%u invalid\n", dmaBufBytes);
+    ESP_LOGE(TAG, "dmaBufBytes=%u invalid", (unsigned)dmaBufBytes);
     return ESP_ERR_INVALID_ARG;
   }
 
@@ -153,7 +156,7 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
   // Pool-owned buffer (see ram_pool.hpp/.cpp), not heap-allocated here.
   s->dmaBuf = (uint8_t *)spiDmaMemPool;
   if (!s->dmaBuf) {
-    Serial.printf("[parlioSpiSlaveInit] dmaBuf alloc failed\n");
+    ESP_LOGE(TAG, "dmaBuf alloc failed");
     return ESP_ERR_NO_MEM;
   }
 
@@ -178,8 +181,7 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
 
   esp_err_t err = parlio_new_rx_unit(&unitCfg, &s->rxUnit);
   if (err != ESP_OK) {
-    Serial.printf("[parlioSpiSlaveInit] parlio_new_rx_unit failed: %d\n",
-                  (int)err);
+    ESP_LOGE(TAG, "parlio_new_rx_unit failed: %d", (int)err);
     goto fail;
   }
 
@@ -191,9 +193,7 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
     delimCfg.timeout_ticks = 0;  // no hardware timeout
     err = parlio_new_rx_soft_delimiter(&delimCfg, &s->delim);
     if (err != ESP_OK) {
-      Serial.printf(
-          "[parlioSpiSlaveInit] parlio_new_rx_soft_delimiter failed: %d\n",
-          (int)err);
+      ESP_LOGE(TAG, "parlio_new_rx_soft_delimiter failed: %d", (int)err);
       goto fail;
     }
   }
@@ -205,10 +205,8 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
     cbs.on_timeout = nullptr;
     err = parlio_rx_unit_register_event_callbacks(s->rxUnit, &cbs, s);
     if (err != ESP_OK) {
-      Serial.printf(
-          "[parlioSpiSlaveInit] parlio_rx_unit_register_event_callbacks "
-          "failed: %d\n",
-          (int)err);
+      ESP_LOGE(TAG, "parlio_rx_unit_register_event_callbacks failed: %d",
+               (int)err);
       goto fail;
     }
   }
@@ -229,8 +227,7 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
 
   err = parlioSpiSlaveRealign(s);
   if (err != ESP_OK) {
-    Serial.printf("[parlioSpiSlaveInit] parlioSpiSlaveRealign failed: %d\n",
-                  (int)err);
+    ESP_LOGE(TAG, "parlioSpiSlaveRealign failed: %d", (int)err);
     goto fail;
   }
 

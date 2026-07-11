@@ -1,5 +1,14 @@
 idf_component_register(
-    SRCS "main.cpp"
+    SRCS
+        "main.cpp"
+        "async_blit.cpp"
+        "display_out.cpp"
+        "i2c_slave.cpp"
+        "imu_orient.cpp"
+        "keypad.cpp"
+        "nvs_config.cpp"
+        "parlio_spi_slave.cpp"
+        "ram_pool.cpp"
     INCLUDE_DIRS "include"
     REQUIRES
         lib  # the core lcdtap library component; IDF names it after its
