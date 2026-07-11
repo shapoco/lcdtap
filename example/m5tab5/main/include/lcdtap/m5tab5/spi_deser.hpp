@@ -60,10 +60,22 @@ struct SpiDeser {
   // which act as an in-stream barrier — everything before the barrier is
   // stale data left in the DMA pipe from before the realign.
   bool discardUntilIdle;
+  // Upper bound (in samples) on how long discardUntilIdle waits for a
+  // genuine CS-idle sample before the caller forces it clear anyway (0 =
+  // unbounded, wait for CS idle only). Some masters assert CS once at
+  // boot and never release it for the whole session (a single-drop SPI
+  // bus has no reason to), in which case the intended CS-idle barrier
+  // can never arrive on its own; without a bound, one realign/barrier
+  // that happens to land before such a master starts wedges decoding
+  // for the rest of the boot even once the master is actively sending.
+  // A real CS-idle sample still takes priority and clears the barrier
+  // immediately whenever one does show up.
+  uint32_t discardBudget;
   // Diagnostics:
   uint32_t frameStartCount;      // CS idle -> active transitions
   uint32_t partialBitDropCount;  // partial bytes discarded at CS deassert
   uint32_t emitCount;            // decoded bytes handed to the sink
+  uint32_t forcedRecoveryCount;  // discardBudget reached 0 before CS idle
 };
 
 inline void spiDeserReset(SpiDeser *d) {
@@ -75,9 +87,11 @@ inline void spiDeserReset(SpiDeser *d) {
 inline void spiDeserInit(SpiDeser *d) {
   spiDeserReset(d);
   d->discardUntilIdle = false;
+  d->discardBudget = 0;
   d->frameStartCount = 0;
   d->partialBitDropCount = 0;
   d->emitCount = 0;
+  d->forcedRecoveryCount = 0;
 }
 
 inline void spiDeserFlushData(SpiDeserSink *sink) {
@@ -103,6 +117,10 @@ inline void spiDeserEmit(SpiDeser *d, SpiDeserSink *sink, uint8_t byte,
 // Slow path: only used around CS transitions, partial bytes and buffer
 // tails; the steady state is handled by the bulk path in spiDeserProcess.
 inline void spiDeserSample(SpiDeser *d, uint8_t nibble, SpiDeserSink *sink) {
+  if (d->discardUntilIdle && d->discardBudget != 0 && --d->discardBudget == 0) {
+    d->discardUntilIdle = false;
+    ++d->forcedRecoveryCount;
+  }
   if (nibble & 0x4u) {
     // CS deasserted (wire high): discard a partial byte and realign.
     if (d->inFrame) {

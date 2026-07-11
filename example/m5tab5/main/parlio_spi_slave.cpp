@@ -71,6 +71,17 @@ static constexpr uint32_t EXT_CLK_FREQ_HZ = 62'500'000;  // max supported SCK
 // consumed by explicit (offset, length) references.
 static constexpr uint32_t SOFT_EOF_BYTES = 4032;
 
+// Upper bound (in samples, 2/byte) on how long the post-realign discard
+// barrier waits for a genuine CS-idle sample before SpiDeser forces it
+// clear anyway (see spi_deser.hpp's SpiDeser::discardBudget). Some
+// masters (e.g. a single-drop SPI display) assert CS once at boot and
+// never release it for the whole session, so a barrier that only clears
+// on a CS-idle sample can wedge decoding permanently for such masters if
+// a realign happens to land before they start sending. 4x SOFT_EOF_BYTES
+// worth of samples bounds the one-time recovery glitch to roughly one
+// soft-delimiter chunk's worth of payload data.
+static constexpr uint32_t DISCARD_BUDGET_SAMPLES = 4u * SOFT_EOF_BYTES * 2u;
+
 // A queued chunk is considered lapped (overwritten by the wrapping DMA)
 // once this many bytes were captured after it. The DMA descriptor ring
 // covers dmaBufBytes minus the per-cycle EOF holes; keep a conservative
@@ -338,6 +349,7 @@ esp_err_t parlioSpiSlaveRealign(ParlioSpiSlaveState *s) {
   s->isrCumBytes = 0;
   spiDeserReset(&s->deser);
   s->deser.discardUntilIdle = true;
+  s->deser.discardBudget = DISCARD_BUDGET_SAMPLES;
   s->sink.dataLen = 0;
   s->rawDumpLen = 0;  // re-arm the bring-up dump
 
@@ -377,6 +389,7 @@ void parlioSpiSlaveInjectBarrier(ParlioSpiSlaveState *s) {
   // before the barrier and is dropped; the injected CS-idle samples end
   // the discard window and realign the bit accumulator.
   s->deser.discardUntilIdle = true;
+  s->deser.discardBudget = DISCARD_BUDGET_SAMPLES;
   s->sink.dataLen = 0;
   s->rawDumpLen = 0;  // re-arm the bring-up dump
   primePipeline(s);

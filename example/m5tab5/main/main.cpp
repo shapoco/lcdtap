@@ -436,13 +436,14 @@ static void displayTask(void *) {
       } else {
         ESP_LOGI(TAG,
                  "fps=%.1f iface=%d spiOvf=%lu desync=%lu csFrames=%lu "
-                 "bitDrop=%lu isrChunks=%lu rx=%lu",
+                 "bitDrop=%lu isrChunks=%lu rx=%lu forcedRecovery=%lu",
                  fps, (int)gCurrentIface, (unsigned long)gSpi.ringOverflowCount,
                  (unsigned long)gSpi.isrDesyncCount,
                  (unsigned long)gSpi.deser.frameStartCount,
                  (unsigned long)gSpi.deser.partialBitDropCount,
                  (unsigned long)gSpi.isrChunkCount,
-                 (unsigned long)gSpi.deser.emitCount);
+                 (unsigned long)gSpi.deser.emitCount,
+                 (unsigned long)gSpi.deser.forcedRecoveryCount);
       }
 
       // Per-frame timing breakdown, to see which stage of the display

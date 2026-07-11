@@ -33,13 +33,19 @@ struct Sample {
 };
 
 // Reference model: literal transcription of the per-sample semantics
-// (identical to the original pre-optimization decoder).
+// (identical to the original pre-optimization decoder). discardBudget=0
+// means "unbounded" (wait for a genuine CS-idle sample only), matching
+// SpiDeser::discardBudget's convention.
 static void referenceDecode(const std::vector<Sample> &samples,
-                            bool discardUntilIdle, std::vector<Event> *out) {
+                            bool discardUntilIdle, uint32_t discardBudget,
+                            std::vector<Event> *out) {
   uint8_t curByte = 0;
   uint8_t bitCount = 0;
   bool inFrame = false;
   for (const Sample &s : samples) {
+    if (discardUntilIdle && discardBudget != 0 && --discardBudget == 0) {
+      discardUntilIdle = false;
+    }
     if (s.cs) {
       curByte = 0;
       bitCount = 0;
@@ -88,9 +94,9 @@ static int gFailures = 0;
 
 static void runCase(std::mt19937 &rng, const std::vector<Sample> &samples,
                     bool discardUntilIdle, uint32_t dataCap, int alignOffset,
-                    const char *label) {
+                    const char *label, uint32_t discardBudget = 0) {
   std::vector<Event> expected;
-  referenceDecode(samples, discardUntilIdle, &expected);
+  referenceDecode(samples, discardUntilIdle, discardBudget, &expected);
 
   std::vector<uint8_t> raw = packSamples(samples);
   // Place the stream at a controlled misalignment inside a padded buffer.
@@ -109,6 +115,7 @@ static void runCase(std::mt19937 &rng, const std::vector<Sample> &samples,
   SpiDeser d;
   spiDeserInit(&d);
   d.discardUntilIdle = discardUntilIdle;
+  d.discardBudget = discardBudget;
 
   gEvents.clear();
   uint32_t pos = 0;
@@ -179,6 +186,21 @@ int main() {
     runCase(rng, s, false, 4, 0, "doc-0xA5-cmd");
   }
 
+  // A master that asserts CS once and never releases it for the rest of
+  // the stream (a real single-drop SPI bus has no reason to release CS
+  // between transactions). Without discardBudget, discardUntilIdle would
+  // never clear and nothing would ever be emitted; with a bound, decoding
+  // must resume partway through once the budget is exhausted.
+  {
+    std::vector<Sample> s;
+    std::uniform_int_distribution<int> bitDist(0, 1);
+    for (int i = 0; i < 400; ++i) {
+      s.push_back({(bool)bitDist(rng), true, false});  // dc=data, cs=asserted
+    }
+    runCase(rng, s, true, 4096, 0, "cs-held-low-bounded-recovery", 97);
+    runCase(rng, s, true, 5, 1, "cs-held-low-bounded-recovery-smallcap", 97);
+  }
+
   // Small caps exercise the flush boundaries: 1/3 keep the quad path
   // disabled (dataCap < 4), 4/5/7 hit the quad pre/post-flush edges.
   const uint32_t caps[] = {1, 3, 4, 5, 7, 4096};
@@ -188,6 +210,7 @@ int main() {
       for (int off = 0; off < 4; ++off) {
         runCase(rng, s, false, cap, off, "random");
         runCase(rng, s, true, cap, off, "random-discard");
+        runCase(rng, s, true, cap, off, "random-discard-bounded", 37);
       }
     }
   }
