@@ -62,6 +62,12 @@ struct SpiChunkRef {
 // therefore implies the referenced data has been lapped already.
 static constexpr uint32_t SPI_CHUNK_QUEUE_LEN = 64;
 
+// Soft-delimiter frame length in raw bytes (2 samples/byte), mirrored
+// from parlio_spi_slave.cpp so callers can approximate the SCK rate from
+// isrChunkCount (chunks are usually exactly this size for a continuous
+// master).
+static constexpr uint32_t SPI_SOFT_EOF_BYTES = 4032;
+
 struct ParlioSpiSlaveState {
   // Set by caller before parlioSpiSlaveProcess calls:
   lcdtap::LcdTap *inst;
@@ -92,9 +98,12 @@ struct ParlioSpiSlaveState {
   bool active;
   bool started;  // capture transaction has been started at least once
   // Diagnostics:
-  volatile uint32_t ringOverflowCount;  // chunks dropped/stale (DMA lapped)
-  volatile uint32_t isrChunkCount;      // DMA chunks reported by the ISR
-  volatile uint32_t isrDesyncCount;     // chunk pointer outside dmaBuf
+  // Chunks dropped as stale before spiDeserProcess() runs on them (the
+  // DMA writer has likely lapped the chunk already; see
+  // parlioSpiSlaveProcess()'s staleness check).
+  volatile uint32_t ringOverflowCount;
+  volatile uint32_t isrChunkCount;   // DMA chunks reported by the ISR
+  volatile uint32_t isrDesyncCount;  // chunk pointer outside dmaBuf
 };
 
 // Create and enable the PARLIO RX unit and start an infinite streaming

@@ -266,6 +266,68 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         }
       }
       // Tight loop: 3 bytes → 2 pixels
+#if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
+      {
+        // cachedBGR-hoisted fast path: writePixelRgb565() re-checks
+        // cachedBGR on every call (twice per iteration here). BGR is
+        // loop-invariant, so branch on it once and run one of two loop
+        // bodies instead. Row wrap is still checked per pixel (a row
+        // boundary can fall between pixel0 and pixel1 of the same
+        // 3-byte group, independent of the 3-byte grouping), so
+        // putPixel() keeps that part of writePixelRgb565()'s logic
+        // unchanged, just without the BGR branch (the caller already
+        // applied it, or not, depending on which loop below runs).
+        // always_inline guarantees this doesn't reintroduce a
+        // function-call boundary, same idiom as writePixelRgb565()
+        // itself (LCDTAP_INLINE).
+        const uint16_t inv = cachedInverter;
+        const int32_t hStep = cachedHStep;
+        auto putPixel = [&](uint_fast16_t px) [[gnu::always_inline]] {
+          *writePtr = (uint16_t)(px ^ inv);
+          writePtr += hStep;
+          if (++ramwrX > casetXE) {
+            ramwrX = casetXS;
+            if (++ramwrY > rasetYE) ramwrY = rasetYS;
+            writePtr = frameBuffer + physIndex(ramwrX, ramwrY);
+          }
+        };
+        if (cachedBGR) {
+          while (i + stride * 3 <= length) {
+            uint_fast16_t b0 = data[i];
+            i += stride;
+            uint_fast16_t b1 = data[i];
+            i += stride;
+            uint_fast16_t b2 = data[i];
+            i += stride;
+            uint_fast16_t px0 = ((b0 << 8) & 0xF000) | ((b0 << 7) & 0x0780) |
+                                ((b1 >> 3) & 0x001E);
+            uint_fast16_t px1 = ((b1 << 12) & 0xF000) | ((b2 << 3) & 0x0780) |
+                                ((b2 << 1) & 0x001E);
+            px0 = (uint_fast16_t)(((px0 << 11) & 0xF800u) | (px0 & 0x07E0u) |
+                                  ((px0 >> 11) & 0x1Fu));
+            px1 = (uint_fast16_t)(((px1 << 11) & 0xF800u) | (px1 & 0x07E0u) |
+                                  ((px1 >> 11) & 0x1Fu));
+            putPixel(px0);
+            putPixel(px1);
+          }
+        } else {
+          while (i + stride * 3 <= length) {
+            uint_fast16_t b0 = data[i];
+            i += stride;
+            uint_fast16_t b1 = data[i];
+            i += stride;
+            uint_fast16_t b2 = data[i];
+            i += stride;
+            uint_fast16_t px0 = ((b0 << 8) & 0xF000) | ((b0 << 7) & 0x0780) |
+                                ((b1 >> 3) & 0x001E);
+            uint_fast16_t px1 = ((b1 << 12) & 0xF000) | ((b2 << 3) & 0x0780) |
+                                ((b2 << 1) & 0x001E);
+            putPixel(px0);
+            putPixel(px1);
+          }
+        }
+      }
+#else
       while (i + stride * 3 <= length) {
         uint_fast16_t b0 = data[i];
         i += stride;
@@ -284,6 +346,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         pixel1 |= (b2 << 1) & 0x001E;   // B2
         writePixelRgb565(pixel1);
       }
+#endif
       // Save remainder
       while (i < length) {
         ramwrBuf[ramwrBufLen++] = data[i];

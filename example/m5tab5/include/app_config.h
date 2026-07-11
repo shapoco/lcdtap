@@ -58,13 +58,6 @@ static constexpr uint16_t STRIP_LINES = 40;
 // Input buffers
 //=============================================================================
 
-// PARLIO receive buffer, mounted directly to the RX DMA descriptors
-// (zero-copy; allocated from internal DMA-capable heap by the driver
-// wrapper). The raw stream is 31.25 MB/s at the maximum 62.5 MHz SCK, so
-// 64 KiB gives the drain task roughly 1.5-2 ms of slack before the
-// wrapping DMA overwrites unread chunks.
-static constexpr uint32_t SPI_DMA_BUF_BYTES = 64u * 1024u;
-
 // Staging buffer for deserialized same-D/C byte runs.
 static constexpr uint32_t SPI_STAGING_BYTES = 4096u;
 
@@ -79,6 +72,23 @@ static constexpr bool I2C_SNIFF_ENABLE = true;
 
 // I2C word ring ([bit8 = D/C, bits7:0 = byte]). Power of two.
 static constexpr uint32_t I2C_RING_BUF_WORDS = 1024u;
+
+//=============================================================================
+// Diagnostics
+//=============================================================================
+
+// One-shot micro-benchmark run at the very start of setup() (before
+// M5.begin(), before any ISR/task exists) to measure whether the
+// ESP32-P4 HP core executes a plain (potentially misaligned) 32-bit
+// pointer-cast load at native speed or via a slow/trapping emulation
+// path. Result (2026-07-11, M5Tab5 hardware): off=0 6.00 cy/word,
+// off=1..3 7-8 cy/word (1.17-1.33x) -- native HW support confirmed, not
+// a trap. spi_deser.hpp's bulk decoder was simplified to a single
+// unconditional path on the strength of this result (see
+// example/m5tab5/tmp.improve-performance.md). Leave false; only enable
+// for a dedicated bring-up flash if this ever needs re-verifying on
+// different hardware.
+static constexpr bool BENCH_UNALIGNED_LOAD = false;
 
 //=============================================================================
 // Tasks

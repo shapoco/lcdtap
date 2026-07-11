@@ -16,6 +16,7 @@
 #include <M5Unified.h>
 
 #include <driver/gpio.h>
+#include <esp_cpu.h>
 #include <esp_heap_caps.h>
 #include <esp_timer.h>
 
@@ -29,6 +30,7 @@
 #include "lcdtap/m5tab5/keypad.hpp"
 #include "lcdtap/m5tab5/nvs_config.hpp"
 #include "lcdtap/m5tab5/parlio_spi_slave.hpp"
+#include "lcdtap/m5tab5/ram_pool.hpp"
 
 using namespace lcdtap::m5tab5;
 
@@ -49,7 +51,9 @@ static DisplayOutState gDisp;
 static KeypadState gKeypad;
 static ImuOrientState gOrient;
 
-static lcdtap::BusType gCurrentIface = lcdtap::BusType::SPI_4LINE;
+// Always overwritten from cfg.busInterface early in setup() before any
+// task/ISR reads it; this initializer just documents the fallback value.
+static lcdtap::BusType gCurrentIface = lcdtap::BusType::I2C;
 static bool gIfaceActive = false;
 
 static TaskHandle_t gInputTask = nullptr;
@@ -85,33 +89,14 @@ static uint64_t gOsdRasterUs = 0;  // Osd::fillScanline() loop into gOsdBuf
 //=============================================================================
 // Host interface (LcdTap controller framebuffer)
 //=============================================================================
-// A static pool (mirroring example/pico2_universal/src/main.cpp's
-// memPool/poolAlloc) was tried here first, to avoid heap fragmentation
-// from repeated alloc/free on every controller switch. It doesn't fit:
-// this build's DIRAM budget is 445392 bytes total, ~207000 already
-// statically claimed by the rest of the firmware, and even a 145KiB
-// static reservation (already too small for the 150KiB default ST7789/
-// ILI9341 framebuffer) was the largest that still linked -- ESP-IDF's
-// `--enable-non-contiguous-regions` linker pass fails outright rather
-// than degrading gracefully once a static allocation doesn't fit,
-// unlike a heap allocation returning nullptr. So: internal SRAM first
-// via the heap, falling back to PSRAM if the requested size (varies by
-// controller/preset, up to a few hundred KB) doesn't fit -- both the
-// write side (incoming pixel data) and the read side (fillScanline()'s
-// scanline gather, a strided column read for odd rotations) are much
-// cheaper on internal SRAM than PSRAM, so this is still worth doing
-// despite going through the heap.
-static void *smartAlloc(size_t size) {
-  void *p = heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (p) return p;
-  Serial.printf(
-      "[main] smartAlloc: %u bytes didn't fit internal SRAM, "
-      "falling back to PSRAM\n",
-      (unsigned)size);
-  return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-}
+// Backed by a fixed-size PSRAM pool (ram_pool.hpp/.cpp), allocated once
+// at boot by sramPoolInit() and sized for the largest buffer the OSD can
+// configure. LcdTap calls alloc/free on every controller switch, but
+// there is nothing to actually (re)allocate here -- the pool is handed
+// out as-is and never freed, hence smartFree() being a no-op.
+static void *smartAlloc(size_t size) { return frameBuffMemPool; }
 
-static void smartFree(void *ptr) { heap_caps_free(ptr); }
+static void smartFree(void *ptr) {}
 
 static void hostLog(void *, const char *message) {
   Serial.printf("[lcdtap] %s\n", message);
@@ -246,22 +231,39 @@ static void inputTask(void *) {
       }
     }
 
-    if (!gIfaceActive) continue;
-    if (gCurrentIface == lcdtap::BusType::I2C) {
-      i2cSlaveProcess(&gI2c);
-      if (gSpi.active) parlioSpiSlaveProcess(&gSpi);  // bus sniffer drain
-      // Bus activity sampling (diagnostics).
-      static int prevSda = -1, prevScl = -1;
-      int sda = gpio_get_level((gpio_num_t)PIN_I2C_SDA);
-      int scl = gpio_get_level((gpio_num_t)PIN_I2C_SCL);
-      if (sda != prevSda || scl != prevScl) {
-        if (prevSda >= 0) gI2cBusActivity = gI2cBusActivity + 1;
-        prevSda = sda;
-        prevScl = scl;
+    if (gIfaceActive) {
+      if (gCurrentIface == lcdtap::BusType::I2C) {
+        i2cSlaveProcess(&gI2c);
+        if (gSpi.active) parlioSpiSlaveProcess(&gSpi);  // bus sniffer drain
+        // Bus activity sampling (diagnostics).
+        static int prevSda = -1, prevScl = -1;
+        int sda = gpio_get_level((gpio_num_t)PIN_I2C_SDA);
+        int scl = gpio_get_level((gpio_num_t)PIN_I2C_SCL);
+        if (sda != prevSda || scl != prevScl) {
+          if (prevSda >= 0) gI2cBusActivity = gI2cBusActivity + 1;
+          prevSda = sda;
+          prevScl = scl;
+        }
+      } else {
+        parlioSpiSlaveProcess(&gSpi);
       }
-    } else {
-      parlioSpiSlaveProcess(&gSpi);
     }
+
+    // Unconditional yield so IDLE0 (and its task-watchdog reset) and any
+    // lower-priority core-0 task always get a scheduling window. This
+    // task runs at INPUT_TASK_PRIO=20 and never yields voluntarily
+    // otherwise: if PARLIO ISR notifications arrive faster than they can
+    // be drained, ulTaskNotifyTake() above returns immediately every
+    // time (the notification count never reaches zero), so without this
+    // delay the task would never actually block, permanently starving
+    // IDLE0 and tripping its watchdog (observed on hardware under a
+    // sustained-overload capture scenario). CONFIG_FREERTOS_HZ=1000 on
+    // this target, so 1 tick = 1ms; the chunk queue
+    // (SPI_CHUNK_QUEUE_LEN=64, ~129us/chunk at the max 62.5MHz SCK rate)
+    // absorbs several ms of backlog, and parlioSpiSlaveProcess() drains
+    // the whole queue per call regardless of how much piled up, so this
+    // costs at most ~1ms of added latency, not throughput.
+    vTaskDelay(1);
   }
 }
 
@@ -409,7 +411,11 @@ static void displayTask(void *) {
     // Periodic diagnostics + capture watchdog.
     if (nowMs - lastStatsMs >= 5000) {
       uint32_t frames = gDisp.frameCount - lastStatsFrames;
-      float fps = frames * 1000.0f / (float)(nowMs - lastStatsMs);
+      uint64_t elapsedMs = nowMs - lastStatsMs;
+      float fps = frames * 1000.0f / (float)elapsedMs;
+      // Moved up from the watchdog check below so both branches can use
+      // the same snapshot.
+      uint32_t isrChunks = gSpi.isrChunkCount;
       if (gCurrentIface == lcdtap::BusType::I2C) {
         char i2cStatus[160];
         i2cSlaveDebugStatus(&gI2c, i2cStatus, sizeof(i2cStatus));
@@ -471,8 +477,8 @@ static void displayTask(void *) {
 
       // If no DMA chunk arrived for a whole stats period, the capture is
       // either idle (master quiet — realign is harmless then) or dead
-      // (recovered by the realign). Handled by the input task.
-      uint32_t isrChunks = gSpi.isrChunkCount;
+      // (recovered by the realign). Handled by the input task. isrChunks
+      // was snapshotted above (shared with the Phase 0 SCK estimate).
       if (gCurrentIface == lcdtap::BusType::SPI_4LINE && gSpi.active &&
           isrChunks == lastIsrChunks) {
         gSpiRealignReq = true;
@@ -499,9 +505,80 @@ static void displayTask(void *) {
 }
 
 //=============================================================================
+// Phase 1-1 diagnostic: unaligned-load micro-benchmark
+// (example/m5tab5/tmp.improve-performance.md; only runs when
+// BENCH_UNALIGNED_LOAD is true). Determines whether the ESP32-P4 HP core
+// executes a plain, potentially-misaligned 32-bit pointer-cast load
+// (*reinterpret_cast<const uint32_t*>(p) for arbitrary p -- UB in the
+// standard) at native speed, at slow trap-emulated speed, or faults
+// outright. Deliberately called before M5.begin() so no ISR/task exists
+// yet to add jitter to the cycle counts, and deliberately prints +
+// flushes before each offset's trial so a crash mid-benchmark still
+// leaves a clear trace of which offset caused it.
+//=============================================================================
+static void benchUnalignedLoad() {
+  constexpr uint32_t BUF_BYTES = 16u * 1024u;
+  constexpr int TRIALS = 8;
+  uint8_t *buf = (uint8_t *)heap_caps_malloc(
+      BUF_BYTES + 4, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!buf) {
+    Serial.println("[bench] alloc failed");
+    return;
+  }
+  for (uint32_t i = 0; i < BUF_BYTES + 4; ++i) {
+    buf[i] = (uint8_t)(i * 2654435761u);
+  }
+
+  uint32_t alignedCy = 0;
+  for (int off = 0; off < 4; ++off) {
+    Serial.printf("[bench] off=%d starting\n", off);
+    Serial.flush();  // last line before a potential fault at this offset
+    uint32_t best = 0xFFFFFFFFu;
+    for (int t = 0; t < TRIALS; ++t) {
+      volatile uint32_t acc = 0;
+      uint32_t t0 = esp_cpu_get_cycle_count();
+      for (const uint8_t *p = buf + off; p + 4 <= buf + off + BUF_BYTES;
+           p += 4) {
+        acc += *reinterpret_cast<const uint32_t *>(p);
+      }
+      uint32_t dt = esp_cpu_get_cycle_count() - t0;
+      if (dt < best) best = dt;
+      (void)acc;
+    }
+    uint32_t words = BUF_BYTES / 4;
+    float cyPerWord = (float)best / words;
+    if (off == 0) alignedCy = best;
+    float ratio = alignedCy > 0 ? (float)best / alignedCy : 0.0f;
+    Serial.printf("[bench] off=%d best=%lu cy, %.2f cy/word, ratio=%.2fx\n",
+                  off, (unsigned long)best, cyPerWord, ratio);
+    Serial.flush();
+  }
+  heap_caps_free(buf);
+  Serial.println("[bench] done");
+  Serial.flush();
+}
+
+//=============================================================================
 // setup / loop
 //=============================================================================
 void setup() {
+  if (sramPoolInit() != ESP_OK) {
+    Serial.println("[main] sramPoolInit failed");
+    while (true) delay(1000);
+  }
+
+  if (BENCH_UNALIGNED_LOAD) {
+    // Bring up Serial early (normally done further below, after
+    // M5.begin()) so a crash inside the benchmark -- run before
+    // M5.begin() so no ISR/task exists yet to add jitter -- is still
+    // diagnosable via the last-printed offset. Only reorders boot for
+    // this dedicated diagnostic build; normal builds are unaffected.
+    Serial.begin(115200);
+    Serial.setTxTimeoutMs(0);
+    delay(1000);
+    benchUnalignedLoad();
+  }
+
   auto m5cfg = M5.config();
   M5.begin(m5cfg);
   Serial.begin(115200);
@@ -546,8 +623,13 @@ void setup() {
   // ---------------------------------------------------------------------
   // LcdTap init
   // ---------------------------------------------------------------------
+  // Default target: SSD1306 over I2C, a low-data-rate display well within
+  // this capture pipeline's throughput headroom (see
+  // tmp.improve-performance.md for why higher-rate SPI masters like
+  // PicoSystem are not reliably supported on this hardware).
   lcdtap::LcdTapConfig cfg;
-  lcdtap::getDefaultConfig(lcdtap::ControllerFamily::ST7789, &cfg);
+  lcdtap::getDefaultConfig(lcdtap::ControllerFamily::SSD1306, &cfg);
+  cfg.outputRotation = 1;  // 90 degrees
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
   cfg.dviWidth = M5.Display.width();
   cfg.dviHeight = M5.Display.height();
@@ -556,8 +638,12 @@ void setup() {
     savedCfg.libConfig.dviWidth = cfg.dviWidth;
     savedCfg.libConfig.dviHeight = cfg.dviHeight;
     cfg = savedCfg.libConfig;
-    gCurrentIface = cfg.busInterface;
   }
+  // Always derive gCurrentIface from cfg.busInterface (default or saved),
+  // not just when a saved config was loaded -- otherwise a first boot
+  // would keep gCurrentIface at its static-initialized value regardless
+  // of what the default config's busInterface actually is.
+  gCurrentIface = cfg.busInterface;
   if (gCurrentIface != lcdtap::BusType::I2C &&
       gCurrentIface != lcdtap::BusType::SPI_4LINE) {
     gCurrentIface = lcdtap::BusType::SPI_4LINE;
@@ -576,28 +662,6 @@ void setup() {
   }
   gInst = &inst;
 
-  // Boot test pattern: R/G/B vertical bars in the framebuffer, shown until
-  // the master sends its init sequence. Doubles as a byte-order check —
-  // the bars must appear red, green, blue from left to right.
-  {
-    lcdtap::LcdTapConfig curCfg = inst.getConfig();
-    uint16_t *fb = inst.getFramebuf();
-    for (uint16_t y = 0; y < curCfg.buffHeight; ++y) {
-      for (uint16_t x = 0; x < curCfg.buffWidth; ++x) {
-        uint16_t c;
-        if (x < curCfg.buffWidth / 3) {
-          c = 0xF800;  // red
-        } else if (x < curCfg.buffWidth * 2 / 3) {
-          c = 0x07E0;  // green
-        } else {
-          c = 0x001F;  // blue
-        }
-        fb[(uint32_t)y * curCfg.buffWidth + x] = c;
-      }
-    }
-    inst.setDisplayOn(true);
-  }
-
   // ---------------------------------------------------------------------
   // OSD / keypad / IMU / display output
   // ---------------------------------------------------------------------
@@ -606,12 +670,11 @@ void setup() {
   gOsd.init(osdCfg);
 
   // Offscreen OSD raster for orientation-following compositing. PSRAM,
-  // not internal SRAM: competing with the LcdTap framebuffer (smartAlloc
-  // above) and the DMA engine's own working memory (async_blit.cpp) for
-  // internal SRAM was measured to starve GDMA's link-list allocation
-  // ("no mem for link list items") and corrupt the display. PSRAM is an
-  // acceptable place for this buffer since it's touched only while the
-  // OSD is open, not every frame.
+  // not internal SRAM: competing with the DMA engine's own working
+  // memory (async_blit.cpp) for internal SRAM was measured to starve
+  // GDMA's link-list allocation ("no mem for link list items") and
+  // corrupt the display. PSRAM is an acceptable place for this buffer
+  // since it's touched only while the OSD is open, not every frame.
   {
     size_t osdBytes =
         (size_t)lcdtap::OSD_WIDTH * lcdtap::OSD_HEIGHT * sizeof(uint16_t);

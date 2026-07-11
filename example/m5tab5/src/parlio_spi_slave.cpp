@@ -44,11 +44,13 @@
 // are unaffected.
 
 #include "lcdtap/m5tab5/parlio_spi_slave.hpp"
+#include "lcdtap/m5tab5/ram_pool.hpp"
+
+#include <M5Unified.h>
 
 #include <cstring>
 
 #include <driver/gpio.h>
-#include <esp_heap_caps.h>
 #include <esp_rom_gpio.h>
 #include <esp_rom_sys.h>
 #include <soc/parlio_periph.h>
@@ -65,11 +67,6 @@ static constexpr uint32_t EXT_CLK_FREQ_HZ = 62'500'000;  // max supported SCK
 // to 2048. Correctness does not depend on this matching — chunks are
 // consumed by explicit (offset, length) references.
 static constexpr uint32_t SOFT_EOF_BYTES = 4032;
-
-// Alignment for the DMA buffer. Covers both the L1 (64 B) and L2 (128 B)
-// cache line sizes of the ESP32-P4 so the driver mounts it without
-// stash-buffer splitting.
-static constexpr uint32_t CACHE_ALIGN = 128;
 
 // A queued chunk is considered lapped (overwritten by the wrapping DMA)
 // once this many bytes were captured after it. The DMA descriptor ring
@@ -122,6 +119,7 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
                              uint32_t dmaBufBytes, uint8_t *staging,
                              uint32_t stagingBytes) {
   if (dmaBufBytes < 2 * SOFT_EOF_BYTES || dmaBufBytes % CACHE_ALIGN != 0) {
+    Serial.printf("[parlioSpiSlaveInit] dmaBufBytes=%u invalid\n", dmaBufBytes);
     return ESP_ERR_INVALID_ARG;
   }
 
@@ -142,7 +140,8 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
   };
   s->sink.onCommand = [](void *user, uint8_t byte) {
     // The deserializer has already flushed the pending data run.
-    static_cast<ParlioSpiSlaveState *>(user)->inst->inputCommand(byte);
+    ParlioSpiSlaveState *st = static_cast<ParlioSpiSlaveState *>(user);
+    st->inst->inputCommand(byte);
   };
   s->sink.user = s;
   s->ringOverflowCount = 0;
@@ -151,9 +150,12 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
   s->rawDumpLen = 0;
   s->started = false;
 
-  s->dmaBuf = (uint8_t *)heap_caps_aligned_calloc(
-      CACHE_ALIGN, 1, dmaBufBytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
-  if (!s->dmaBuf) return ESP_ERR_NO_MEM;
+  // Pool-owned buffer (see ram_pool.hpp/.cpp), not heap-allocated here.
+  s->dmaBuf = (uint8_t *)spiDmaMemPool;
+  if (!s->dmaBuf) {
+    Serial.printf("[parlioSpiSlaveInit] dmaBuf alloc failed\n");
+    return ESP_ERR_NO_MEM;
+  }
 
   parlio_rx_unit_config_t unitCfg = {};
   unitCfg.trans_queue_depth = 4;
@@ -175,7 +177,11 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
   unitCfg.flags.free_clk = 0;  // SCK toggles only while transferring
 
   esp_err_t err = parlio_new_rx_unit(&unitCfg, &s->rxUnit);
-  if (err != ESP_OK) goto fail;
+  if (err != ESP_OK) {
+    Serial.printf("[parlioSpiSlaveInit] parlio_new_rx_unit failed: %d\n",
+                  (int)err);
+    goto fail;
+  }
 
   {
     parlio_rx_soft_delimiter_config_t delimCfg = {};
@@ -184,7 +190,12 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
     delimCfg.eof_data_len = SOFT_EOF_BYTES;
     delimCfg.timeout_ticks = 0;  // no hardware timeout
     err = parlio_new_rx_soft_delimiter(&delimCfg, &s->delim);
-    if (err != ESP_OK) goto fail;
+    if (err != ESP_OK) {
+      Serial.printf(
+          "[parlioSpiSlaveInit] parlio_new_rx_soft_delimiter failed: %d\n",
+          (int)err);
+      goto fail;
+    }
   }
 
   {
@@ -193,7 +204,13 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
     cbs.on_receive_done = nullptr;  // fires per soft EOF; data comes in chunks
     cbs.on_timeout = nullptr;
     err = parlio_rx_unit_register_event_callbacks(s->rxUnit, &cbs, s);
-    if (err != ESP_OK) goto fail;
+    if (err != ESP_OK) {
+      Serial.printf(
+          "[parlioSpiSlaveInit] parlio_rx_unit_register_event_callbacks "
+          "failed: %d\n",
+          (int)err);
+      goto fail;
+    }
   }
 
   // Priming pin: self-driven dummy clock, output with input path enabled
@@ -211,7 +228,11 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
   }
 
   err = parlioSpiSlaveRealign(s);
-  if (err != ESP_OK) goto fail;
+  if (err != ESP_OK) {
+    Serial.printf("[parlioSpiSlaveInit] parlioSpiSlaveRealign failed: %d\n",
+                  (int)err);
+    goto fail;
+  }
 
   s->active = true;
   return ESP_OK;
@@ -221,26 +242,51 @@ fail:
   return err;
 }
 
-// Inject dummy clock edges from the priming pin so that the RX pipeline's
-// start synchronization consumes them instead of the master's first real
-// edges. The CS data lanes are rerouted to pinPrimeData (driven high)
-// during the injection, so every priming sample reads as "CS idle": the
-// deserializer drops them naturally (no counting needed) and they double
-// as the in-stream realign barrier that ends the discardUntilIdle window.
-// Note: GPIO_MATRIX_CONST_ONE_INPUT has no effect on the PARLIO RX data
-// inputs on the ESP32-P4 (verified on hardware), hence the real pin.
-static void primePipeline(ParlioSpiSlaveState *s) {
+// Reroute clk_in_sig and the CS data lanes to the self-driven priming
+// pins, disconnecting them from the real master pins. Split out from
+// primePipeline() so parlioSpiSlaveRealign() can call this BEFORE
+// starting the receive: clk_in_sig stays wired to the real pinSck from
+// parlio_new_rx_unit() onward, so if the reroute happened only after
+// starting the receive (as an earlier revision did), there was a window
+// where the RX unit's start-of-stream synchronizer could still see live
+// edges from a master that never idles its SCK (e.g. CoreS3, PicoSystem)
+// -- a race whose outcome depended on boot-time timing, observed on
+// hardware as a probabilistic "screen sometimes never comes up" failure
+// (the synchronizer locks onto a real edge instead of a dummy one, the
+// deserializer's discardUntilIdle then never clears because such
+// masters hold CS asserted continuously, and everything is silently
+// discarded via the slow per-sample path for the rest of the session).
+// Calling this first makes the real pins physically unreachable from
+// clk_in_sig for the whole priming sequence, turning the race into a
+// deterministic guarantee.
+static void primeRerouteIn(ParlioSpiSlaveState *s) {
   const auto &sigs = parlio_periph_signals.groups[0].rx_units[0];
   const gpio_num_t primePin = (gpio_num_t)s->cfg.pinPrime;
   const gpio_num_t primeDataPin = (gpio_num_t)s->cfg.pinPrimeData;
+
+  esp_rom_gpio_connect_in_signal(primeDataPin, sigs.data_sigs[2], false);
+  esp_rom_gpio_connect_in_signal(primeDataPin, sigs.data_sigs[3], false);
+  esp_rom_gpio_connect_in_signal(primePin, sigs.clk_in_sig, false);
+}
+
+// Inject dummy clock edges from the priming pin so that the RX pipeline's
+// start synchronization consumes them instead of the master's first real
+// edges (clk_in_sig/CS lanes must already be rerouted to the priming
+// pins via primeRerouteIn() before calling this). Every priming sample
+// reads as "CS idle" (pinPrimeData is driven high), so the deserializer
+// drops them naturally (no counting needed) and they double as the
+// in-stream realign barrier that ends the discardUntilIdle window.
+// Reroutes clk_in_sig/CS lanes back to the real pins afterward.
+// Note: GPIO_MATRIX_CONST_ONE_INPUT has no effect on the PARLIO RX data
+// inputs on the ESP32-P4 (verified on hardware), hence the real pin.
+static void primeInjectAndRerouteBack(ParlioSpiSlaveState *s) {
+  const auto &sigs = parlio_periph_signals.groups[0].rx_units[0];
+  const gpio_num_t primePin = (gpio_num_t)s->cfg.pinPrime;
 
   // Any number of edges works (self-discarding); a few extra beyond the
   // pipeline's synchronization depth.
   constexpr uint32_t PRIME_EDGES = 32;
 
-  esp_rom_gpio_connect_in_signal(primeDataPin, sigs.data_sigs[2], false);
-  esp_rom_gpio_connect_in_signal(primeDataPin, sigs.data_sigs[3], false);
-  esp_rom_gpio_connect_in_signal(primePin, sigs.clk_in_sig, false);
   for (uint32_t i = 0; i < PRIME_EDGES; ++i) {
     gpio_set_level(primePin, 1);
     esp_rom_delay_us(1);
@@ -253,6 +299,14 @@ static void primePipeline(ParlioSpiSlaveState *s) {
                                  false);
   esp_rom_gpio_connect_in_signal((gpio_num_t)s->cfg.pinCs, sigs.data_sigs[3],
                                  false);
+}
+
+// Reroute + inject + reroute back, for use on an already-running capture
+// (parlioSpiSlaveInjectBarrier()) where there is no start-of-stream
+// synchronizer event to race against.
+static void primePipeline(ParlioSpiSlaveState *s) {
+  primeRerouteIn(s);
+  primeInjectAndRerouteBack(s);
 }
 
 esp_err_t parlioSpiSlaveRealign(ParlioSpiSlaveState *s) {
@@ -282,6 +336,13 @@ esp_err_t parlioSpiSlaveRealign(ParlioSpiSlaveState *s) {
   esp_err_t err = parlio_rx_unit_enable(s->rxUnit, true);
   if (err != ESP_OK) return err;
 
+  // Reroute clk_in_sig/CS lanes to the priming pins BEFORE starting the
+  // receive below, so the RX unit's start-of-stream synchronizer can
+  // only ever see dummy edges -- see primeRerouteIn()'s comment for why
+  // the previous ordering (reroute after starting the receive) raced
+  // against continuously-clocking masters.
+  primeRerouteIn(s);
+
   parlio_receive_config_t recvCfg = {};
   recvCfg.delimiter = s->delim;
   recvCfg.flags.partial_rx_en = 1;
@@ -298,7 +359,7 @@ esp_err_t parlioSpiSlaveRealign(ParlioSpiSlaveState *s) {
   }
   s->started = true;
 
-  primePipeline(s);
+  primeInjectAndRerouteBack(s);
   return ESP_OK;
 }
 
@@ -329,7 +390,7 @@ void parlioSpiSlaveDeinit(ParlioSpiSlaveState *s) {
     s->rxUnit = nullptr;
   }
   if (s->dmaBuf) {
-    heap_caps_free(s->dmaBuf);
+    // Pool-owned (see ram_pool.hpp/.cpp); not freed here.
     s->dmaBuf = nullptr;
   }
   s->active = false;
@@ -366,10 +427,6 @@ void parlioSpiSlaveProcess(ParlioSpiSlaveState *s) {
 
     // Without an instance (e.g. bus-sniffer mode) only the dump is kept.
     if (s->inst) spiDeserProcess(&s->deser, raw, ref.len, &s->sink);
-    // If the chunk went stale while it was being decoded, garbage was
-    // emitted; count it (the deserializer realigns on the next CS idle).
-    if (s->isrCumBytes - ref.cumEnd > staleAge)
-      s->ringOverflowCount = s->ringOverflowCount + 1;
     s->chunkRd = rd;
   }
   if (!s->inst) return;

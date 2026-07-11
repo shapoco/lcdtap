@@ -128,20 +128,33 @@ inline void spiDeserSample(SpiDeser *d, uint8_t nibble, SpiDeserSink *sink) {
   }
 }
 
-// Raw-word access types for the bulk path. may_alias permits reading the
-// uint8_t sample stream as 32-bit words; the packed variant makes the
-// compiler emit alignment-safe (byte) loads for unaligned addresses
-// (frame starts land on arbitrary raw-byte offsets, and the resulting
-// phase persists for the whole burst). These must be distinct STRUCT
-// types: alignment attributes on a plain typedef are ignored when used
-// as a template argument, silently collapsing both instantiations into
-// one (observed with GCC).
+// Raw-word access type for the bulk path. may_alias permits reading the
+// uint8_t sample stream as 32-bit words without violating strict
+// aliasing. Deliberately NOT packed/aligned(1): a naturally-aligned type
+// makes GCC emit a single unconditional `lw`, even though the actual
+// pointer may be misaligned at runtime (UB per the standard). This is
+// safe here because the ESP32-P4 HP core executes misaligned 32-bit
+// loads in hardware at near-native speed (micro-benchmarked on real
+// M5Tab5 hardware, 2026-07-11: 6.00 cy/word aligned vs 7-8 cy/word
+// misaligned, i.e. 1.17-1.33x, not a trap -- see
+// example/m5tab5/tmp.improve-performance.md and
+// example/m5tab5/include/app_config.h's BENCH_UNALIGNED_LOAD). An
+// earlier revision split this into an aligned/unaligned dual path
+// (SpiDeserWord/SpiDeserWordU selected by a runtime address check) to
+// avoid the UB; that turned out to be actively harmful, not just
+// unnecessary: because a whole CS-held frame's word-decode alignment is
+// fixed at frame start (an accident of DMA/EOF chunking timing) and
+// never changes for the rest of the frame, an unlucky session could get
+// permanently locked onto the (then much slower, byte-load) unaligned
+// path for its entire duration, overrunning the CPU budget badly enough
+// to starve the FreeRTOS idle task into a watchdog reset on real
+// hardware (M5Stack CoreS3 as master). Do NOT reintroduce
+// packed/aligned(1) here, and do not enable -fsanitize=alignment on
+// this header, without re-running the micro-benchmark on whatever
+// target you're adding.
 struct SpiDeserWord {
   uint32_t v;
 } __attribute__((may_alias));
-struct SpiDeserWordU {
-  uint32_t v;
-} __attribute__((packed, may_alias));
 
 // Decode one 32-bit raw word (= 8 samples with CS active) into its
 // payload byte. MOSI bits sit at word bits {4,0,12,8,20,16,28,24} for
@@ -158,9 +171,9 @@ struct SpiDeserWordU {
 // CS stays active. The steady state (a data burst with D/C=1) is handled
 // 4 words at a time so the CS/DC tests and the loop overhead are shared
 // across 4 payload bytes. Returns the new raw index; stops at a word
-// containing a CS idle sample or at the last whole word. WORD selects
-// the aligned (single word load) or unaligned flavor.
-template <typename WORD>
+// containing a CS idle sample or at the last whole word. `raw+i` may be
+// misaligned at runtime; see the SpiDeserWord comment above for why that
+// is fine on this target.
 inline uint32_t spiDeserBulk(SpiDeser *d, const uint8_t *raw, uint32_t i,
                              uint32_t len, SpiDeserSink *sink) {
   // Keep the per-byte state in locals so the hot loop stays free of
@@ -172,11 +185,11 @@ inline uint32_t spiDeserBulk(SpiDeser *d, const uint8_t *raw, uint32_t i,
   uint32_t emitted = 0;
   const bool quadOk = bufCap >= 4;  // quad path stores 4 bytes at once
   while (len - i >= 4) {
-    uint32_t w0 = reinterpret_cast<const WORD *>(raw + i)->v;
+    uint32_t w0 = reinterpret_cast<const SpiDeserWord *>(raw + i)->v;
     if (quadOk && len - i >= 16) {
-      uint32_t w1 = reinterpret_cast<const WORD *>(raw + i + 4)->v;
-      uint32_t w2 = reinterpret_cast<const WORD *>(raw + i + 8)->v;
-      uint32_t w3 = reinterpret_cast<const WORD *>(raw + i + 12)->v;
+      uint32_t w1 = reinterpret_cast<const SpiDeserWord *>(raw + i + 4)->v;
+      uint32_t w2 = reinterpret_cast<const SpiDeserWord *>(raw + i + 8)->v;
+      uint32_t w3 = reinterpret_cast<const SpiDeserWord *>(raw + i + 12)->v;
       // Quad fast path: 32 samples with CS active and D/C=1 throughout
       // (bit25 = D/C of each word's last sample; D/C is byte-uniform on
       // the wire during data runs, so testing the last sample per word
@@ -245,11 +258,7 @@ inline void spiDeserProcess(SpiDeser *d, const uint8_t *raw, uint32_t len,
   uint32_t i = 0;
   while (i < len) {
     if (d->bitCount == 0 && !d->discardUntilIdle) {
-      if ((((uintptr_t)raw + i) & 3u) == 0) {
-        i = spiDeserBulk<SpiDeserWord>(d, raw, i, len, sink);
-      } else {
-        i = spiDeserBulk<SpiDeserWordU>(d, raw, i, len, sink);
-      }
+      i = spiDeserBulk(d, raw, i, len, sink);
       if (i >= len) break;
     }
     // Slow path: one raw byte (2 samples, earlier one in the high nibble).
