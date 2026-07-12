@@ -37,6 +37,7 @@
 #include "lcdtap/m5tab5/nvs_config.hpp"
 #include "lcdtap/m5tab5/parlio_spi_slave.hpp"
 #include "lcdtap/m5tab5/ram_pool.hpp"
+#include "lcdtap/m5tab5/splash.hpp"
 
 using namespace lcdtap::m5tab5;
 
@@ -688,6 +689,13 @@ extern "C" void app_main(void) {
     while (true) vTaskDelay(pdMS_TO_TICKS(1000));
   }
   gInst = &inst;
+
+  // Show the splash image immediately, before the SPI/I2C master has sent
+  // any commands. A real reset (RESX) or the master's own SLPOUT/DISPON
+  // sequence will naturally take over from here.
+  drawSplash(gInst->getFramebuf(), cfg.buffWidth, cfg.buffHeight,
+             cfg.outputRotation);
+  gInst->setDisplayOn(true);
 
   // ---------------------------------------------------------------------
   // OSD / keypad / IMU / display output
