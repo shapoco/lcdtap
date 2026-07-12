@@ -128,6 +128,75 @@ static bool IRAM_ATTR onPartialReceive(parlio_rx_unit_handle_t,
 // Init / deinit
 //=============================================================================
 
+// Creates s->rxUnit/s->delim and registers the ISR callback, using s->cfg
+// and s->dmaBufBytes (already set by the caller). Split out of
+// parlioSpiSlaveInit() so parlioSpiSlaveRealign() can also call it: a
+// realign on an already-used unit tears down and recreates the PARLIO
+// unit/delimiter from scratch instead of only disable()+enable() -- see
+// the comment on that call site for why. On failure, s->rxUnit/s->delim
+// are left however far creation got; the caller is responsible for
+// cleanup (parlioSpiSlaveDeinit handles null-checked partial state fine).
+static esp_err_t createRxPeripherals(ParlioSpiSlaveState *s) {
+  parlio_rx_unit_config_t unitCfg = {};
+  unitCfg.trans_queue_depth = 4;
+  unitCfg.max_recv_size = s->dmaBufBytes;
+  unitCfg.data_width = 4;
+  unitCfg.clk_src = PARLIO_CLK_SRC_EXTERNAL;
+  unitCfg.ext_clk_freq_hz = EXT_CLK_FREQ_HZ;
+  unitCfg.exp_clk_freq_hz = EXT_CLK_FREQ_HZ;
+  unitCfg.clk_in_gpio_num = (gpio_num_t)s->cfg.pinSck;
+  unitCfg.clk_out_gpio_num = GPIO_NUM_NC;
+  unitCfg.valid_gpio_num = GPIO_NUM_NC;  // CS is captured in-band instead
+  for (size_t i = 0; i < PARLIO_RX_UNIT_MAX_DATA_WIDTH; ++i) {
+    unitCfg.data_gpio_nums[i] = GPIO_NUM_NC;
+  }
+  unitCfg.data_gpio_nums[0] = (gpio_num_t)s->cfg.pinMosi;
+  unitCfg.data_gpio_nums[1] = (gpio_num_t)s->cfg.pinDc;
+  unitCfg.data_gpio_nums[2] = (gpio_num_t)s->cfg.pinCs;
+  unitCfg.data_gpio_nums[3] = (gpio_num_t)s->cfg.pinCs;  // lane 3 unused
+  unitCfg.flags.free_clk = 0;  // SCK toggles only while transferring
+
+  esp_err_t err = parlio_new_rx_unit(&unitCfg, &s->rxUnit);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "parlio_new_rx_unit failed: %d", (int)err);
+    return err;
+  }
+
+  // CS idles high (active-low). Without this, a realign that happens to
+  // run while the host hasn't connected yet (e.g. the capture watchdog's
+  // periodic re-realign firing before the master ever started) can prime
+  // against a floating CS line; if it settles low, the deserializer's
+  // discardUntilIdle barrier -- which only clears on a genuine CS-idle
+  // sample -- never clears, and the interface is stuck decoding nothing
+  // for the rest of the session even after the master starts for real.
+  // Matches the existing pico2 SPI slave, which pulls up its CS pin for
+  // the same reason (example/pico2_common/src/spi_slave.cpp).
+  gpio_set_pull_mode((gpio_num_t)s->cfg.pinCs, GPIO_PULLUP_ONLY);
+
+  parlio_rx_soft_delimiter_config_t delimCfg = {};
+  delimCfg.sample_edge = PARLIO_SAMPLE_EDGE_POS;  // SPI mode 0
+  delimCfg.bit_pack_order = PARLIO_BIT_PACK_ORDER_MSB;
+  delimCfg.eof_data_len = SOFT_EOF_BYTES;
+  delimCfg.timeout_ticks = 0;  // no hardware timeout
+  err = parlio_new_rx_soft_delimiter(&delimCfg, &s->delim);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "parlio_new_rx_soft_delimiter failed: %d", (int)err);
+    return err;
+  }
+
+  parlio_rx_event_callbacks_t cbs = {};
+  cbs.on_partial_receive = onPartialReceive;
+  cbs.on_receive_done = nullptr;  // fires per soft EOF; data comes in chunks
+  cbs.on_timeout = nullptr;
+  err = parlio_rx_unit_register_event_callbacks(s->rxUnit, &cbs, s);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "parlio_rx_unit_register_event_callbacks failed: %d",
+             (int)err);
+    return err;
+  }
+  return ESP_OK;
+}
+
 esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
                              const ParlioSpiSlaveConfig &cfg,
                              uint32_t dmaBufBytes, uint8_t *staging,
@@ -171,67 +240,8 @@ esp_err_t parlioSpiSlaveInit(ParlioSpiSlaveState *s,
     return ESP_ERR_NO_MEM;
   }
 
-  parlio_rx_unit_config_t unitCfg = {};
-  unitCfg.trans_queue_depth = 4;
-  unitCfg.max_recv_size = dmaBufBytes;
-  unitCfg.data_width = 4;
-  unitCfg.clk_src = PARLIO_CLK_SRC_EXTERNAL;
-  unitCfg.ext_clk_freq_hz = EXT_CLK_FREQ_HZ;
-  unitCfg.exp_clk_freq_hz = EXT_CLK_FREQ_HZ;
-  unitCfg.clk_in_gpio_num = (gpio_num_t)cfg.pinSck;
-  unitCfg.clk_out_gpio_num = GPIO_NUM_NC;
-  unitCfg.valid_gpio_num = GPIO_NUM_NC;  // CS is captured in-band instead
-  for (size_t i = 0; i < PARLIO_RX_UNIT_MAX_DATA_WIDTH; ++i) {
-    unitCfg.data_gpio_nums[i] = GPIO_NUM_NC;
-  }
-  unitCfg.data_gpio_nums[0] = (gpio_num_t)cfg.pinMosi;
-  unitCfg.data_gpio_nums[1] = (gpio_num_t)cfg.pinDc;
-  unitCfg.data_gpio_nums[2] = (gpio_num_t)cfg.pinCs;
-  unitCfg.data_gpio_nums[3] = (gpio_num_t)cfg.pinCs;  // lane 3 unused
-  unitCfg.flags.free_clk = 0;  // SCK toggles only while transferring
-
-  esp_err_t err = parlio_new_rx_unit(&unitCfg, &s->rxUnit);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "parlio_new_rx_unit failed: %d", (int)err);
-    goto fail;
-  }
-
-  // CS idles high (active-low). Without this, a realign that happens to
-  // run while the host hasn't connected yet (e.g. the capture watchdog's
-  // periodic re-realign firing before the master ever started) can prime
-  // against a floating CS line; if it settles low, the deserializer's
-  // discardUntilIdle barrier -- which only clears on a genuine CS-idle
-  // sample -- never clears, and the interface is stuck decoding nothing
-  // for the rest of the session even after the master starts for real.
-  // Matches the existing pico2 SPI slave, which pulls up its CS pin for
-  // the same reason (example/pico2_common/src/spi_slave.cpp).
-  gpio_set_pull_mode((gpio_num_t)cfg.pinCs, GPIO_PULLUP_ONLY);
-
-  {
-    parlio_rx_soft_delimiter_config_t delimCfg = {};
-    delimCfg.sample_edge = PARLIO_SAMPLE_EDGE_POS;  // SPI mode 0
-    delimCfg.bit_pack_order = PARLIO_BIT_PACK_ORDER_MSB;
-    delimCfg.eof_data_len = SOFT_EOF_BYTES;
-    delimCfg.timeout_ticks = 0;  // no hardware timeout
-    err = parlio_new_rx_soft_delimiter(&delimCfg, &s->delim);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "parlio_new_rx_soft_delimiter failed: %d", (int)err);
-      goto fail;
-    }
-  }
-
-  {
-    parlio_rx_event_callbacks_t cbs = {};
-    cbs.on_partial_receive = onPartialReceive;
-    cbs.on_receive_done = nullptr;  // fires per soft EOF; data comes in chunks
-    cbs.on_timeout = nullptr;
-    err = parlio_rx_unit_register_event_callbacks(s->rxUnit, &cbs, s);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "parlio_rx_unit_register_event_callbacks failed: %d",
-               (int)err);
-      goto fail;
-    }
-  }
+  esp_err_t err = createRxPeripherals(s);
+  if (err != ESP_OK) goto fail;
 
   // Priming pin: self-driven dummy clock, output with input path enabled
   // so the GPIO matrix can feed it back to the PARLIO inputs.
@@ -336,9 +346,26 @@ esp_err_t parlioSpiSlaveRealign(ParlioSpiSlaveState *s) {
   // ahead of new samples. The deserializer therefore discards everything
   // up to the priming barrier (discardUntilIdle) instead of relying on
   // positional flushing.
+  //
+  // Tear down and recreate the PARLIO unit/delimiter from scratch rather
+  // than only disable()+enable(). Confirmed on hardware: a disable+enable
+  // realign can permanently strand decoding for the rest of the session
+  // (a master that starts sending well after boot never gets decoded)
+  // even though every GPIO pin reads the textbook-correct level
+  // throughout (idle when idle, real driven levels once the master
+  // starts) -- ruling out a GPIO/electrical cause. disable()+enable()
+  // alone does not fully reset some PARLIO-internal synchronizer state;
+  // a full recreate does, at the cost of being slower and briefly
+  // re-registering the ISR callback.
   if (s->started) {
     parlio_rx_soft_delimiter_start_stop(s->rxUnit, s->delim, false);
     parlio_rx_unit_disable(s->rxUnit);
+    parlio_del_rx_delimiter(s->delim);
+    parlio_del_rx_unit(s->rxUnit);
+    s->delim = nullptr;
+    s->rxUnit = nullptr;
+    esp_err_t recreateErr = createRxPeripherals(s);
+    if (recreateErr != ESP_OK) return recreateErr;
   }
 
   // The next receive remounts the descriptor ring from scratch; clear
