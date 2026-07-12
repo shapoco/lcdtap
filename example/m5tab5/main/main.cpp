@@ -645,14 +645,19 @@ extern "C" void app_main(void) {
   // ---------------------------------------------------------------------
   // LcdTap init
   // ---------------------------------------------------------------------
+  // The display is kept in portrait orientation (setRotation(0)) for DMA
+  // efficiency, but we want to present landscape as the default orientation
+  // to the user. Apply a rotation offset to the preset configuration to
+  // achieve this user-facing orientation while maintaining the physical
+  // portrait layout for optimal DMA performance.
+  lcdtap::setPresetRotationOffset(3);
+
   // Default target: SSD1306 over I2C, a low-data-rate display well within
   // this capture pipeline's throughput headroom (see
   // tmp.improve-performance.md for why higher-rate SPI masters like
   // PicoSystem are not reliably supported on this hardware).
   lcdtap::LcdTapConfig cfg;
-  lcdtap::getDefaultConfig(lcdtap::ControllerFamily::SSD1306, &cfg);
-  cfg.outputRotation = 1;  // 90 degrees
-  cfg.scaleMode = lcdtap::ScaleMode::FIT;
+  lcdtap::getPresetConfig(lcdtap::ConfigPreset::SSD1306, &cfg);
   cfg.dviWidth = M5.Display.width();
   cfg.dviHeight = M5.Display.height();
 

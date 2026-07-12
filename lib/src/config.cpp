@@ -5,6 +5,8 @@
 
 namespace lcdtap {
 
+static uint8_t presetRotationOffset = 0;
+
 //=============================================================================
 // getDefaultConfig
 //=============================================================================
@@ -324,6 +326,10 @@ void formatConfigValue(char* buf, int bufLen, const ConfigEntry& item) {
   }
 }
 
+void setPresetRotationOffset(uint8_t offset) {
+  presetRotationOffset = offset & 3u;
+}
+
 //=============================================================================
 // Get configuration preset
 //=============================================================================
@@ -429,6 +435,8 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
     cfg->trimWidth = cfg->buffWidth;
     cfg->trimHeight = cfg->buffHeight;
   }
+
+  cfg->outputRotation = (cfg->outputRotation + presetRotationOffset) & 3u;
 }
 
 //=============================================================================

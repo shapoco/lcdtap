@@ -278,6 +278,7 @@ void formatConfigValue(char* buf, int bufLen, const ConfigEntry& item);
 // Get configuration preset
 // Writes a predefined configuration for a common device into cfg.
 //=============================================================================
+void setPresetRotationOffset(uint8_t offset);
 void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg);
 
 //=============================================================================
