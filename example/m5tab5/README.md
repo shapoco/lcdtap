@@ -1,110 +1,98 @@
-# LcdTap example for M5Stack Tab5 (ESP32-P4)
+# LcdTap-Tab5
 
-Tab5 を SPI/I2C 接続の LCD ディスプレイとして使えるようにする実装例。
-背面ポート (M5-Bus / Grove) で LCD コントローラコマンドを受信し、
-1280x720 の内蔵 MIPI-DSI パネルに M5GFX 経由で表示する。
+An implementation example that lets the Tab5 act as an SPI/I2C-connected LCD
+display. It receives LCD controller commands on the rear port (M-Bus /
+Grove) and renders them via M5GFX onto the built-in 1280x720 MIPI-DSI panel.
 
-## 特徴
+## Features
 
-- **SPI スレーブ**: PARLIO RX ユニットで SCK を外部クロックとして
-  MOSI + D/C + CS の各レーンを毎ビットサンプリングし、ソフトウェアで
-  CS フレーミングする (soft delimiter 常時受信)。
-  マスタ側の CS / D/C の使い方に制約なし。
-  ※ CS を level delimiter の valid 信号として使う構成は、enable 同期
-  (SCK ドメイン 2 段 FF) によりフレーム先頭 2 サンプルが欠落するため
-  使用しない。取り込み開始時にも同種の同期でエッジが消費されるため、
-  開始時に G52 (無接続ピン) から自前のダミークロックを注入して同期を
-  先に済ませる「プライミング」を行う。プライミング中は CS レーン入力を
-  GPIO matrix の定数 1 に切り替えるため、注入サンプルは CS アイドルとして
-  自然に破棄され、同時に再同期バリア (realign 前の滞留データの破棄境界)
-  として機能する。再プライミング (キャプチャ再起動) はキャプチャ停止
-  検出時 (5 秒間 DMA チャンクが届かない場合) のみ。RESX 立ち下がり時は
-  キャプチャを止めずにバリアだけを注入し、リセット前に DMA パイプへ
-  滞留していたデータを破棄する (SSD1306 の自動ラップに依存するマスタで
-  アドレスポインタがズレるのを防ぐ)。注入は RESX が Low の間 = バスが
-  静穏な間のみ行い、リセット線のバウンスでは実データを切らない。
-- **I2C スレーブ**: `i2c_ll` HAL 直接制御
-  (lovyan03 氏の [ESP32_I2C_slave_example](https://github.com/lovyan03/ESP32_I2C_slave_example) ベース)。
-  SSD1306 プロトコル (制御バイト bit6 = D/C#, bit7 = Co) をデコード。
-  実物の SSD1306 はクロックストレッチをしないため、SSD1306 用マスタ
-  (SCL を確認しないビットバング実装等) との互換性を優先して
-  **クロックストレッチは無効** (32 byte FIFO + 高優先 ISR で受信)。
-- **仮想キーパッド**: 物理ボタンの代わりに、タッチまたは本体の姿勢変化で
-  画面下端 (ユーザ視点、IMU 追従) に十字キー + Enter を半透明表示。
-  5 秒間無操作で 2 秒かけてフェードアウト。
-- **OSD**: Enter キーでメニューを開く。OSD は IMU 姿勢に追従して常に
-  ユーザから見て正立・中央に表示される (オフスクリーン描画 + 回転合成)。
-  フレームバッファの表示向きは OSD 設定に従う (本体姿勢とは非連動)。
-  OSD 非表示中は左右キーで出力回転を切り替え。
-- **設定保存**: OSD の Apply で NVS に保存。起動時に画面をタッチしたまま
-  にするとデフォルト設定で起動する。
+### I2C slave
 
-## 配線
+Use the Grove connector on the side of Tab5 as an I2C slave and draw on the
+Tab5 screen using SSD1306-compatible commands. The I2C slave address is 0x3C.
 
-| 信号 | GPIO | 場所 | 備考 |
+### SPI slave
+
+Use the M-Bus connector on the back of Tab5 as an SPI slave and draw on the
+Tab5 screen with 4-wire SPI (MOSI/D/C/CS).
+All signals including RESX must be connected.
+
+The input interface has I2C selected by default.
+To switch to SPI, select 4-Line SPI in the Interface menu of the OSD.
+
+### OSD and keypad
+
+When you tap the screen, a semi-transparent keypad appears on the screen.
+Tap the return key icon to open the OSD menu where you can change various settings.
+Settings are saved on the Tab5 device.
+
+### Support for controllers other than SSD1306
+
+Other controllers besides SSD1306 can be selected in the OSD, but
+they may not work correctly due to performance and hardware constraints.
+
+## Wiring
+
+| Signal | GPIO | Location | Notes |
 |---|---|---|---|
-| SPI SCK | G17 | M5-Bus | PARLIO 外部クロック入力 |
-| SPI MOSI | G16 | M5-Bus | PARLIO データレーン 0 |
-| SPI D/C | G18 | M5-Bus | PARLIO データレーン 1 |
-| SPI CS | G45 | M5-Bus | active-low、プルアップ |
-| RESX | G19 | M5-Bus | active-low、プルアップ、SPI/I2C 共用 |
-| (予約) | G52 | M5-Bus | プライミング用ダミークロック。**無接続のこと** |
-| (予約) | G51 | M5-Bus | プライミング用 CS 代替 (High 駆動)。**無接続のこと** |
-| I2C SDA | G53 | Grove | スレーブアドレス 0x3C |
-| I2C SCL | G54 | Grove | 外付けプルアップ (2.2k–10kΩ) 推奨 |
+| SPI SCK | G17 | M-Bus ||
+| SPI MOSI | G16 | M-Bus ||
+| SPI D/C | G18 | M-Bus | |
+| SPI CS | G45 | M-Bus | active-low, pulled up |
+| RESX | G19 | M-Bus | active-low, pulled up, shared by SPI/I2C |
+| (reserved) | G52 | M-Bus | Dummy clock for priming. **Leave unconnected** |
+| (reserved) | G51 | M-Bus | CS substitute for priming (driven High). **Leave unconnected** |
+| I2C SDA | G53 | Grove | Slave address 0x3C |
+| I2C SCL | G54 | Grove | External pull-up (2.2k-10kΩ) recommended |
 
-I2C 接続の注意:
-- 信号レベルは **3.3V 限定** (ESP32-P4 は 5V トレラントではない)。
-- 元のディスプレイをバスに残したまま並列接続する場合、アドレス 0x3C が
-  重複するが受信 (wired-AND) は両立する。
-- クロックストレッチは行わないため、SCL を確認しないビットバング
-  マスタとも共存できる (代わりに読み出しはダミー値のベストエフォート)。
+![](./image/assign.jpg)
 
-ピン割り当ては `main/include/app_config.h` で変更できる。
+Notes on I2C wiring:
 
-## ビルド
+- Signal level is **3.3V only** (the ESP32-P4 is not 5V tolerant).
+- If the original display is left connected in parallel on the bus, the
+  address 0x3C collides, but reception (wired-AND) still works for both.
+- Since clock stretching is not performed, this also works alongside
+  bit-bang masters that don't check SCL (in exchange, reads return
+  best-effort dummy values).
 
-ネイティブ ESP-IDF (idf.py) を使用する。**ESP-IDF v5.5 系が必須**
-(M5GFX/M5Unified の ESP-IDF ビルドは v5.5 系までしか検証されておらず、
-`i2c_slave.cpp` も `ESP_IDF_VERSION >= 5.5` を要求する。v6.0 は非対応)。
+## Pre-built firmware
+
+Pre-built firmware is available on the [M5Burner](https://docs.m5stack.com/en/uiflow/m5burner/intro). Search for "LcdTap".
+
+## Build
+
+Uses native ESP-IDF (idf.py). **ESP-IDF v5.5.x is required**
+(the ESP-IDF build of M5GFX/M5Unified has only been verified up through
+the v5.5.x series, and `i2c_slave.cpp` also requires
+`ESP_IDF_VERSION >= 5.5`; v6.0 is not supported).
 
 ```sh
-source <ESP-IDFのパス>/export.sh
+source <path-to-ESP-IDF>/export.sh
 idf.py set-target esp32p4
-idf.py build              # ビルド
-idf.py -p <PORT> flash    # 書き込み
-idf.py -p <PORT> monitor  # シリアルログ (115200 bps)
+idf.py build              # build
+idf.py -p <PORT> flash    # flash
+idf.py -p <PORT> monitor  # serial log (115200 bps)
 ```
 
-表示・タッチ・IMU・電源ブリングアップは M5Unified/M5GFX を ESP-IDF
-コンポーネントとして使用する (`main/idf_component.yml` で導入、
-`m5stack/m5gfx` は `async_blit.cpp` が内部ヘッダ経由で DSI パネルの
-生フレームバッファを取得しているためバージョン完全固定)。
+Display, touch, IMU, and power bring-up use M5Unified/M5GFX as ESP-IDF
+components (pulled in via `main/idf_component.yml`; `m5stack/m5gfx` is
+pinned to an exact version because `async_blit.cpp` obtains the DSI
+panel's raw framebuffer via an internal header).
 
-コアライブラリ `lib/` は `CMakeLists.txt` の `EXTRA_COMPONENT_DIRS` で
-IDF コンポーネントとして取り込まれる (`lib/CMakeLists.txt` の
-`ESP_PLATFORM` 分岐)。IDF 上でのコンポーネント名はディレクトリ名由来の
-`lib` になる (`main/CMakeLists.txt` の `REQUIRES` を参照)。
+The core library `lib/` is pulled in as an IDF component via
+`EXTRA_COMPONENT_DIRS` in `CMakeLists.txt` (the `ESP_PLATFORM` branch in
+`lib/CMakeLists.txt`). Its component name under IDF is derived from the
+directory name, `lib` (see `REQUIRES` in `main/CMakeLists.txt`).
 
-## 制約・注意事項
+## Limitations / Notes
 
-- 対応バスは **I2C** と **SPI (4-wire)** のみ。SPI 3-wire と 8bit
-  パラレルは非対応 (OSD で選択しても無視される)。
-- 画面のリフレッシュはベストエフォート (LcdTap のフレームバッファを
-  ストリップ単位で DSI パネルへ転送)。
-- SPI 最大クロックは PARLIO RX の外部クロック上限に依存する。62.5 MHz
-  を目標とするが、GPIO matrix 遅延の影響を含め実測での確認が必要。
-- 起動時に R/G/B の縦バーが表示される (左から赤・緑・青)。色順が
-  異なる場合は RGB565 バイトオーダーの問題なので `display_out.cpp` の
-  pushImage 周りを確認すること。
-- CS デアサートによる即時フラッシュは行わないため、マスタが送信を
-  完全に停止すると、最後の DMA チャンク未満 (最大 `SOFT_EOF_BYTES` =
-  2048 raw byte ≒ payload 512 byte) のデータ反映が次のクロック到来まで
-  遅延することがある。連続的に描画するマスタでは実害なし。
-- CS デアサート時にバイト境界に満たないビットは破棄され、`bitDrop`
-  カウンタでシリアルログから観測できる。`csFrames` は CS フレーム数。
-- `main/include/app_config.h` の `SPI_RAW_DUMP_ENABLE` を有効にすると、受信 raw
-  サンプルの先頭 64 byte がシリアルへ hex ダンプされる (ビット配置の
-  実機検証用。RESX で再アーム)。
-- NVS 書き込み中は PARLIO の ISR が一時停止する (キャプチャが短時間
-  止まる) が、保存は OSD 操作中にしか起きないため実用上問題ない。
+- Only **I2C** and **SPI (4-wire)** buses are supported. SPI 3-wire and
+  8-bit parallel are not supported (selecting them in the OSD is
+  ignored).
+- Screen refresh is best-effort (LcdTap's framebuffer is transferred to
+  the DSI panel in strips).
+- The maximum SPI clock depends on the upper limit of PARLIO RX's
+  external clock. Around 50 MHz is the target, but this needs to be confirmed
+  by measurement on real hardware, including the effect of GPIO matrix
+  delay.
