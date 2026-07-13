@@ -121,7 +121,7 @@ void parlioSpiSlaveDeinit(ParlioSpiSlaveState *s);
 // Deserialize pending raw samples and dispatch commands/data to s->inst.
 void parlioSpiSlaveProcess(ParlioSpiSlaveState *s);
 
-// Discard all pending captured data (used on RESX assertion).
+// Discard all pending captured data (used on RST assertion).
 void parlioSpiSlaveFlush(ParlioSpiSlaveState *s);
 
 // Restart the capture from a clean, byte-aligned state: aborts the
@@ -134,7 +134,7 @@ esp_err_t parlioSpiSlaveRealign(ParlioSpiSlaveState *s);
 // Inject a CS-idle barrier into the RUNNING capture stream without
 // restarting it, and discard everything ahead of the barrier (data from
 // before the reset that is still stuck in the FIFO/DMA pipe). Used on
-// RESX assertion; the caller must guarantee the bus is quiet (master in
+// RST assertion; the caller must guarantee the bus is quiet (master in
 // reset) and must have drained the ring first.
 void parlioSpiSlaveInjectBarrier(ParlioSpiSlaveState *s);
 

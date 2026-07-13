@@ -41,7 +41,7 @@ SCLK は最大 62.5 MHz なので、SCLK/8 は最大 7.8125MHz となる。
 | 3 | SPI MOSI | PAR DCX（JMP_PIN） |
 | 4 | SPI DCX | PAR D[0]（74HC4094 Q1, LSB） |
 | 5 | SPI CS | PAR D[1]（74HC4094 Q2） |
-| 6 | SPI RESX | PAR D[2]（74HC4094 Q3） |
+| 6 | SPI RST | PAR D[2]（74HC4094 Q3） |
 | 7 | DBG_FRAME | PAR D[3]（74HC4094 Q4） |
 | 8 | — | PAR D[4]（74HC4094 Q5） |
 | 9 | — | PAR D[5]（74HC4094 Q6） |
@@ -50,7 +50,7 @@ SCLK は最大 62.5 MHz なので、SCLK/8 は最大 7.8125MHz となる。
 | 12-19 | DVI（変更なし） | DVI（変更なし） |
 | 20 | CFG_LCD_SIZE（変更なし） | 変更なし |
 | 21 | CFG_DVI_RES（変更なし） | 変更なし |
-| 22 | — | PAR RESX（旧 GPIO 6） |
+| 22 | — | PAR RST（旧 GPIO 6） |
 | 25 | LED（変更なし） | 変更なし |
 | 26 | — | CFG_SCALE_MODE0（旧 GPIO 10） |
 | 27 | — | CFG_SCALE_MODE1（旧 GPIO 11） |
@@ -96,7 +96,7 @@ do_sample:
 
 - `PIN_SPI_*` → `PIN_PAR_*` に全面変更
 - CS ピンの定数を削除
-- RESX → GPIO 22、CFG_SCALE_MODE0/1 → GPIO 26/27、DBG_FRAME → GPIO 28 に移動
+- RST → GPIO 22、CFG_SCALE_MODE0/1 → GPIO 26/27、DBG_FRAME → GPIO 28 に移動
 
 ### main.cpp
 

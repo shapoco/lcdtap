@@ -16,7 +16,7 @@ static constexpr int PIN_SPI_DC = 18;    // PARLIO data lane 1
 static constexpr int PIN_SPI_CS = 45;    // PARLIO valid signal (active low)
 
 // Reset signal from the master (shared by SPI/I2C modes)
-static constexpr int PIN_RESX = 19;
+static constexpr int PIN_RST = 19;
 
 // Self-driven pins for PARLIO capture priming. Only used internally
 // through the GPIO matrix; both must be left unconnected.
@@ -62,7 +62,7 @@ static constexpr uint16_t STRIP_LINES = 40;
 static constexpr uint32_t SPI_STAGING_BYTES = 4096u;
 
 // Dump the first raw sample bytes to serial for bring-up diagnostics
-// (bit placement / frame start verification). Re-armed by RESX flush.
+// (bit placement / frame start verification). Re-armed by RST flush.
 static constexpr bool SPI_RAW_DUMP_ENABLE = true;
 
 // Diagnostic I2C bus sniffer: run the PARLIO unit in parallel with the

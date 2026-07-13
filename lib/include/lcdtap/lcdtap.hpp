@@ -75,7 +75,7 @@ class LcdTap {
 
   //--- SPI input ---
 
-  // Hardware reset signal input (equivalent to RESX pin)
+  // Hardware reset signal input (equivalent to RST pin)
   // assert=true: hold in reset; false: release reset
   void inputReset(bool assert);
 

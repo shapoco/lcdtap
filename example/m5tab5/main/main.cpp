@@ -69,7 +69,7 @@ static bool gIfaceActive = false;
 
 static TaskHandle_t gInputTask = nullptr;
 
-// RESX events recorded by the GPIO ISR, consumed by the input task.
+// RST events recorded by the GPIO ISR, consumed by the input task.
 static volatile bool gResxEvent = false;
 static volatile bool gResxFell = false;
 
@@ -116,12 +116,12 @@ static void hostLog(void *, const char *message) {
 static uint64_t millis64() { return (uint64_t)(esp_timer_get_time() / 1000); }
 
 //=============================================================================
-// RESX interrupt (deferred to the input task; LcdTap is not IRAM-safe)
+// RST interrupt (deferred to the input task; LcdTap is not IRAM-safe)
 //=============================================================================
 static void IRAM_ATTR resxIsrHandler(void *) {
   // Resample the level instead of relying on edge flags so that a
   // simultaneous fall+rise pair cannot latch a stuck reset.
-  if (!gpio_get_level((gpio_num_t)PIN_RESX)) gResxFell = true;
+  if (!gpio_get_level((gpio_num_t)PIN_RST)) gResxFell = true;
   gResxEvent = true;
   BaseType_t woken = pdFALSE;
   if (gInputTask) vTaskNotifyGiveFromISR(gInputTask, &woken);
@@ -222,16 +222,16 @@ static void inputTask(void *) {
         // out after the reset and permanently shift the address pointer
         // of masters that rely on exact auto-wrap (e.g. Arduboy never
         // re-sends SET_COL_ADDR). Inject a barrier to drop them — but
-        // only while RESX is still low, which guarantees the bus is
+        // only while RST is still low, which guarantees the bus is
         // quiet; late-processed bounce events must not cut real data.
         if (gCurrentIface == lcdtap::BusType::SPI_4LINE && gSpi.active &&
-            !gpio_get_level((gpio_num_t)PIN_RESX)) {
+            !gpio_get_level((gpio_num_t)PIN_RST)) {
           parlioSpiSlaveInjectBarrier(&gSpi);
         }
       }
       // Resample the level (instead of trusting edge flags) so that a
       // fall+rise pair processed late cannot latch a stuck reset.
-      gInst->inputReset(!gpio_get_level((gpio_num_t)PIN_RESX));
+      gInst->inputReset(!gpio_get_level((gpio_num_t)PIN_RST));
     }
 
     if (gSpiRealignReq) {
@@ -691,7 +691,7 @@ extern "C" void app_main(void) {
   gInst = &inst;
 
   // Show the splash image immediately, before the SPI/I2C master has sent
-  // any commands. A real reset (RESX) or the master's own SLPOUT/DISPON
+  // any commands. A real reset (RST) or the master's own SLPOUT/DISPON
   // sequence will naturally take over from here.
   drawSplash(gInst->getFramebuf(), cfg.buffWidth, cfg.buffHeight,
              cfg.outputRotation);
@@ -730,16 +730,16 @@ extern "C" void app_main(void) {
   }
 
   // ---------------------------------------------------------------------
-  // RESX input (pull-up, any-edge interrupt)
+  // RST input (pull-up, any-edge interrupt)
   // ---------------------------------------------------------------------
   gpio_config_t resxCfg = {};
-  resxCfg.pin_bit_mask = 1ull << PIN_RESX;
+  resxCfg.pin_bit_mask = 1ull << PIN_RST;
   resxCfg.mode = GPIO_MODE_INPUT;
   resxCfg.pull_up_en = GPIO_PULLUP_ENABLE;
   resxCfg.intr_type = GPIO_INTR_ANYEDGE;
   gpio_config(&resxCfg);
   gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
-  gpio_isr_handler_add((gpio_num_t)PIN_RESX, resxIsrHandler, nullptr);
+  gpio_isr_handler_add((gpio_num_t)PIN_RST, resxIsrHandler, nullptr);
 
   // ---------------------------------------------------------------------
   // Tasks (input on core 0, display/UI on core 1)

@@ -15,7 +15,7 @@ Tab5 screen using SSD1306-compatible commands. The I2C slave address is 0x3C.
 
 Use the M-Bus connector on the back of Tab5 as an SPI slave and draw on the
 Tab5 screen with 4-wire SPI (MOSI/D/C/CS).
-All signals including RESX must be connected.
+All signals including RST must be connected.
 
 The input interface has I2C selected by default.
 To switch to SPI, select 4-Line SPI in the Interface menu of the OSD.
@@ -39,7 +39,7 @@ they may not work correctly due to performance and hardware constraints.
 | SPI MOSI | G16 | M-Bus ||
 | SPI D/C | G18 | M-Bus | |
 | SPI CS | G45 | M-Bus | active-low, pulled up |
-| RESX | G19 | M-Bus | active-low, pulled up, shared by SPI/I2C |
+| RST | G19 | M-Bus | active-low, pulled up, shared by SPI/I2C |
 | (reserved) | G52 | M-Bus | Dummy clock for priming. **Leave unconnected** |
 | (reserved) | G51 | M-Bus | CS substitute for priming (driven High). **Leave unconnected** |
 | I2C SDA | G53 | Grove | Slave address 0x3C |
