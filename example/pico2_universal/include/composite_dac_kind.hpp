@@ -25,8 +25,7 @@ static constexpr uint8_t COMPOSITE_DAC_KIND_COUNT = 2u;
 
 // Static storage duration is required: ConfigEntry::options holds this
 // pointer and formatConfigValue() dereferences it on every OSD render.
-static const char *COMPOSITE_DAC_KIND_NAMES[] = {"PWM (GPIO10)",
-                                                 "R-2R (GPIO5-11)"};
+static const char *COMPOSITE_DAC_KIND_NAMES[] = {"PWM", "R-2R"};
 
 // The R-2R ladder occupies GPIO5-11, so it collides with the I2C bus on
 // GPIO8/9. The PWM pin (GPIO10) is free on both SPI and I2C.

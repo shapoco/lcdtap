@@ -46,7 +46,7 @@ static constexpr uint16_t OSD_NUM_SYSTEM_ITEMS = OSD_ITEM_ID_CANCEL + 1;
 
 // User-defined item IDs must be >= this value. IDs below are reserved for
 // built-in items managed internally by the Osd class.
-static constexpr uint16_t OSD_USER_ITEM_ID_BASE = 0x8000u;
+static constexpr uint16_t OSD_USER_ITEM_ID_BASE = 0x1000u;
 
 //=============================================================================
 // Menu item descriptor

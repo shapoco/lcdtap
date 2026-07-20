@@ -35,7 +35,7 @@ void Osd::init(const OsdConfig& cfg) {
   scrollOffset_ = 0;
   state_ = OsdState::HIDDEN;
   blinkOn_ = true;
-  lastInput_ = 0xFFu; // prevent first-frame key repeat
+  lastInput_ = 0xFFu;  // prevent first-frame key repeat
   nextRepeatMs_ = 0;
   lastBlinkMs_ = 0;
   dumpScrollOffset_ = 0;
@@ -396,8 +396,10 @@ void Osd::updateItemEnables() {
       getItemById(static_cast<uint16_t>(item.config.enableKeyId),
                   &enableKeyItem);
       if (enableKeyItem) {
+        const bool enableKeyIsEnabled = enableKeyItem->isEnabled;
         const int16_t enableKeyValue = enableKeyItem->config.value;
-        if (enableKeyValue < item.config.enableKeyValueMin ||
+        if (!enableKeyIsEnabled ||
+            enableKeyValue < item.config.enableKeyValueMin ||
             enableKeyValue > item.config.enableKeyValueMax) {
           isEnabled = false;
         }

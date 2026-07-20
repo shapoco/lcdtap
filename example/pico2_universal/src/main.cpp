@@ -156,7 +156,7 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   out.id = OSD_ITEM_ID_OUTPUT_IF;
   out.isAction = false;
   out.config.type = lcdtap::ValueType::ENUM;
-  out.config.name = "Output";
+  out.config.name = "Output Interface";
   out.config.unit = "";
   out.config.options = OUTPUT_INTERFACE_NAMES;
   out.config.min = 0;
@@ -177,7 +177,7 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   dac.id = OSD_ITEM_ID_CVBS_DAC;
   dac.isAction = false;
   dac.config.type = lcdtap::ValueType::ENUM;
-  dac.config.name = "Composite DAC";
+  dac.config.name = "NTSC/PAL DAC Type";
   dac.config.unit = "";
   dac.config.options = COMPOSITE_DAC_KIND_NAMES;
   dac.config.min = 0;
@@ -189,17 +189,17 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   // hardware conflict (the R-2R ladder covers the I2C pins) rather than the
   // axis where it is merely inert (DVI-D). compositeDacSanitize() cleans up
   // the inert case at Apply.
-  dac.config.enableKeyId = busKeyId;
-  dac.config.enableKeyValueMin =
-      static_cast<int16_t>(lcdtap::BusType::SPI_4LINE);
-  dac.config.enableKeyValueMax =
-      static_cast<int16_t>(lcdtap::BusType::SPI_3LINE);
+  dac.config.enableKeyId = OSD_ITEM_ID_OUTPUT_IF;
+  dac.config.enableKeyValueMin = static_cast<int16_t>(OutputInterface::NTSC);
+  dac.config.enableKeyValueMax = static_cast<int16_t>(OutputInterface::PAL);
   dac.isEnabled = compositeDacAllowed(CompositeDacKind::R2R, gCurrentIface);
 
-  // Insert before Apply. The first insert shifts Apply down by one, so the
-  // anchor has to be looked up again for the second.
-  osd->insertItem(osd->getItemIndexById(lcdtap::OSD_ITEM_ID_APPLY), out);
-  osd->insertItem(osd->getItemIndexById(lcdtap::OSD_ITEM_ID_APPLY), dac);
+  // Insert before Output Rotation. The first insert shifts Output Rotation down
+  // by one, so the anchor has to be looked up again for the second.
+  uint16_t insertId = lcdtap::OSD_ITEM_ID_SYS_BASE +
+                      static_cast<int16_t>(lcdtap::ConfigId::OUTPUT_ROT);
+  osd->insertItem(osd->getItemIndexById(insertId), out);
+  osd->insertItem(osd->getItemIndexById(insertId), dac);
 }
 
 static bool onOsdActionActivated(lcdtap::Osd *osd,

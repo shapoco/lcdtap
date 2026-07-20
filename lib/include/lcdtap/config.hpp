@@ -220,10 +220,10 @@ enum class ConfigId : uint8_t {
   FLIP_MODE,
   INVERSE,
   SWAP_RB,
-  OUTPUT_ROT,
-  SCALE_MODE,
   FORCE_PWR_ON,
   INTF_FMT_OVR,
+  OUTPUT_ROT,
+  SCALE_MODE,
   NUM_CONFIGS,
 };
 
