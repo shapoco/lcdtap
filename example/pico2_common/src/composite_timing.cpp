@@ -5,26 +5,43 @@ namespace lcdtap::pico2 {
 // 7-bit R-2R ladder (R = 1.0k rungs, 2R = 2.0k series, 3.9k shunt) buffered
 // by an NPN emitter follower running off VSYS, then a 75 ohm series resistor.
 // Full scale (code 127) is 1.30 V at a 75 ohm terminated load.
-const CompositeDacProfile COMPOSITE_DAC_7BIT_GPIO5 = {
-    .name = "7bit R-2R GPIO5-11",
+const CompositeDacProfile COMPOSITE_DAC_R2R_GPIO5 = {
+    .name = "R-2R 7bit GPIO5-11",
+    .kind = CompositeDacKind::R2R_7BIT,
     .bits = 7,
     .basePin = 5,
-    .levels = {0},  // identity mapping; unused for a 7-bit DAC
 };
 
-// 3-bit weighted DAC: GPIO5 via 15k, GPIO6 via 7.5k, GPIO7 via 3.0k into a
-// 4.3k shunt, feeding the same emitter-follower buffer as the 7-bit ladder.
-// The conductance ratio is exactly 1:2:5 rather than the binary 1:2:4, which
-// places the sync tip (0 V), blanking (0.286 V) and peak white (1.000 V)
-// exactly on codes 0, 28 and 98 — the same normalized levels the timing
-// tables use for lvlBlank and lvlWhite. A binary ladder would put blanking
-// 14% off, which the receiver's clamp would read as a black-level error.
-const CompositeDacProfile COMPOSITE_DAC_3BIT_GPIO5 = {
-    .name = "3bit weighted GPIO5-7",
-    .bits = 3,
-    .basePin = 5,
-    .levels = {0, 14, 28, 42, 70, 84, 98, 112},
+// Single GPIO through a series resistor into a shunt capacitor, no buffer.
+// R = 150 ohm gives about 12 mA peak and roughly 70% of the standard
+// amplitude; drop to 120 ohm if a receiver refuses to lock. C = 100..470 pF
+// for a corner around 5-6 MHz. Nominal values; trim on the bench.
+const CompositeDacProfile COMPOSITE_DAC_PWM_GPIO10 = {
+    .name = "PWM GPIO10",
+    .kind = CompositeDacKind::PWM,
+    .bits = 0,
+    .basePin = 10,
 };
+
+CompositeLevelMap compositeLevelMap(const CompositeTiming *timing,
+                                    const CompositeDacProfile *dac) {
+  CompositeLevelMap m;
+  m.levelWhite = timing->lvlWhite;
+  if (dac->kind == CompositeDacKind::PWM) {
+    m.codeWhite = timing->pwmCcWhite;
+    // The PWM period is clkPerSample counts, so the compare value can span
+    // 0..clkPerSample. The level table never reaches the top of that range
+    // (peak chroma is 21 of 22 on NTSC), which is deliberate: the behaviour
+    // of CC > TOP is not documented in the SDK headers, so nothing here
+    // depends on it.
+    m.codeMax = timing->clkPerSample;
+  } else {
+    // R-2R: the normalized space is the code space, so this is the identity.
+    m.codeWhite = timing->lvlWhite;
+    m.codeMax = COMPOSITE_LEVEL_MAX;
+  }
+  return m;
+}
 
 // NTSC-J (0 IRE setup, black == blanking), 240p non-interlaced.
 // 910 samples/line at 14.318182 MHz = 63.5556 us exactly.
@@ -39,7 +56,7 @@ const CompositeTiming COMPOSITE_TIMING_NTSC_J_240P = {
     .pllFbdiv = 105,
     .pllPostdiv1 = 2,
     .pllPostdiv2 = 2,
-    .pioClkdivInt = 22,
+    .clkPerSample = 22,
 
     .samplesPerLine = 910,
     .hSyncWidth = 67,       // 4.7 us
@@ -67,6 +84,12 @@ const CompositeTiming COMPOSITE_TIMING_NTSC_J_240P = {
     .lvlWhite = 98,        // 1.000 V
     .burstAmplitude = 14,  // +-20 IRE
     .chromaGain = 192,     // 0.75; raise until saturated bars just clip
+
+    // PWM: 12 luma steps of the 22 available. 17 is the largest value that
+    // still fits peak chroma (5 + 1.33*12 = 21.0 <= 22); 18 overflows at
+    // 22.3. Blanking lands on 5, so the blank/white ratio is 2.9% off -- the
+    // price of the extra amplitude, and well worth it here.
+    .pwmCcWhite = 17,
 };
 
 // PAL-B, 288p non-interlaced.
@@ -86,7 +109,7 @@ const CompositeTiming COMPOSITE_TIMING_PAL_B_288P = {
     .pllFbdiv = 201,
     .pllPostdiv1 = 2,
     .pllPostdiv2 = 2,
-    .pioClkdivInt = 17,
+    .clkPerSample = 17,
 
     .samplesPerLine = 1135,
     .hSyncWidth = 83,     // 4.7 us
@@ -115,6 +138,15 @@ const CompositeTiming COMPOSITE_TIMING_PAL_B_288P = {
     .lvlWhite = 98,        // 1.000 V
     .burstAmplitude = 15,  // 300 mV peak-to-peak
     .chromaGain = 192,
+
+    // PWM: 14 gives 10 luma steps of the 17 available and an exact
+    // blank/white ratio. It leaves no room for chroma, which is fine only
+    // because colorEnabled is false above.
+    //
+    // *** Phase 2: setting colorEnabled = true REQUIRES changing this to 11
+    // *** (peak chroma would otherwise be 17.3 against a ceiling of 17).
+    // testLevelMaps() fails the build if these two are left inconsistent.
+    .pwmCcWhite = 14,
 };
 
 }  // namespace lcdtap::pico2

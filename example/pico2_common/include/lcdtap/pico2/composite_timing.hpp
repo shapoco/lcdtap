@@ -25,10 +25,20 @@ namespace lcdtap::pico2 {
 static constexpr uint32_t COMPOSITE_NUM_PHASES = 4u;
 
 // Signal levels are held in a normalized 7-bit code space (0..127) where
-// code 127 corresponds to 1.30 V at a 75 ohm terminated load. Boards whose
-// DAC is narrower than 7 bits map this space through a CompositeDacProfile.
+// code 127 corresponds to 1.30 V at a 75 ohm terminated load. A DAC with
+// fewer levels maps this space through a CompositeLevelMap.
 static constexpr uint32_t COMPOSITE_LEVEL_BITS = 7u;
 static constexpr uint32_t COMPOSITE_LEVEL_MAX = 127u;
+
+// Which physical DAC drives the composite output.
+enum class CompositeDacKind : uint8_t {
+  // One GPIO driven by a PWM slice through an RC filter. Simple and low
+  // quality: the number of duty steps equals the sample period in system
+  // clocks, so only ~12 luma levels survive.
+  PWM = 0,
+  // 7-bit R-2R ladder plus an emitter follower. Complex and high quality.
+  R2R_7BIT = 1,
+};
 
 struct CompositeTiming {
   // --- identity ---
@@ -37,12 +47,15 @@ struct CompositeTiming {
   bool palSwitch;     // alternate the V component per line (PAL only)
 
   // --- clocks ---
-  uint32_t clkSysKhz;     // system clock this timing requires
-  uint32_t pllRefdiv;     // pll_sys recipe for clkSysKhz
-  uint32_t pllFbdiv;      //
-  uint32_t pllPostdiv1;   //
-  uint32_t pllPostdiv2;   //
-  uint16_t pioClkdivInt;  // clk_sys / sample rate; always an exact integer
+  uint32_t clkSysKhz;    // system clock this timing requires
+  uint32_t pllRefdiv;    // pll_sys recipe for clkSysKhz
+  uint32_t pllFbdiv;     //
+  uint32_t pllPostdiv1;  //
+  uint32_t pllPostdiv2;  //
+  // System clocks per sample; always an exact integer. Doubles as the PIO
+  // clock divider (R-2R) and as the PWM period, so for the PWM sink the
+  // number of duty steps is exactly this value.
+  uint16_t clkPerSample;
 
   // --- horizontal, in samples ---
   uint16_t samplesPerLine;
@@ -76,28 +89,48 @@ struct CompositeTiming {
   uint8_t lvlWhite;
   uint8_t burstAmplitude;  // peak deviation from lvlBlank
   uint8_t chromaGain;      // saturation scale, 256 = unity; tune on the bench
+
+  // PWM sink only: the duty step that represents lvlWhite. White cannot sit
+  // at 100% duty because chroma overshoots it by up to +133 IRE, so this is
+  // chosen as the largest value whose chroma excursions still fit in
+  // 0..clkPerSample. MUST be re-checked whenever colorEnabled changes --
+  // enabling PAL colour requires dropping this from 14 to 11. The host test
+  // testLevelMaps() enforces that coupling.
+  uint8_t pwmCcWhite;
 };
 
-// Maps the normalized 7-bit level space onto the physical DAC. For a 7-bit
-// ladder the mapping is the identity and levels[] is unused.
+// Physical description of a DAC. Purely hardware; the level mapping lives in
+// CompositeLevelMap because it also depends on the video standard.
 struct CompositeDacProfile {
   const char *name;
-  uint8_t bits;     // DAC width: 7 (SPI mode) or 3 (I2C mode)
-  uint8_t basePin;  // GPIO of D0; the DAC occupies basePin .. basePin+bits-1
-  // For bits < 7: the normalized level produced by each DAC code, ascending.
-  // Only the first (1 << bits) entries are meaningful.
-  uint8_t levels[8];
+  CompositeDacKind kind;
+  uint8_t bits;     // PIO out-pin width; 0 for PWM
+  uint8_t basePin;  // GPIO of D0 (R-2R) or the PWM output pin
 };
 
 // 7-bit R-2R ladder on GPIO5..GPIO11, buffered by an emitter follower.
-// Used in SPI slave modes, where GPIO5-11 are all free.
-extern const CompositeDacProfile COMPOSITE_DAC_7BIT_GPIO5;
+// SPI slave modes only: GPIO8/9 belong to the I2C bus.
+extern const CompositeDacProfile COMPOSITE_DAC_R2R_GPIO5;
 
-// 3-bit weighted DAC on GPIO5..GPIO7 (1.1k / 560 / 240 ohm), unbuffered,
-// relying on the receiver's 75 ohm termination as the shunt leg. Used in I2C
-// slave mode, where the bus occupies GPIO8/9 but GPIO5-7 are free.
-// Levels: 0 / .15 / .30 / .45 / .70 / .85 / 1.00 / 1.15 V.
-extern const CompositeDacProfile COMPOSITE_DAC_3BIT_GPIO5;
+// Single GPIO driven by a PWM slice through an RC filter. Usable on both SPI
+// and I2C, since GPIO10 is free in either. Not usable on the parallel bus,
+// where GPIO10 is data line D[7].
+extern const CompositeDacProfile COMPOSITE_DAC_PWM_GPIO10;
+
+// Maps the normalized 7-bit level space onto physical DAC codes:
+//
+//   code = min(codeMax, (level * codeWhite + lvlWhite/2) / lvlWhite)
+//
+// For the R-2R ladder codeWhite == lvlWhite, so the mapping is the identity.
+// Resolved once at init; never used on a hot path.
+struct CompositeLevelMap {
+  uint16_t levelWhite;  // normalized level being mapped (timing->lvlWhite)
+  uint16_t codeWhite;   // physical code representing it
+  uint16_t codeMax;     // clamp ceiling (highest code the DAC can emit)
+};
+
+CompositeLevelMap compositeLevelMap(const CompositeTiming *timing,
+                                    const CompositeDacProfile *dac);
 
 extern const CompositeTiming COMPOSITE_TIMING_NTSC_J_240P;
 extern const CompositeTiming COMPOSITE_TIMING_PAL_B_288P;

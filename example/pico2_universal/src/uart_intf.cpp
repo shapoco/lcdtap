@@ -15,6 +15,7 @@
 static lcdtap::LcdTap* gLcdTap = nullptr;
 static lcdtap::BusType* gCurrentIface = nullptr;
 static OutputInterface* gCurrentOutIf = nullptr;
+static CompositeDacKind* gCurrentDac = nullptr;
 static SwitchIfaceFn gSwitchIface = nullptr;
 static SaveConfigFn gSaveConfig = nullptr;
 static bool gRebootPending = false;
@@ -43,7 +44,15 @@ enum class ParseState {
   ERROR,
 };
 
-static constexpr int MAX_PARAMS = 16;
+// A full setparams carries every cfgN plus the host-side settings, because the
+// web UI echoes the whole set back rather than a diff. Deriving the limit from
+// ConfigId means it cannot fall behind again the way a hardcoded 16 did once
+// outputInterface and compositeDac were appended -- those two landed last on
+// the wire and were exactly the ones dropped. The spare slots are headroom for
+// clients that send extra keys.
+static constexpr int NUM_HOST_PARAMS = 2;  // outputInterface, compositeDac
+static constexpr int MAX_PARAMS =
+    static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS) + NUM_HOST_PARAMS + 6;
 
 struct Param {
   char key[TOK_MAX_LEN + 1];
@@ -55,6 +64,11 @@ struct Parser {
   char command[TOK_MAX_LEN + 1] = {};
   Param params[MAX_PARAMS] = {};
   int numParams = 0;
+  // Set when more parameters arrive than params[] can hold. Reported as an
+  // error rather than silently dropped: a silent drop makes the device answer
+  // "ok" to a request it did not honour, which is very hard to diagnose from
+  // the client side.
+  bool paramOverflow = false;
   bool hasParams = false;
   char preset[TOK_MAX_LEN + 1] = {};
   bool writeProtected = false;
@@ -63,6 +77,7 @@ struct Parser {
     state = ParseState::EXPECT_OBJ_OPEN;
     command[0] = '\0';
     numParams = 0;
+    paramOverflow = false;
     hasParams = false;
     preset[0] = '\0';
     writeProtected = false;
@@ -150,6 +165,8 @@ static bool parserFeed(Parser& p, const Token& tok) {
         if (p.numParams < MAX_PARAMS) {
           strncpy(p.params[p.numParams].key, tok.buf, TOK_MAX_LEN);
           p.params[p.numParams].key[TOK_MAX_LEN] = '\0';
+        } else {
+          p.paramOverflow = true;
         }
         p.state = ParseState::EXPECT_PARAM_COLON;
       } else {
@@ -362,21 +379,41 @@ static void chunkFromStr(const char* s) {
 // a ConfigId and so cannot be addressed as cfgN.
 // Returns false when idx is out of range.
 static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
-                            lcdtap::BusType iface, OutputInterface outIf) {
+                            lcdtap::BusType iface, OutputInterface outIf,
+                            CompositeDacKind dac) {
   const int numConfigs = static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS);
-  if (idx < 0 || idx > numConfigs) return false;
+  if (idx < 0 || idx > numConfigs + 1) return false;
+
+  if (idx == numConfigs + 1) {
+    // Second host-side setting; closes the params array.
+    char* obuf = gResp.chunkBuf;
+    int ocap = static_cast<int>(sizeof(gResp.chunkBuf));
+    int opos = snprintf(obuf, static_cast<size_t>(ocap),
+                        "{\"id\":\"compositeDac\",\"type\":\"ENUM\","
+                        "\"name\":\"Composite DAC\",\"unit\":null,"
+                        "\"options\":{\"PWM\":0,\"R-2R\":1},\"value\":%d,"
+                        "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":%d,"
+                        "\"enableKeyValueMax\":%d}]}\r\n",
+                        static_cast<int>(dac),
+                        static_cast<int>(lcdtap::ConfigId::BUS_INTERFACE),
+                        static_cast<int>(lcdtap::BusType::SPI_4LINE),
+                        static_cast<int>(lcdtap::BusType::SPI_3LINE));
+    gResp.chunkLen = opos < ocap ? opos : ocap - 1;
+    gResp.chunkPos = 0;
+    return true;
+  }
 
   if (idx == numConfigs) {
-    // Host-side setting; also closes the params array.
+    // Host-side setting.
     char* obuf = gResp.chunkBuf;
     int ocap = static_cast<int>(sizeof(gResp.chunkBuf));
     int opos =
         snprintf(obuf, static_cast<size_t>(ocap),
                  "{\"id\":\"outputInterface\",\"type\":\"ENUM\","
-                 "\"name\":\"Output Interface\",\"unit\":null,"
+                 "\"name\":\"Output\",\"unit\":null,"
                  "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2},\"value\":%d,"
                  "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":0,"
-                 "\"enableKeyValueMax\":%d}]}\r\n",
+                 "\"enableKeyValueMax\":%d},",
                  static_cast<int>(outIf),
                  static_cast<int>(lcdtap::ConfigId::BUS_INTERFACE),
                  static_cast<int>(lcdtap::BusType::PARALLEL) - 1);
@@ -529,17 +566,30 @@ static void execCommand(const Parser& p) {
 
   // ----- setparams -----
   if (strcmp(cmd, "setparams") == 0) {
+    // Applying a truncated request would silently honour some settings and
+    // drop others while still reporting success.
+    if (p.paramOverflow) {
+      respSetShort("{\"error\":\"too many params\"}\r\n");
+      return;
+    }
     lcdtap::LcdTapConfig cfg = gLcdTap->getConfig();
     lcdtap::BusType oldIface = *gCurrentIface;
     OutputInterface newOutIf = *gCurrentOutIf;
+    CompositeDacKind newDac = *gCurrentDac;
 
     for (int i = 0; i < p.numParams; i++) {
       const char* k = p.params[i].key;
       int32_t v = p.params[i].value;
-      // Host-side setting; not a ConfigId, so it has its own key.
+      // Host-side settings; not ConfigIds, so they have their own keys.
       if (strcmp(k, "outputInterface") == 0) {
         if (v >= 0 && v < static_cast<int32_t>(OUTPUT_INTERFACE_COUNT)) {
           newOutIf = static_cast<OutputInterface>(v);
+        }
+        continue;
+      }
+      if (strcmp(k, "compositeDac") == 0) {
+        if (v >= 0 && v < static_cast<int32_t>(COMPOSITE_DAC_KIND_COUNT)) {
+          newDac = static_cast<CompositeDacKind>(v);
         }
         continue;
       }
@@ -560,26 +610,37 @@ static void execCommand(const Parser& p) {
       return;
     }
 
-    // Composite output is unavailable on the parallel bus, so a combined
-    // change to both settings must not persist an illegal pair.
+    // Composite is unavailable on the parallel bus and the R-2R ladder is
+    // unavailable on I2C, so a combined change must not persist an illegal
+    // pair. Order matters: the DAC is clamped against the clamped bus.
     newOutIf = outputInterfaceSanitize(newOutIf, cfg.busInterface);
+    newDac = compositeDacSanitize(newDac, cfg.busInterface);
 
     const bool busChanged = (cfg.busInterface != oldIface);
     const bool outIfChanged = (newOutIf != *gCurrentOutIf);
-    // A bus change while composite is active also needs a reboot: the DAC
-    // width comes from the bus at init, and the 7-bit ladder occupies
-    // GPIO5-11, overlapping the I2C pins. Switching the bus in place would
+    const bool dacChanged = (newDac != *gCurrentDac);
+    // A bus or DAC change while composite is running also needs a reboot: the
+    // DAC binds to its pins and peripheral at init, and the R-2R ladder
+    // occupies GPIO5-11, overlapping the I2C pins. Switching in place would
     // hand GPIO8/9 to the I2C driver while the PIO still drives them.
     const bool needReboot =
-        outIfChanged || (busChanged && outputInterfaceIsComposite(newOutIf));
+        outIfChanged ||
+        (outputInterfaceIsComposite(newOutIf) && (busChanged || dacChanged));
 
     if (busChanged && !needReboot) {
       gSwitchIface(cfg.busInterface);
+    }
+    // Keep the live values in step when no reboot will do it for us, so a
+    // getparams straight after Apply reports what was actually applied.
+    if (!needReboot) {
+      *gCurrentOutIf = newOutIf;
+      *gCurrentDac = newDac;
     }
 
     ConfigFile toSave = {};
     toSave.libConfig = gLcdTap->getConfig();
     toSave.outputInterface = static_cast<uint8_t>(newOutIf);
+    toSave.compositeDac = static_cast<uint8_t>(newDac);
     gSaveConfig(toSave);
 
     respSetShort("{\"response\":\"ok\"}\r\n");
@@ -787,7 +848,8 @@ static void respFlush() {
       }
       // outputInterface is a host setting, so presets never carry one; always
       // report the live value.
-      if (!buildParamChunk(gResp.paramIdx, cfg, iface, *gCurrentOutIf)) {
+      if (!buildParamChunk(gResp.paramIdx, cfg, iface, *gCurrentOutIf,
+                           *gCurrentDac)) {
         gResp.phase = RespPhase::IDLE;
         break;
       }
@@ -948,11 +1010,12 @@ static void processRxChar(char c) {
 // =============================================================================
 
 void uartIfInit(lcdtap::LcdTap* lcdtap, lcdtap::BusType* currentIface,
-                OutputInterface* currentOutIf, SwitchIfaceFn switchIface,
-                SaveConfigFn saveConfig) {
+                OutputInterface* currentOutIf, CompositeDacKind* currentDac,
+                SwitchIfaceFn switchIface, SaveConfigFn saveConfig) {
   gLcdTap = lcdtap;
   gCurrentIface = currentIface;
   gCurrentOutIf = currentOutIf;
+  gCurrentDac = currentDac;
   gSwitchIface = switchIface;
   gSaveConfig = saveConfig;
   gRebootPending = false;

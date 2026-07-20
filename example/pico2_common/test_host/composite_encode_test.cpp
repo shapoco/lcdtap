@@ -37,10 +37,17 @@ namespace {
 
 // One generated field, unpacked back into individual DAC codes.
 struct Field {
-  std::vector<uint8_t> samples;  // one physical DAC code per entry
-  std::vector<uint32_t> words;   // the raw DMA stream
-  uint32_t wordsPerSlot = 0;
+  std::vector<uint16_t> samples;  // one physical DAC code per entry
+  uint32_t transfersPerSlot = 0;
   uint32_t linesPerSlot = 0;
+  // Physical codes, which differ per sink: the R-2R map is the identity but
+  // the PWM map is not, so tests must compare against these rather than
+  // against the normalized lvlXxx values.
+  uint32_t codeSyncTip = 0;
+  uint32_t codeBlank = 0;
+  uint32_t codeWhite = 0;
+  uint32_t codeMax = 0;
+  uint32_t burstCode[COMPOSITE_NUM_PHASES] = {};
 };
 
 // A recognisable test pattern: eight vertical colour bars.
@@ -70,8 +77,15 @@ Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac) {
     gFailures++;
     return f;
   }
-  f.wordsPerSlot = enc.wordsPerSlot;
+  f.transfersPerSlot = enc.transfersPerSlot;
   f.linesPerSlot = enc.linesPerSlot;
+  f.codeSyncTip = enc.codeSyncTip;
+  f.codeBlank = enc.codeBlank;
+  f.codeWhite = enc.codeWhite;
+  f.codeMax = enc.codeMax;
+  for (uint32_t i = 0; i < COMPOSITE_NUM_PHASES; ++i) {
+    f.burstCode[i] = enc.burstCode[i];
+  }
 
   const std::vector<uint16_t> px = makeColorBars(t->hActivePixels);
   const uint32_t numSlots = t->vTotalLines / enc.linesPerSlot;
@@ -80,7 +94,8 @@ Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac) {
         "%s/%s: vTotalLines %u is not a multiple of linesPerSlot %u", t->name,
         dac->name, t->vTotalLines, enc.linesPerSlot);
 
-  std::vector<uint32_t> slot(enc.wordsPerSlot);
+  // Byte-granular so that both transfer formats share one buffer.
+  std::vector<uint8_t> slot(enc.bytesPerSlot);
   for (uint32_t s = 0; s < numSlots; ++s) {
     CompositeSampleWriter w;
     compositeWriterInit(&w, &enc, slot.data());
@@ -91,22 +106,30 @@ Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac) {
       compositeEmitLine(&w, &enc, type, px.data());
     }
     // The whole point of the group structure: a group always ends exactly on
-    // a word boundary with nothing left in the accumulator.
+    // a transfer boundary with nothing left in the accumulator.
     CHECK(w.nbits == 0, "%s/%s slot %u: %u bits left over", t->name, dac->name,
           s, w.nbits);
-    CHECK(w.dst == slot.data() + enc.wordsPerSlot,
-          "%s/%s slot %u: wrote %ld words, expected %u", t->name, dac->name, s,
-          (long)(w.dst - slot.data()), enc.wordsPerSlot);
+    const uint8_t *end = (const uint8_t *)w.dst.w;
+    CHECK(end == slot.data() + enc.bytesPerSlot,
+          "%s/%s slot %u: wrote %ld bytes, expected %u", t->name, dac->name, s,
+          (long)(end - slot.data()), enc.bytesPerSlot);
     CHECK(w.sampleIndex == enc.linesPerSlot * t->samplesPerLine,
           "%s/%s slot %u: emitted %u samples, expected %u", t->name, dac->name,
           s, w.sampleIndex, enc.linesPerSlot * t->samplesPerLine);
 
-    f.words.insert(f.words.end(), slot.begin(), slot.end());
-    // Unpack back to individual samples.
-    const uint32_t mask = (1u << dac->bits) - 1u;
-    for (uint32_t i = 0; i < enc.wordsPerSlot; ++i) {
-      for (uint32_t j = 0; j < enc.samplesPerWord; ++j) {
-        f.samples.push_back((slot[i] >> (j * dac->bits)) & mask);
+    // Recover individual sample codes from the transfer format.
+    if (dac->kind == CompositeDacKind::PWM) {
+      const uint16_t *h = (const uint16_t *)slot.data();
+      for (uint32_t i = 0; i < enc.transfersPerSlot; ++i) {
+        f.samples.push_back(h[i]);
+      }
+    } else {
+      const uint32_t *ww = (const uint32_t *)slot.data();
+      const uint32_t mask = (1u << dac->bits) - 1u;
+      for (uint32_t i = 0; i < enc.transfersPerSlot; ++i) {
+        for (uint32_t j = 0; j < enc.samplesPerTransfer; ++j) {
+          f.samples.push_back((ww[i] >> (j * dac->bits)) & mask);
+        }
       }
     }
   }
@@ -114,7 +137,7 @@ Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac) {
 }
 
 double usPerSample(const CompositeTiming *t) {
-  const double sampleHz = (double)t->clkSysKhz * 1000.0 / t->pioClkdivInt;
+  const double sampleHz = (double)t->clkSysKhz * 1000.0 / t->clkPerSample;
   return 1e6 / sampleHz;
 }
 
@@ -126,26 +149,33 @@ void testGeometry() {
     const CompositeTiming *t;
     const CompositeDacProfile *d;
     uint32_t linesPerSlot;
-    uint32_t wordsPerSlot;
+    uint32_t transfersPerSlot;
   };
+  // The R-2R rows are the values from before the PWM sink existed; they must
+  // not move, since the R-2R output has to stay bit-for-bit identical.
   const Case cases[] = {
-      {&COMPOSITE_TIMING_NTSC_J_240P, &COMPOSITE_DAC_7BIT_GPIO5, 2, 455},
-      {&COMPOSITE_TIMING_PAL_B_288P, &COMPOSITE_DAC_7BIT_GPIO5, 4, 1135},
-      {&COMPOSITE_TIMING_NTSC_J_240P, &COMPOSITE_DAC_3BIT_GPIO5, 1, 91},
-      {&COMPOSITE_TIMING_PAL_B_288P, &COMPOSITE_DAC_3BIT_GPIO5, 2, 227},
+      {&COMPOSITE_TIMING_NTSC_J_240P, &COMPOSITE_DAC_R2R_GPIO5, 2, 455},
+      {&COMPOSITE_TIMING_PAL_B_288P, &COMPOSITE_DAC_R2R_GPIO5, 4, 1135},
+      {&COMPOSITE_TIMING_NTSC_J_240P, &COMPOSITE_DAC_PWM_GPIO10, 2, 1820},
+      {&COMPOSITE_TIMING_PAL_B_288P, &COMPOSITE_DAC_PWM_GPIO10, 2, 2270},
   };
   for (const Case &c : cases) {
     const uint32_t lps = compositeLinesPerSlot(c.t, c.d);
-    const uint32_t wps = compositeWordsPerSlot(c.t, c.d);
+    const uint32_t tps = compositeTransfersPerSlot(c.t, c.d);
     CHECK(lps == c.linesPerSlot, "%s/%s linesPerSlot %u, expected %u",
           c.t->name, c.d->name, lps, c.linesPerSlot);
-    CHECK(wps == c.wordsPerSlot, "%s/%s wordsPerSlot %u, expected %u",
-          c.t->name, c.d->name, wps, c.wordsPerSlot);
-    // The group must hold a whole number of both words and lines.
-    const uint32_t samplesPerWord = 32u / c.d->bits;
-    CHECK(wps * samplesPerWord == lps * c.t->samplesPerLine,
-          "%s/%s: %u words * %u != %u lines * %u samples", c.t->name, c.d->name,
-          wps, samplesPerWord, lps, c.t->samplesPerLine);
+    CHECK(tps == c.transfersPerSlot, "%s/%s transfersPerSlot %u, expected %u",
+          c.t->name, c.d->name, tps, c.transfersPerSlot);
+    // The group must hold a whole number of both transfers and lines.
+    const uint32_t spt =
+        c.d->kind == CompositeDacKind::PWM ? 1u : 32u / c.d->bits;
+    CHECK(tps * spt == lps * c.t->samplesPerLine,
+          "%s/%s: %u transfers * %u != %u lines * %u samples", c.t->name,
+          c.d->name, tps, spt, lps, c.t->samplesPerLine);
+    // Core 1 must get the same fill budget regardless of sink.
+    CHECK(lps >= COMPOSITE_MIN_LINES_PER_SLOT,
+          "%s/%s: linesPerSlot %u below the floor %u", c.t->name, c.d->name,
+          lps, COMPOSITE_MIN_LINES_PER_SLOT);
   }
 }
 
@@ -165,7 +195,7 @@ void testTimingTables() {
     // Sample rate must be 4x fsc.
     const double fsc =
         (t == &COMPOSITE_TIMING_NTSC_J_240P) ? 315e6 / 88.0 : 4433618.75;
-    const double sampleHz = (double)t->clkSysKhz * 1000.0 / t->pioClkdivInt;
+    const double sampleHz = (double)t->clkSysKhz * 1000.0 / t->clkPerSample;
     const double ppm = (sampleHz - 4.0 * fsc) / (4.0 * fsc) * 1e6;
     CHECK(std::fabs(ppm) < 100.0, "%s: sample rate is %.1f ppm off 4x fsc",
           t->name, ppm);
@@ -198,38 +228,45 @@ void testFieldStructure() {
   printf("field structure\n");
   const CompositeTiming *ts[] = {&COMPOSITE_TIMING_NTSC_J_240P,
                                  &COMPOSITE_TIMING_PAL_B_288P};
+  const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
+                                     &COMPOSITE_DAC_PWM_GPIO10};
   for (const CompositeTiming *t : ts) {
-    const Field f = generateField(t, &COMPOSITE_DAC_7BIT_GPIO5);
-    if (f.samples.empty()) continue;
+    for (const CompositeDacProfile *d : ds) {
+      const Field f = generateField(t, d);
+      if (f.samples.empty()) continue;
 
-    const uint32_t expect = t->vTotalLines * t->samplesPerLine;
-    CHECK(f.samples.size() == expect, "%s: field has %zu samples, expected %u",
-          t->name, f.samples.size(), expect);
+      const uint32_t expect = t->vTotalLines * t->samplesPerLine;
+      CHECK(f.samples.size() == expect,
+            "%s/%s: field has %zu samples, expected %u", t->name, d->name,
+            f.samples.size(), expect);
 
-    // The subcarrier phase must be continuous across the field boundary,
-    // which requires the field to be a whole number of subcarrier cycles.
-    CHECK(expect % 4u == 0, "%s: field is %u samples, not a multiple of 4",
-          t->name, expect);
+      // The subcarrier phase must be continuous across the field boundary,
+      // which requires the field to be a whole number of subcarrier cycles.
+      CHECK(expect % 4u == 0, "%s: field is %u samples, not a multiple of 4",
+            t->name, expect);
 
-    // Every line must begin with a sync tip and contain exactly one sync
-    // interval of the expected width (equalizing/serration lines aside).
-    const uint32_t activeStart = t->vTotalLines - t->vActiveLines;
-    for (uint32_t line = activeStart; line < t->vTotalLines; ++line) {
-      const uint8_t *s = &f.samples[line * t->samplesPerLine];
-      for (uint32_t i = 0; i < t->hSyncWidth; ++i) {
-        if (s[i] != t->lvlSyncTip) {
-          CHECK(false, "%s line %u: sample %u is %u, expected sync tip %u",
-                t->name, line, i, s[i], t->lvlSyncTip);
-          break;
+      // Every line must begin with a sync tip and contain exactly one sync
+      // interval of the expected width (equalizing/serration lines aside).
+      const uint32_t activeStart = t->vTotalLines - t->vActiveLines;
+      for (uint32_t line = activeStart; line < t->vTotalLines; ++line) {
+        const uint16_t *s = &f.samples[line * t->samplesPerLine];
+        for (uint32_t i = 0; i < t->hSyncWidth; ++i) {
+          if (s[i] != f.codeSyncTip) {
+            CHECK(false, "%s/%s line %u: sample %u is %u, expected sync tip %u",
+                  t->name, d->name, line, i, s[i], f.codeSyncTip);
+            break;
+          }
         }
+        CHECK(s[t->hSyncWidth] != f.codeSyncTip,
+              "%s/%s line %u: sync tip extends past hSyncWidth %u", t->name,
+              d->name, line, t->hSyncWidth);
       }
-      CHECK(s[t->hSyncWidth] != t->lvlSyncTip,
-            "%s line %u: sync tip extends past hSyncWidth %u", t->name, line,
-            t->hSyncWidth);
+      if (d == ds[0]) {
+        printf("  %-12s %zu samples, %.4f us sync, %.4f us line\n", t->name,
+               f.samples.size(), t->hSyncWidth * usPerSample(t),
+               t->samplesPerLine * usPerSample(t));
+      }
     }
-    printf("  %-12s %zu samples, %.4f us sync, %.4f us line\n", t->name,
-           f.samples.size(), t->hSyncWidth * usPerSample(t),
-           t->samplesPerLine * usPerSample(t));
   }
 }
 
@@ -237,137 +274,184 @@ void testBurst() {
   printf("colour burst\n");
   // Only NTSC carries a burst in Phase 1; PAL is monochrome for now.
   const CompositeTiming *t = &COMPOSITE_TIMING_NTSC_J_240P;
-  const Field f = generateField(t, &COMPOSITE_DAC_7BIT_GPIO5);
-  if (f.samples.empty()) return;
+  const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
+                                     &COMPOSITE_DAC_PWM_GPIO10};
+  for (const CompositeDacProfile *d : ds) {
+    const Field f = generateField(t, d);
+    if (f.samples.empty()) continue;
 
-  const uint32_t activeStart = t->vTotalLines - t->vActiveLines;
-  for (uint32_t line = activeStart; line < t->vTotalLines; ++line) {
-    const uint32_t base = line * t->samplesPerLine;
-    const uint8_t *s = &f.samples[base + t->hBurstStart];
-    for (uint32_t i = 0; i < t->hBurstCycles * 4u; ++i) {
-      // Phase comes from the absolute sample index, so burst and chroma
-      // share one reference. This is what makes PAL colour tractable later.
-      const uint32_t phase = (base + t->hBurstStart + i) & 3u;
-      int expect = t->lvlBlank;
-      if (phase == 0) expect = t->lvlBlank - t->burstAmplitude;
-      if (phase == 2) expect = t->lvlBlank + t->burstAmplitude;
-      if (s[i] != expect) {
-        CHECK(false, "%s line %u burst sample %u: %u, expected %d (phase %u)",
-              t->name, line, i, s[i], expect, phase);
-        return;
+    const uint32_t activeStart = t->vTotalLines - t->vActiveLines;
+    bool ok = true;
+    for (uint32_t line = activeStart; line < t->vTotalLines && ok; ++line) {
+      const uint32_t base = line * t->samplesPerLine;
+      const uint16_t *s = &f.samples[base + t->hBurstStart];
+      for (uint32_t i = 0; i < t->hBurstCycles * 4u; ++i) {
+        // Phase comes from the absolute sample index, so burst and chroma
+        // share one reference. This is what makes PAL colour tractable later.
+        const uint32_t phase = (base + t->hBurstStart + i) & 3u;
+        if (s[i] != f.burstCode[phase]) {
+          CHECK(false,
+                "%s/%s line %u burst sample %u: %u, expected %u (phase %u)",
+                t->name, d->name, line, i, s[i], f.burstCode[phase], phase);
+          ok = false;
+          break;
+        }
       }
     }
-  }
-  // The burst must be suppressed through the vertical interval.
-  for (uint32_t line = 0; line < t->vBurstBlankEnd; ++line) {
-    const uint8_t *s = &f.samples[line * t->samplesPerLine + t->hBurstStart];
-    bool modulated = false;
-    for (uint32_t i = 0; i < t->hBurstCycles * 4u; ++i) {
-      if (s[i] != t->lvlBlank && s[i] != t->lvlSyncTip) modulated = true;
+    // The burst must be suppressed through the vertical interval.
+    for (uint32_t line = 0; line < t->vBurstBlankEnd; ++line) {
+      const uint16_t *s = &f.samples[line * t->samplesPerLine + t->hBurstStart];
+      bool modulated = false;
+      for (uint32_t i = 0; i < t->hBurstCycles * 4u; ++i) {
+        if (s[i] != f.codeBlank && s[i] != f.codeSyncTip) modulated = true;
+      }
+      CHECK(!modulated, "%s/%s line %u: burst present during vertical blanking",
+            t->name, d->name, line);
     }
-    CHECK(!modulated, "%s line %u: burst present during vertical blanking",
-          t->name, line);
+    // Amplitude in physical codes. The PWM sink quantizes this brutally
+    // (+-2 of a 12-step luma span versus +-14 of 70), which is the weakest
+    // point of that sink -- print it so it is a number, not a surprise.
+    const int amp = (int)f.burstCode[2] - (int)f.codeBlank;
+    printf("  %-20s %u cycles at %.2f us, amplitude +-%d of %u..%u\n", d->name,
+           t->hBurstCycles, t->hBurstStart * usPerSample(t), amp, f.codeBlank,
+           f.codeWhite);
   }
-  printf("  NTSC-J      %u cycles at %.2f us, amplitude +-%u\n",
-         t->hBurstCycles, t->hBurstStart * usPerSample(t), t->burstAmplitude);
 }
 
 void testLevels() {
   printf("signal levels\n");
   const CompositeTiming *t = &COMPOSITE_TIMING_NTSC_J_240P;
-  const Field f = generateField(t, &COMPOSITE_DAC_7BIT_GPIO5);
-  if (f.samples.empty()) return;
+  const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
+                                     &COMPOSITE_DAC_PWM_GPIO10};
+  for (const CompositeDacProfile *d : ds) {
+    const Field f = generateField(t, d);
+    if (f.samples.empty()) continue;
 
-  // Nothing may exceed the DAC range, on any line.
-  uint8_t lo = 255, hi = 0;
-  for (uint8_t v : f.samples) {
-    if (v < lo) lo = v;
-    if (v > hi) hi = v;
+    // Nothing may exceed the DAC range, on any line.
+    uint32_t lo = 0xFFFFu, hi = 0;
+    for (uint16_t v : f.samples) {
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    CHECK(hi <= f.codeMax, "%s: peak code %u exceeds codeMax %u", d->name, hi,
+          f.codeMax);
+    CHECK(lo == f.codeSyncTip, "%s: minimum code is %u, expected sync tip %u",
+          d->name, lo, f.codeSyncTip);
+    // The top of the PWM range is where CC would exceed TOP, whose behaviour
+    // is not documented in the SDK. Keep it unreachable.
+    if (d->kind == CompositeDacKind::PWM) {
+      CHECK(hi < f.codeMax, "%s: peak code %u reaches codeMax %u", d->name, hi,
+            f.codeMax);
+    }
+
+    // White and black bars must land on the nominal codes: the leftmost bar
+    // is white, the rightmost is black, and neither carries chroma.
+    const uint32_t line = t->vTotalLines - 1;
+    const uint16_t *a = &f.samples[line * t->samplesPerLine + t->hActiveStart];
+    const uint32_t lastBar = t->hActiveSamples - 8;
+    CHECK(a[8] == f.codeWhite, "%s: white bar reads %u, expected %u", d->name,
+          a[8], f.codeWhite);
+    CHECK(a[lastBar] == f.codeBlank, "%s: black bar reads %u, expected %u",
+          d->name, a[lastBar], f.codeBlank);
+    printf("  %-20s code range %u..%u (sync %u, blank %u, white %u, max %u)\n",
+           d->name, lo, hi, f.codeSyncTip, f.codeBlank, f.codeWhite, f.codeMax);
   }
-  CHECK(hi <= COMPOSITE_LEVEL_MAX, "peak code %u exceeds %u", hi,
-        COMPOSITE_LEVEL_MAX);
-  CHECK(lo == t->lvlSyncTip, "minimum code is %u, expected sync tip %u", lo,
-        t->lvlSyncTip);
-  printf("  code range %u..%u (sync %u, blank %u, white %u)\n", lo, hi,
-         t->lvlSyncTip, t->lvlBlank, t->lvlWhite);
-
-  // White and black bars must land on the nominal levels: the leftmost bar is
-  // white, the rightmost is black, and neither carries chroma.
-  const uint32_t line = t->vTotalLines - 1;
-  const uint8_t *a = &f.samples[line * t->samplesPerLine + t->hActiveStart];
-  const uint32_t lastBar = t->hActiveSamples - 8;
-  CHECK(a[8] == t->lvlWhite, "white bar reads %u, expected %u", a[8],
-        t->lvlWhite);
-  CHECK(a[lastBar] == t->lvlBlack, "black bar reads %u, expected %u",
-        a[lastBar], t->lvlBlack);
 }
 
 void testMonochrome() {
-  printf("monochrome (PAL phase 1, and the 3-bit I2C DAC)\n");
+  printf("monochrome (PAL phase 1)\n");
   // A monochrome timing must produce no chroma modulation at all: every
   // active sample pair for a given pixel must be identical.
   const CompositeTiming *t = &COMPOSITE_TIMING_PAL_B_288P;
-  const Field f = generateField(t, &COMPOSITE_DAC_3BIT_GPIO5);
-  if (f.samples.empty()) return;
+  const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
+                                     &COMPOSITE_DAC_PWM_GPIO10};
+  for (const CompositeDacProfile *d : ds) {
+    const Field f = generateField(t, d);
+    if (f.samples.empty()) continue;
 
-  const uint32_t line = t->vTotalLines - 1;
-  const uint8_t *a = &f.samples[line * t->samplesPerLine + t->hActiveStart];
-  for (uint32_t i = 0; i < t->hActiveSamples; i += 2) {
-    if (a[i] != a[i + 1]) {
-      CHECK(false, "%s: chroma present in monochrome mode at sample %u",
-            t->name, i);
-      break;
+    const uint32_t line = t->vTotalLines - 1;
+    const uint16_t *a = &f.samples[line * t->samplesPerLine + t->hActiveStart];
+    for (uint32_t i = 0; i < t->hActiveSamples; i += 2) {
+      if (a[i] != a[i + 1]) {
+        CHECK(false, "%s/%s: chroma present in monochrome mode at sample %u",
+              t->name, d->name, i);
+        break;
+      }
     }
-  }
-  // The 3-bit DAC must only ever emit codes 0..7.
-  for (uint8_t v : f.samples) {
-    if (v > 7) {
-      CHECK(false, "3-bit DAC emitted code %u", v);
-      break;
+    for (uint16_t v : f.samples) {
+      if (v > f.codeMax) {
+        CHECK(false, "%s: emitted code %u above codeMax %u", d->name, v,
+              f.codeMax);
+        break;
+      }
     }
+    printf("  %-20s no chroma, codes within 0..%u\n", d->name, f.codeMax);
   }
-  printf("  PAL-B/3bit  no chroma, codes within 0..7\n");
 }
 
-void testDacProfiles() {
-  printf("DAC profiles\n");
+void testLevelMaps() {
+  printf("level maps\n");
   const CompositeTiming *ts[] = {&COMPOSITE_TIMING_NTSC_J_240P,
                                  &COMPOSITE_TIMING_PAL_B_288P};
-  const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_7BIT_GPIO5,
-                                     &COMPOSITE_DAC_3BIT_GPIO5};
-  for (const CompositeDacProfile *d : ds) {
-    const uint32_t n = 1u << d->bits;
-    if (d->bits < COMPOSITE_LEVEL_BITS) {
-      // Levels must be ascending so that a DAC code and its output level move
-      // together; the encoder's nearest-level search does not require it, but
-      // a non-monotonic ladder is almost always a wiring mistake.
-      for (uint32_t i = 1; i < n; ++i) {
-        CHECK(d->levels[i] > d->levels[i - 1],
-              "%s: level[%u]=%u is not above level[%u]=%u", d->name, i,
-              d->levels[i], i - 1, d->levels[i - 1]);
-      }
-      CHECK(d->levels[n - 1] <= COMPOSITE_LEVEL_MAX,
-            "%s: top level %u exceeds %u", d->name, d->levels[n - 1],
-            COMPOSITE_LEVEL_MAX);
-    }
-    // The blanking and peak-white levels must be *exactly* representable.
-    // This is why the 3-bit ladder uses a 1:2:5 conductance ratio rather than
-    // a binary 1:2:4 — a binary ladder misses blanking by ~14%, which the
-    // receiver's clamp reads as a black-level error.
-    for (const CompositeTiming *t : ts) {
-      const uint8_t wanted[] = {t->lvlSyncTip, t->lvlBlank, t->lvlWhite};
-      const char *names[] = {"sync tip", "blanking", "peak white"};
-      for (int k = 0; k < 3; ++k) {
-        bool exact = (d->bits >= COMPOSITE_LEVEL_BITS);
-        for (uint32_t i = 0; i < n && !exact; ++i) {
-          if (d->levels[i] == wanted[k]) exact = true;
-        }
-        CHECK(exact, "%s/%s: %s (level %u) is not representable", t->name,
-              d->name, names[k], wanted[k]);
+  const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
+                                     &COMPOSITE_DAC_PWM_GPIO10};
+
+  // The R-2R map must be the exact identity, so that adding the PWM sink
+  // cannot have perturbed the existing output.
+  {
+    const CompositeLevelMap m = compositeLevelMap(&COMPOSITE_TIMING_NTSC_J_240P,
+                                                  &COMPOSITE_DAC_R2R_GPIO5);
+    for (int32_t l = 0; l <= (int32_t)COMPOSITE_LEVEL_MAX; ++l) {
+      const uint32_t c = compositeLevelToCode(m, l);
+      if (c != (uint32_t)l) {
+        CHECK(false, "R-2R map is not the identity: level %d -> code %u", l, c);
+        break;
       }
     }
-    printf("  %-22s %u bits, GPIO%u..%u\n", d->name, d->bits, d->basePin,
-           d->basePin + d->bits - 1);
+  }
+
+  for (const CompositeTiming *t : ts) {
+    for (const CompositeDacProfile *d : ds) {
+      const CompositeLevelMap m = compositeLevelMap(t, d);
+      const uint32_t sync = compositeLevelToCode(m, t->lvlSyncTip);
+      const uint32_t blank = compositeLevelToCode(m, t->lvlBlank);
+      const uint32_t white = compositeLevelToCode(m, t->lvlWhite);
+
+      CHECK(sync == 0, "%s/%s: sync tip maps to %u, expected 0", t->name,
+            d->name, sync);
+      CHECK(blank > 0 && blank < white && white <= m.codeMax,
+            "%s/%s: levels not ordered (sync %u, blank %u, white %u, max %u)",
+            t->name, d->name, sync, blank, white, m.codeMax);
+
+      // Blanking sits at a fixed fraction of white (0.286 / 1.000). A coarse
+      // DAC cannot hit it exactly; bound how far off it may land, since the
+      // receiver clamps on the back porch and reads the error as a black
+      // level shift.
+      const double want = (double)t->lvlWhite / t->lvlBlank;
+      const double got = (double)white / blank;
+      const double err = std::fabs(got - want) / want;
+      CHECK(err < 0.06, "%s/%s: blank/white ratio off by %.1f%% (%u : %u)",
+            t->name, d->name, err * 100.0, blank, white);
+
+      // Chroma overshoots white by +133 IRE and undershoots blanking by
+      // -33 IRE, so both excursions must fit the code range. This is the
+      // constraint that the pwmCcWhite search was solving; asserting it here
+      // means a stale value cannot survive a build.
+      if (t->colorEnabled) {
+        const double span = (double)white - blank;
+        const double peak = blank + 1.33 * span;
+        const double trough = blank - 0.33 * span;
+        CHECK(peak <= m.codeMax,
+              "%s/%s: peak chroma %.1f exceeds codeMax %u (lower pwmCcWhite)",
+              t->name, d->name, peak, m.codeMax);
+        CHECK(trough >= 0.0, "%s/%s: chroma trough %.1f below 0", t->name,
+              d->name, trough);
+      }
+
+      printf("  %-12s %-20s sync %u blank %u white %u max %u (ratio %+.1f%%)\n",
+             t->name, d->name, sync, blank, white, m.codeMax,
+             (got / want - 1.0) * 100.0);
+    }
   }
 }
 
@@ -375,7 +459,7 @@ void testDacProfiles() {
 
 int main() {
   printf("composite_encode tests\n\n");
-  testDacProfiles();
+  testLevelMaps();
   testGeometry();
   testTimingTables();
   testFieldStructure();

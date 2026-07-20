@@ -14,6 +14,7 @@
 #include "lcdtap/pico2/i2c_slave.hpp"
 #include "lcdtap/pico2/spi_slave.hpp"
 
+#include "composite_dac_kind.hpp"
 #include "config.h"
 #include "flash_config.hpp"
 #include "output_interface.hpp"
@@ -129,8 +130,9 @@ static const VideoBackend BACKEND_COMPOSITE = {
 static const VideoBackend *gVideo = &BACKEND_HSTX;
 static void *gVideoState = &gHstx;
 
-// Currently active output interface (mirrors ConfigFile::outputInterface).
+// Currently active output interface and composite DAC (mirror ConfigFile).
 static OutputInterface gOutputIf = OutputInterface::DVI_D;
+static CompositeDacKind gCvbsDac = CompositeDacKind::PWM;
 
 // =============================================================================
 // OSD user items
@@ -140,32 +142,64 @@ static OutputInterface gOutputIf = OutputInterface::DVI_D;
 // the library's system items.
 static constexpr uint16_t OSD_ITEM_ID_OUTPUT_IF =
     lcdtap::OSD_USER_ITEM_ID_BASE + 0u;
+static constexpr uint16_t OSD_ITEM_ID_CVBS_DAC =
+    lcdtap::OSD_USER_ITEM_ID_BASE + 1u;
 
 static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   // Called after initMenuItems() has populated every system item, so Apply
   // already exists and can be used as an anchor.
-  lcdtap::OsdMenuItem it = {};
-  it.id = OSD_ITEM_ID_OUTPUT_IF;
-  it.isAction = false;
-  it.config.type = lcdtap::ValueType::ENUM;
-  it.config.name = "Output Interface";
-  it.config.unit = "";
-  it.config.options = OUTPUT_INTERFACE_NAMES;
-  it.config.min = 0;
-  it.config.max = OUTPUT_INTERFACE_COUNT - 1;
-  it.config.step = 1;
-  it.config.value = static_cast<int16_t>(gOutputIf);
+  const int16_t busKeyId =
+      lcdtap::OSD_ITEM_ID_SYS_BASE +
+      static_cast<int16_t>(lcdtap::ConfigId::BUS_INTERFACE);
+
+  lcdtap::OsdMenuItem out = {};
+  out.id = OSD_ITEM_ID_OUTPUT_IF;
+  out.isAction = false;
+  out.config.type = lcdtap::ValueType::ENUM;
+  out.config.name = "Output";
+  out.config.unit = "";
+  out.config.options = OUTPUT_INTERFACE_NAMES;
+  out.config.min = 0;
+  out.config.max = OUTPUT_INTERFACE_COUNT - 1;
+  out.config.step = 1;
+  out.config.value = static_cast<int16_t>(gOutputIf);
   // enableKeyId is auto-offset from ConfigId to OSD id only for system items
   // (osd.cpp initMenuItems), so a user item must supply a resolved id.
-  it.config.enableKeyId = lcdtap::OSD_ITEM_ID_SYS_BASE +
-                          static_cast<int16_t>(lcdtap::ConfigId::BUS_INTERFACE);
-  it.config.enableKeyValueMin = static_cast<int16_t>(lcdtap::BusType::I2C);
-  it.config.enableKeyValueMax =
+  // Composite needs pins the parallel bus already owns.
+  out.config.enableKeyId = busKeyId;
+  out.config.enableKeyValueMin = static_cast<int16_t>(lcdtap::BusType::I2C);
+  out.config.enableKeyValueMax =
       static_cast<int16_t>(lcdtap::BusType::SPI_3LINE);
   // insertItem() does not run updateItemEnables(), so seed isEnabled here.
-  it.isEnabled = (gCurrentIface != lcdtap::BusType::PARALLEL);
+  out.isEnabled = (gCurrentIface != lcdtap::BusType::PARALLEL);
 
-  osd->insertItem(osd->getItemIndexById(lcdtap::OSD_ITEM_ID_APPLY), it);
+  lcdtap::OsdMenuItem dac = {};
+  dac.id = OSD_ITEM_ID_CVBS_DAC;
+  dac.isAction = false;
+  dac.config.type = lcdtap::ValueType::ENUM;
+  dac.config.name = "Composite DAC";
+  dac.config.unit = "";
+  dac.config.options = COMPOSITE_DAC_KIND_NAMES;
+  dac.config.min = 0;
+  dac.config.max = COMPOSITE_DAC_KIND_COUNT - 1;
+  dac.config.step = 1;
+  dac.config.value = static_cast<int16_t>(gCvbsDac);
+  // Gated on SPI rather than on the Output item: the library allows one
+  // enable key per item, so it gates on the axis where a wrong value is a
+  // hardware conflict (the R-2R ladder covers the I2C pins) rather than the
+  // axis where it is merely inert (DVI-D). compositeDacSanitize() cleans up
+  // the inert case at Apply.
+  dac.config.enableKeyId = busKeyId;
+  dac.config.enableKeyValueMin =
+      static_cast<int16_t>(lcdtap::BusType::SPI_4LINE);
+  dac.config.enableKeyValueMax =
+      static_cast<int16_t>(lcdtap::BusType::SPI_3LINE);
+  dac.isEnabled = compositeDacAllowed(CompositeDacKind::R2R, gCurrentIface);
+
+  // Insert before Apply. The first insert shifts Apply down by one, so the
+  // anchor has to be looked up again for the second.
+  osd->insertItem(osd->getItemIndexById(lcdtap::OSD_ITEM_ID_APPLY), out);
+  osd->insertItem(osd->getItemIndexById(lcdtap::OSD_ITEM_ID_APPLY), dac);
 }
 
 static bool onOsdActionActivated(lcdtap::Osd *osd,
@@ -404,6 +438,9 @@ int main() {
     gOutputIf = outputInterfaceSanitize(
         static_cast<OutputInterface>(savedCfg.outputInterface),
         savedCfg.libConfig.busInterface);
+    gCvbsDac = compositeDacSanitize(
+        static_cast<CompositeDacKind>(savedCfg.compositeDac),
+        savedCfg.libConfig.busInterface);
   }
 
   const lcdtap::pico2::CompositeTiming *cvbsTiming = nullptr;
@@ -519,19 +556,19 @@ int main() {
   // 10. Launch Core 1 (fillScanline + OSD overlay + video output)
   // -------------------------------------------------------------------------
   if (cvbsTiming != nullptr) {
-    // Hardware safety: in PARALLEL mode GPIO5-11 are data/DC lines driven by
-    // the external host controller, so the DAC must never be enabled there.
-    // outputInterfaceSanitize() already covers this; the check stays because
-    // the failure mode is an output-vs-output conflict, not a blank screen.
+    // Hardware safety: in PARALLEL mode GPIO3-11 are data/DC lines driven by
+    // the external host controller, and both DACs live inside that range
+    // (the R-2R ladder on GPIO5-11, the PWM pin on GPIO10 = D[7]), so
+    // neither may be enabled there. outputInterfaceSanitize() already covers
+    // this; the check stays because the failure mode is an output-vs-output
+    // conflict, not a blank screen.
     if (gCurrentIface == lcdtap::BusType::PARALLEL) {
       panic("composite output is not available on the parallel bus");
     }
-    // SPI modes get the 7-bit ladder on GPIO5-11; I2C occupies GPIO8/9 so it
-    // uses the 3-bit ladder on GPIO5-7 and runs monochrome.
     const lcdtap::pico2::CompositeDacProfile *dac =
-        (gCurrentIface == lcdtap::BusType::I2C)
-            ? &lcdtap::pico2::COMPOSITE_DAC_3BIT_GPIO5
-            : &lcdtap::pico2::COMPOSITE_DAC_7BIT_GPIO5;
+        (gCvbsDac == CompositeDacKind::R2R)
+            ? &lcdtap::pico2::COMPOSITE_DAC_R2R_GPIO5
+            : &lcdtap::pico2::COMPOSITE_DAC_PWM_GPIO10;
     lcdtap::pico2::CompositeOutConfig cvbsCfg = {PIN_LED, LED_TOGGLE_FRAMES,
                                                  dac};
     if (!lcdtap::pico2::compositeOutInit(&gCvbs, cvbsTiming, &inst,
@@ -551,7 +588,7 @@ int main() {
   // -------------------------------------------------------------------------
   // 11. USB CDC serial interface
   // -------------------------------------------------------------------------
-  uartIfInit(&inst, &gCurrentIface, &gOutputIf, switchInterface,
+  uartIfInit(&inst, &gCurrentIface, &gOutputIf, &gCvbsDac, switchInterface,
              saveConfigSafe);
 
   // -------------------------------------------------------------------------
@@ -590,32 +627,43 @@ int main() {
         OutputInterface newOutIf =
             outIfItem ? static_cast<OutputInterface>(outIfItem->config.value)
                       : gOutputIf;
-        // The item retains its value while greyed out, so a switch to the
-        // parallel bus must not carry a stale NTSC/PAL selection into flash.
+        const lcdtap::OsdMenuItem *dacItem = nullptr;
+        gOsd.getItemById(OSD_ITEM_ID_CVBS_DAC, &dacItem);
+        CompositeDacKind newDac =
+            dacItem ? static_cast<CompositeDacKind>(dacItem->config.value)
+                    : gCvbsDac;
+        // Items retain their value while greyed out, so a switch to a bus
+        // that forbids the current selection must not carry it into flash.
+        // Order matters: the DAC is clamped against the already-clamped bus.
         newOutIf = outputInterfaceSanitize(newOutIf, newIface);
+        newDac = compositeDacSanitize(newDac, newIface);
 
         const bool busChanged = (newIface != gCurrentIface);
         const bool outIfChanged = (newOutIf != gOutputIf);
+        const bool dacChanged = (newDac != gCvbsDac);
 
         ConfigFile toSave = {};
         toSave.libConfig = gInst->getConfig();
         toSave.outputInterface = static_cast<uint8_t>(newOutIf);
+        toSave.compositeDac = static_cast<uint8_t>(newDac);
         saveConfigSafe(toSave);
 
         // Reboot when the output interface changes, because clk_sys differs
-        // between all three modes. Also reboot when the bus changes while
-        // composite is active: the DAC width is chosen from the bus at init
-        // (7-bit for SPI, 3-bit for I2C), and the 7-bit ladder occupies
-        // GPIO5-11, which overlaps the I2C pins. Handing GPIO8/9 to the I2C
-        // driver while the PIO still drives them would be a pin conflict.
-        if (outIfChanged ||
-            (busChanged && outputInterfaceIsComposite(newOutIf))) {
+        // between all three modes. Also reboot when the bus or the DAC
+        // changes while composite is running: the DAC is bound to its pins
+        // and peripheral at init, and the R-2R ladder covers the I2C pins,
+        // so handing GPIO8/9 to the I2C driver while the PIO still drives
+        // them would be a pin conflict. A DAC change with DVI-D selected is
+        // inert and only needs persisting.
+        if (outIfChanged || (outputInterfaceIsComposite(newOutIf) &&
+                             (busChanged || dacChanged))) {
           watchdog_reboot(0, 0, 50);
           while (true) tight_loop_contents();
         }
         if (busChanged) {
           switchInterface(newIface);
         }
+        gCvbsDac = newDac;
       }
     }
   }

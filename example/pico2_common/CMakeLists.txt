@@ -6,6 +6,8 @@ add_library(pico2_common STATIC
     src/composite_timing.cpp
     src/composite_encode.cpp
     src/composite_out.cpp
+    src/composite_sink_r2r.cpp
+    src/composite_sink_pwm.cpp
 )
 
 # Core library (MCU-agnostic)
@@ -34,5 +36,6 @@ target_link_libraries(pico2_common PUBLIC
     hardware_irq
     hardware_pio
     hardware_pll
+    hardware_pwm
     hardware_vreg
 )

@@ -79,23 +79,41 @@ Get the list of configuration parameters held by LcdTap as JSON.
 
 The `id` field of each parameter is `"cfg0"`, `"cfg1"`, ..., `"cfg14"`, corresponding to the `ConfigId` enum index in the firmware. Use the same ids as keys in `setparams`.
 
-One additional parameter, `"outputInterface"`, is appended after the `cfgN` entries. It is a host-side setting rather than a `ConfigId`, so it has a name instead of an index:
+Two additional parameters are appended after the `cfgN` entries. They are host-side settings rather than `ConfigId`s, so they have names instead of indices:
 
 ```json
 {
     "id": "outputInterface",
     "type": "ENUM",
-    "name": "Output Interface",
+    "name": "Output",
     "unit": null,
     "options": {"DVI-D": 0, "NTSC": 1, "PAL": 2},
     "value": 0,
     "enableKeyId": "cfg1",
     "enableKeyValueMin": 0,
     "enableKeyValueMax": 2
+},
+{
+    "id": "compositeDac",
+    "type": "ENUM",
+    "name": "Composite DAC",
+    "unit": null,
+    "options": {"PWM": 0, "R-2R": 1},
+    "value": 0,
+    "enableKeyId": "cfg1",
+    "enableKeyValueMin": 1,
+    "enableKeyValueMax": 2
 }
 ```
 
-`NTSC` and `PAL` drive a resistor-ladder DAC on GPIO5-11, which are inputs driven by the host controller when the bus interface is `Parallel8`. The setting is therefore only selectable when `cfg1` is 0-2, and is silently forced back to `DVI-D` otherwise.
+Composite output needs GPIOs that the parallel bus already uses, so `outputInterface` is only selectable when `cfg1` (bus interface) is 0-2, and is silently forced back to `DVI-D` otherwise.
+
+`compositeDac` selects which DAC carries the composite signal:
+
+- `PWM` — one GPIO (GPIO10) plus an RC filter. Simple, roughly 12 luma steps and about 70% of the standard amplitude. Works on both SPI and I2C.
+- `R-2R` — 7-bit resistor ladder on GPIO5-11 with an emitter follower. Much better picture, but the ladder covers GPIO8/9, so it is **SPI only**. It is silently forced back to `PWM` on I2C or Parallel8.
+
+`compositeDac` is ignored while `outputInterface` is `DVI-D`, but it is still stored, so it takes effect the next time a composite mode is selected.
 
 Parameter list element types:
 
@@ -169,7 +187,7 @@ Set LcdTap configuration parameters in bulk from the host.
     }
     ```
 
-    - Keys are the `id` values returned by `getparams` (`"cfg0"` through `"cfg14"`, plus `"outputInterface"`).
+    - Keys are the `id` values returned by `getparams` (`"cfg0"` through `"cfg14"`, plus `"outputInterface"` and `"compositeDac"`).
     - It is not necessary to include all parameters; omitted parameters retain their current values.
 
 - Response:
@@ -178,9 +196,14 @@ Set LcdTap configuration parameters in bulk from the host.
     {"response": "ok"}
     ```
 
-**Changing `outputInterface` resets the device.** Each output mode needs a different system clock (DVI-D 312 MHz, NTSC 315 MHz, PAL 301.5 MHz), so the firmware saves the new value, sends the `ok` response, and then reboots. The USB CDC connection will drop and re-enumerate; reconnect before sending further commands.
+**Some changes reset the device.** The firmware saves the new values, sends the `ok` response, and then reboots. The USB CDC connection will drop and re-enumerate; reconnect before sending further commands. A reset happens when:
 
-This is also the escape route if a composite mode is selected with no TV attached: USB CDC keeps working in every mode, so `setparams` with `"outputInterface": 0` restores DVI-D. Holding the LEFT key at power-on also boots with default settings.
+- `outputInterface` changes — each mode needs a different system clock (DVI-D 312 MHz, NTSC 315 MHz, PAL 301.5 MHz).
+- `cfg1` (bus interface) or `compositeDac` changes **while a composite mode is selected** — the DAC binds to its pins and peripheral at startup.
+
+Changing `compositeDac` while `outputInterface` is `DVI-D` does not reset; nothing composite is running.
+
+Reset is also the escape route if a composite mode is selected with no TV attached: USB CDC keeps working in every mode, so `setparams` with `"outputInterface": 0` restores DVI-D. Holding the LEFT key at power-on also boots with default settings.
 
 ### getframebuffer
 

@@ -15,6 +15,7 @@
 
 #include "lcdtap/lcdtap.hpp"
 #include "lcdtap/pico2/composite_encode.hpp"
+#include "lcdtap/pico2/composite_sink.hpp"
 #include "lcdtap/pico2/composite_timing.hpp"
 
 namespace lcdtap::pico2 {
@@ -32,7 +33,7 @@ static constexpr int COMPOSITE_NUM_SLOTS = 4;
 struct CompositeOutConfig {
   uint32_t pinLed;
   uint32_t ledToggleFrames;
-  // DAC profile: selects width (7-bit SPI / 3-bit I2C) and base GPIO.
+  // Which DAC drives the output: the R-2R ladder or the PWM pin.
   const CompositeDacProfile *dac;
 };
 
@@ -54,18 +55,40 @@ struct CompositeOutState {
   uint16_t fillLine[COMPOSITE_NUM_SLOTS];  // first field line held by a slot
 
   // --- internal ---
+  const CompositeSink *sink;
   CompositeEncoder enc;
-  uint32_t *slotBufs;    // COMPOSITE_NUM_SLOTS * wordsPerSlot, malloc'd
+  // COMPOSITE_NUM_SLOTS * enc.bytesPerSlot, malloc'd. Byte-granular: the two
+  // sinks use different transfer widths, so all slot arithmetic is in bytes.
+  uint8_t *slotBufs;
   uint32_t *lut;         // chroma LUT, malloc'd
   uint16_t *rgbScratch;  // one line of RGB565, reused by every active line
   uint32_t dmaChannels[COMPOSITE_NUM_SLOTS];
-  uint32_t pioSm;
-  uint32_t pioOffset;
+  // Slot base addresses, precomputed so the DMA IRQ can rewind read_addr with
+  // a plain load. The handler lives in scratch SRAM and must not risk a call
+  // into flash-resident code, so it must not do the pointer arithmetic itself.
+  uint32_t slotAddr[COMPOSITE_NUM_SLOTS];
+  uint32_t chMask;  // bitmask of the claimed DMA channels
+  union {
+    struct {
+      uint32_t sm;
+      uint32_t offset;
+    } pio;
+    struct {
+      uint32_t slice;
+      uint32_t channel;
+    } pwm;
+  } sinkState;
   volatile uint32_t groupLine;  // field line at the head of the next group
   uint32_t slotNum;             // index of the slot that last completed
   uint32_t frame;
   bool led;
 };
+
+// Byte offset of slot `i`. All three call sites must go through this: the
+// slot stride is bytesPerSlot, not a count of uint32_t.
+inline uint8_t *compositeSlotPtr(const CompositeOutState *s, uint32_t i) {
+  return s->slotBufs + (size_t)i * s->enc.bytesPerSlot;
+}
 
 // Configure clocks for composite output.
 // Leaves pll_usb (clk_usb 48 MHz, clk_peri, clk_adc) exactly as the HSTX path

@@ -8,7 +8,7 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 - Runtime configuration via OSD menu: interface, controller type, pixel format, LCD size, inversion, R/B swap, rotation, scale mode
 - Settings (including selected interface) saved to flash on Apply and restored at next boot
 - DVI output: 640×480@60Hz or 1280×720@30Hz selectable via GPIO21 at boot
-- Composite video output (NTSC/PAL) via a resistor-ladder DAC on otherwise-unused GPIOs, selectable from the OSD
+- Composite video output (NTSC/PAL) on otherwise-unused GPIOs, selectable from the OSD: a 1-pin PWM DAC or a 7-bit R-2R ladder
 - USB CDC serial interface for remote configuration and framebuffer readout from a PC or smartphone
 
 > [!WARNING]
@@ -28,6 +28,8 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 | GPIO  | Direction | Name | Active-low | Internal Pull-up | Description |
 |:--:|:--:|:--|:--:|:--:|:--|
 | 0     | IN        | RST | v | v | LCD Hardware reset (SPI mode) |
+| 5–11  | OUT       | CVBS_D[0..6] | | | Composite R-2R ladder (SPI modes only, when selected) |
+| 10    | OUT       | CVBS_PWM | | | Composite PWM output (SPI/I2C, when selected) |
 | 12–19 | OUT       | (DVI signals) | | | RP2350 HSTX |
 | 20    | IN        | CFG_OUT_720P | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
 | 21    | IN        | KEY_DOWN | v | v | Low=pressed |
@@ -64,62 +66,69 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 ## Composite Video Output (NTSC/PAL)
 
 The HDMI connector occupies GPIO12–19, so composite video uses the GPIOs that
-the input bus leaves free. Select `Output Interface` in the OSD menu (or set
-`outputInterface` over USB CDC) to switch between `DVI-D`, `NTSC` and `PAL`.
+the input bus leaves free. Two independent OSD items control it (or
+`outputInterface` / `compositeDac` over USB CDC):
 
-Each mode needs a different system clock, so **the device resets when the
-output interface changes**. Composite output is unavailable in Parallel mode,
-where every GPIO is already taken by the input bus, and the OSD item is greyed
-out there.
+- **`Output`** — `DVI-D`, `NTSC` or `PAL`
+- **`Composite DAC`** — `PWM` or `R-2R`
 
-| Mode | DAC | GPIO | Colour |
-|:--|:--|:--|:--|
-| 4-Line / 3-Line SPI | 7-bit R-2R | 5–11 (D0–D6) | NTSC colour, PAL monochrome |
-| I2C | 3-bit weighted | 5–7 (D0–D2) | monochrome |
-| Parallel | — | — | not available |
+There are therefore two quality tiers, and you only build the one you want:
 
-PAL colour is not implemented yet; PAL currently outputs monochrome.
+| DAC | GPIO | Parts | Picture | Buses |
+|:--|:--|:--|:--|:--|
+| **PWM** | 10 | 1 resistor + 1 capacitor | ~12 luma steps, ~70% amplitude | SPI, I2C |
+| **R-2R** | 5–11 | 8 resistors + transistor | 70 luma steps, full amplitude | SPI only |
 
-### Output buffer (common to both modes)
+The R-2R ladder spans GPIO5–11, which covers the I2C pins (GPIO8/9), so it is
+selectable only on SPI; the OSD greys it out otherwise. Composite output is
+unavailable on the parallel bus entirely — GPIO3–10 are data lines there, which
+covers the PWM pin too.
 
-Neither resistor network can drive 75 Ω directly: doing so would need a ladder
-around 91 Ω, which exceeds the 12 mA per-pin limit and makes the GPIO's own
-output impedance a large fraction of each leg. Both networks therefore feed the
-same single-transistor buffer, which keeps them at ~1 mA per pin and preserves
-linearity.
+**The device resets** when `Output` changes (each mode needs a different system
+clock), and when the bus or the DAC changes while a composite mode is running.
 
-```
-resistor network --+---- base of NPN emitter follower
-                   |            |
-                  R_sh         collector ---- VSYS (~5 V)
-                   |            |
-                  GND          emitter --+---- 75R ---+---- 220uF ---> RCA
-                                         |            |
-                                         47R         680pF
-                                         |            |
-                                        GND          GND
-```
-
-- NPN: 2N3904 / 2SC2712 or similar (fT ≥ 250 MHz)
-- Collector to **VSYS (~5 V)**, not 3.3 V — the emitter reaches ~2.3 V and
-  needs headroom to stay out of saturation
-- 47 Ω emitter resistor, then 75 Ω in series to the output
-- 680 pF from the output node to GND as a reconstruction filter
-  (fc ≈ 5 MHz; tune on the bench)
-- 220 µF series capacitor into the RCA jack; the receiver clamps on sync, so
-  the DC offset from V<sub>BE</sub> does not matter
-
-The 75 Ω series resistor and the receiver's 75 Ω termination halve the signal,
-so a 2.3 V swing at the emitter gives **1.30 V full scale at the load**: sync
-tip 0 V, blanking/black 0.286 V, peak white 1.000 V.
+PAL colour is not implemented yet; PAL currently outputs monochrome on both
+DACs.
 
 > [!NOTE]
-> The values below are nominal. The emitter follower's output impedance costs
-> a few percent of amplitude, so trim the shunt resistor (R_sh) on the bench —
-> or leave it and adjust `lvlBlank` / `lvlWhite` in `composite_timing.cpp`,
-> since the code-to-voltage mapping is a software table.
+> Both DACs share GPIO10, so the two circuits are alternative populations, not
+> simultaneous ones. Build whichever tier you want.
 
-### 7-bit R-2R ladder (SPI modes)
+### PWM DAC — simple tier
+
+One GPIO, one resistor, one capacitor. No buffer.
+
+```
+GPIO10 --- R ---+--- RCA centre
+                |
+                C
+                |
+               GND
+```
+
+The PWM period equals the sample period, so the duty resolution *is* the
+sample period in system clocks: 22 steps on NTSC, 17 on PAL. White sits at
+duty 17/22 rather than 100%, because chroma overshoots white by up to
++133 IRE and has to fit above it.
+
+That, plus the 12 mA per-pin limit, is why the amplitude falls short of the
+1 V standard — a single 3.3 V GPIO simply cannot reach it:
+
+| R | White level | Sync amplitude | Peak current |
+|:--|:--|:--|:--|
+| 120 Ω | 0.78 V (78%) | 0.23 V (80%) | 13.5 mA |
+| **150 Ω** | **0.70 V (70%)** | **0.21 V (72%)** | **12.0 mA** |
+| 180 Ω | 0.63 V (63%) | 0.18 V (64%) | 10.8 mA |
+
+Start at **R = 150 Ω** and drop to 120 Ω if a receiver refuses to lock.
+Most TVs slice sync on the AC-coupled signal and tolerate this; capture
+devices are less forgiving. C = 100–470 pF (corner ≈ 5–6 MHz).
+
+The PWM carrier sits at 14.3 MHz with chroma at 3.58 MHz — only two octaves
+apart — so a single-pole RC leaves visible carrier ripple. That is the
+accepted cost of this tier.
+
+### R-2R ladder — quality tier
 
 ```
 GPIO11 -- 2.0k --+
@@ -130,52 +139,42 @@ GPIO10 -- 2.0k --+     (repeat for GPIO9, 8, 7, 6)
                  :
                 1.0k
                  |
-GPIO5  -- 2.0k --+---- 3.9k (R_sh) ---- GND
+GPIO5  -- 2.0k --+---- 3.9k ---- GND
                  |
-                 +---- to buffer
+                 +---- base of NPN emitter follower
 ```
 
-Roughly 1.65 mA per pin at full scale.
-
-### 3-bit weighted DAC (I2C mode)
-
-I2C occupies GPIO8/9, so only GPIO5–7 remain.
+The ladder cannot drive 75 Ω directly: doing so would need R ≈ 91 Ω, which
+exceeds the 12 mA per-pin limit and makes the GPIO's own output impedance a
+large fraction of each leg. A single-transistor buffer keeps it at 1.65 mA per
+pin and preserves linearity.
 
 ```
-GPIO7 -- 3.0k --+
-                |
-GPIO6 -- 7.5k --+---- 4.3k (R_sh) ---- GND
-                |
-GPIO5 -- 15k  --+---- to buffer
+ladder output ---- base of NPN emitter follower
+                          |
+                    collector ---- VSYS (~5 V)
+                          |
+                     emitter --+---- 75R ---+---- 220uF ---> RCA
+                               |            |
+                               47R         680pF
+                               |            |
+                              GND          GND
 ```
 
-| GPIO | Resistor | Contribution at the load |
-|:--|:--|:--|
-| 5 (D0) | 15 kΩ | 0.143 V |
-| 6 (D1) | 7.5 kΩ | 0.287 V |
-| 7 (D2) | 3.0 kΩ | 0.718 V |
+- NPN: 2N3904 / 2SC2712 or similar (fT ≥ 250 MHz)
+- Collector to **VSYS (~5 V)**, not 3.3 V — the emitter reaches ~2.3 V and
+  needs headroom to stay out of saturation
+- 220 µF blocks DC at the jack; the receiver clamps on sync, so the
+  V<sub>BE</sub> offset does not matter
 
-The conductance ratio is **1 : 2 : 5**, not the binary 1 : 2 : 4. That is
-deliberate: it places the sync tip, blanking and peak white exactly on codes,
-which a binary ladder cannot do (it would put blanking 14% off, and the
-receiver's clamp reads that as a black-level error).
+Full scale (code 127) is 1.30 V at a 75 Ω terminated load: sync tip 0 V,
+blanking/black 0.286 V, peak white 1.000 V.
 
-| Code | Level | |
-|:--|:--|:--|
-| 000 | 0.000 V | sync tip |
-| 001 | 0.143 V | |
-| 010 | 0.287 V | **blanking / black** |
-| 011 | 0.431 V | |
-| 100 | 0.718 V | |
-| 101 | 0.862 V | |
-| 110 | 1.005 V | **peak white** |
-| 111 | 1.149 V | |
-
-Five picture levels between black and white. Peak current is 1.1 mA on GPIO7.
-
-These levels are mirrored in `COMPOSITE_DAC_3BIT_GPIO5.levels[]` in
-`example/pico2_common/src/composite_timing.cpp`; change them together if the
-resistor values change.
+> [!NOTE]
+> All values are nominal. The emitter follower costs a few percent of
+> amplitude, so trim the 3.9 kΩ shunt on the bench — or leave it and adjust
+> `lvlBlank` / `lvlWhite` in `composite_timing.cpp`, since the code-to-voltage
+> mapping is a software table.
 
 ## Uploading Firmware
 

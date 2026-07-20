@@ -9,21 +9,17 @@
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
-#include "hardware/pio.h"
 #include "hardware/pll.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/structs/ioqspi.h"
 #include "hardware/structs/qmi.h"
 #include "hardware/vreg.h"
 
-#include "composite_dac.pio.h"
+#include "lcdtap/pico2/composite_sink.hpp"
 
 namespace lcdtap::pico2 {
 
 static constexpr int NUM_SLOTS = COMPOSITE_NUM_SLOTS;
-
-// pio0 is entirely free: the SPI/parallel slave owns pio1 SM0.
-#define COMPOSITE_PIO pio0
 
 static CompositeOutState *sCvbs = nullptr;
 
@@ -36,15 +32,31 @@ static void __scratch_x("cvbs") compositeIrqHandler() {
   CompositeOutState *s = sCvbs;
 
   const uint32_t finishedIdx = s->slotNum;
-  dma_hw->intr = 1u << s->dmaChannels[finishedIdx];
+  const uint32_t finishedCh = s->dmaChannels[finishedIdx];
+
+  // Acknowledge exactly the channel that completed, not every bit currently
+  // set in our mask. DMA_IRQ_0 is level-sensitive, so if a second channel
+  // completed while we were getting here its flag stays raised and the
+  // handler re-enters to advance the ring again -- which is what we want.
+  // Clearing the whole mask would swallow that completion and leave the ring
+  // permanently one slot behind the hardware.
+  dma_hw->ints0 = 1u << finishedCh;
 
   const uint32_t nextIdx =
       (finishedIdx + 1u < (uint32_t)NUM_SLOTS) ? finishedIdx + 1u : 0u;
   s->slotNum = nextIdx;
 
-  // Unlike the HSTX ring, read_addr and transfer_count never change: every
-  // slot is the same length and permanently bound to its own buffer. The
-  // handler only has to hand the slot that just drained back to Core 1.
+  // Rewind the channel that just drained. TRANS_COUNT reloads itself on every
+  // trigger, but READ_ADDR does not: it is left pointing one slot past the
+  // buffer, so without this the ring would walk up through SRAM on each lap
+  // and halt on a bus error within milliseconds. transfer_count is rewritten
+  // too, matching the HSTX handler, so nothing depends on the reload
+  // semantics. The finished channel is not re-triggered until the other three
+  // complete, so there is ample time.
+  dma_channel_hw_t *ch = &dma_hw->ch[finishedCh];
+  ch->read_addr = s->slotAddr[finishedIdx];
+  ch->transfer_count = s->enc.transfersPerSlot;
+
   uint32_t line = s->groupLine + s->enc.linesPerSlot;
   if (line >= s->timing->vTotalLines) {
     line = 0u;
@@ -69,11 +81,12 @@ static void __scratch_x("cvbs") compositeIrqHandler() {
 static void __not_in_flash_func(core1Main)() {
   CompositeOutState *s = sCvbs;
 
-  uint32_t chMask = 0;
-  for (int i = 0; i < NUM_SLOTS; ++i) chMask |= (1u << s->dmaChannels[i]);
+  const uint32_t chMask = s->chMask;
   dma_hw->intr = chMask;
   dma_hw->ints0 = chMask;
-  dma_hw->inte0 = chMask;
+  // Set only our bits: inte0 is shared, so a plain store would clear any
+  // other channel's IRQ0 enable.
+  hw_set_bits(&dma_hw->inte0, chMask);
   irq_set_exclusive_handler(DMA_IRQ_0, compositeIrqHandler);
   irq_set_priority(DMA_IRQ_0, PICO_HIGHEST_IRQ_PRIORITY);
   irq_set_enabled(DMA_IRQ_0, true);
@@ -87,8 +100,7 @@ static void __not_in_flash_func(core1Main)() {
       anyWork = true;
 
       CompositeSampleWriter w;
-      compositeWriterInit(&w, &s->enc,
-                          s->slotBufs + (size_t)i * s->enc.wordsPerSlot);
+      compositeWriterInit(&w, &s->enc, compositeSlotPtr(s, i));
       uint32_t line = s->fillLine[i];
       for (uint32_t k = 0; k < s->enc.linesPerSlot; ++k, ++line) {
         uint32_t y = 0;
@@ -202,28 +214,14 @@ void __no_inline_not_in_flash_func(compositeOutClockInit)(
 }
 
 // ---------------------------------------------------------------------------
-// PIO / DMA helpers shared between init and post-flash restart
+// DMA ring, shared by both sinks
+//
+// One chained ring of NUM_SLOTS channels serves either sink: only the DREQ,
+// the transfer width and the write target differ. Each slot is permanently
+// bound to its own buffer, but READ_ADDR still has to be rewound after every
+// pass -- the hardware leaves it past the end of the buffer and only
+// TRANS_COUNT reloads itself. compositeIrqHandler() does that.
 // ---------------------------------------------------------------------------
-
-static void configurePioSm(const CompositeOutState *s) {
-  const CompositeDacProfile *dac = s->cfg.dac;
-  const uint32_t sm = s->pioSm;
-
-  pio_sm_config c =
-      (dac->bits == 7)
-          ? composite_dac7_program_get_default_config(s->pioOffset)
-          : composite_dac3_program_get_default_config(s->pioOffset);
-  sm_config_set_out_pins(&c, dac->basePin, dac->bits);
-  // Shift right so sample 0 sits in the least significant bits; autopull at
-  // the exact number of bits the packer fills per word.
-  sm_config_set_out_shift(&c, /*shift_right=*/true, /*autopull=*/true,
-                          s->enc.flushBits);
-  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
-  // Integer divider: one instruction (one sample) per clkdiv system clocks.
-  sm_config_set_clkdiv_int_frac(&c, s->timing->pioClkdivInt, 0);
-
-  pio_sm_init(COMPOSITE_PIO, sm, s->pioOffset, &c);
-}
 
 static void configureDmaChannels(const CompositeOutState *s) {
   for (int i = 0; i < NUM_SLOTS; ++i) {
@@ -231,13 +229,15 @@ static void configureDmaChannels(const CompositeOutState *s) {
     const uint32_t nextCh = s->dmaChannels[(i + 1) % NUM_SLOTS];
     dma_channel_config c = dma_channel_get_default_config(ch);
     channel_config_set_chain_to(&c, nextCh);
-    channel_config_set_dreq(&c, pio_get_dreq(COMPOSITE_PIO, s->pioSm, true));
-    channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
+    channel_config_set_dreq(&c, s->sink->dreq(s));
+    channel_config_set_transfer_data_size(
+        &c, (dma_channel_transfer_size)s->sink->dmaTransferSize);
     channel_config_set_read_increment(&c, true);
     channel_config_set_write_increment(&c, false);
-    dma_channel_configure(ch, &c, &COMPOSITE_PIO->txf[s->pioSm],
-                          s->slotBufs + (size_t)i * s->enc.wordsPerSlot,
-                          s->enc.wordsPerSlot, false);
+    channel_config_set_high_priority(&c, s->sink->dmaHighPriority);
+    dma_channel_configure(ch, &c, s->sink->writeAddr(s),
+                          compositeSlotPtr(s, (uint32_t)i),
+                          s->enc.transfersPerSlot, false);
   }
 }
 
@@ -261,7 +261,7 @@ bool compositeOutInit(CompositeOutState *s, const CompositeTiming *timing,
   s->led = false;
 
   if (cfg.dac == nullptr) return false;
-  if (cfg.dac->bits != 7u && cfg.dac->bits != 3u) return false;
+  s->sink = compositeSinkFor(cfg.dac);
 
   s->lut = (uint32_t *)malloc(compositeLutWords(timing) * sizeof(uint32_t));
   if (s->lut == nullptr) return false;
@@ -270,8 +270,7 @@ bool compositeOutInit(CompositeOutState *s, const CompositeTiming *timing,
   // A field must be a whole number of groups, otherwise the ring would drift.
   if (timing->vTotalLines % s->enc.linesPerSlot != 0u) return false;
 
-  s->slotBufs = (uint32_t *)malloc((size_t)NUM_SLOTS * s->enc.wordsPerSlot *
-                                   sizeof(uint32_t));
+  s->slotBufs = (uint8_t *)malloc((size_t)NUM_SLOTS * s->enc.bytesPerSlot);
   s->rgbScratch =
       (uint16_t *)malloc((size_t)timing->hActivePixels * sizeof(uint16_t));
   if (s->slotBufs == nullptr || s->rgbScratch == nullptr) return false;
@@ -281,8 +280,7 @@ bool compositeOutInit(CompositeOutState *s, const CompositeTiming *timing,
   // very first pass through the ring is already a valid signal.
   for (int i = 0; i < NUM_SLOTS; ++i) {
     CompositeSampleWriter w;
-    compositeWriterInit(&w, &s->enc,
-                        s->slotBufs + (size_t)i * s->enc.wordsPerSlot);
+    compositeWriterInit(&w, &s->enc, compositeSlotPtr(s, (uint32_t)i));
     uint32_t line = (uint32_t)i * s->enc.linesPerSlot;
     for (uint32_t k = 0; k < s->enc.linesPerSlot; ++k, ++line) {
       uint32_t y = 0;
@@ -296,26 +294,21 @@ bool compositeOutInit(CompositeOutState *s, const CompositeTiming *timing,
   s->groupLine = (uint32_t)(NUM_SLOTS - 1) * s->enc.linesPerSlot;
   memset((void *)s->fillPending, 0, sizeof(s->fillPending));
 
-  // DAC pins. Never reached in PARALLEL bus mode: the caller must not call
-  // this then, because GPIO5-11 are externally driven inputs there and
-  // switching them to outputs would fight the host controller.
-  s->pioSm = (uint32_t)pio_claim_unused_sm(COMPOSITE_PIO, true);
-  s->pioOffset = (cfg.dac->bits == 7)
-                     ? pio_add_program(COMPOSITE_PIO, &composite_dac7_program)
-                     : pio_add_program(COMPOSITE_PIO, &composite_dac3_program);
-
-  for (uint32_t i = 0; i < cfg.dac->bits; ++i) {
-    const uint32_t pin = cfg.dac->basePin + i;
-    pio_gpio_init(COMPOSITE_PIO, pin);
-    gpio_set_drive_strength(pin, GPIO_DRIVE_STRENGTH_12MA);
-    gpio_set_slew_rate(pin, GPIO_SLEW_RATE_FAST);
-  }
-  pio_sm_set_consecutive_pindirs(COMPOSITE_PIO, s->pioSm, cfg.dac->basePin,
-                                 cfg.dac->bits, /*is_out=*/true);
-  configurePioSm(s);
+  // Claim the peripheral and drive the DAC pins. Never reached in PARALLEL
+  // bus mode: the caller must not get here, because both DACs sit on GPIOs
+  // that the external host controller drives in that mode.
+  if (!s->sink->acquire(s)) return false;
+  s->sink->configure(s);
 
   for (int i = 0; i < NUM_SLOTS; ++i) {
     s->dmaChannels[i] = (uint32_t)dma_claim_unused_channel(true);
+  }
+  // Cache what the DMA IRQ needs, so the handler never computes an address or
+  // touches anything that might live in flash.
+  s->chMask = 0u;
+  for (int i = 0; i < NUM_SLOTS; ++i) {
+    s->slotAddr[i] = (uint32_t)(uintptr_t)compositeSlotPtr(s, (uint32_t)i);
+    s->chMask |= 1u << s->dmaChannels[i];
   }
   configureDmaChannels(s);
   return true;
@@ -328,7 +321,10 @@ bool compositeOutInit(CompositeOutState *s, const CompositeTiming *timing,
 void compositeOutLaunchCore1(CompositeOutState *s) {
   sCvbs = s;
   hw_set_bits(&bus_ctrl_hw->priority, BUSCTRL_BUS_PRIORITY_PROC1_BITS);
-  pio_sm_set_enabled(COMPOSITE_PIO, s->pioSm, true);
+  // The DMA ring is already configured, so the first request is serviced
+  // immediately. This matters for the PWM sink, which has no FIFO to cover
+  // the gap until Core 1 starts the first channel.
+  s->sink->setEnabled(s, true);
   multicore_launch_core1(core1Main);
 }
 
@@ -342,7 +338,6 @@ bool compositeOutConsumeNewFrame(CompositeOutState *s) {
 
 void compositeOutFlashAcquire(CompositeOutState *s) {
   multicore_reset_core1();
-  pio_sm_set_enabled(COMPOSITE_PIO, s->pioSm, false);
   // RP2350-E5: clear EN on all channels before aborting, otherwise the abort
   // re-triggers the next channel in the chain and leaves DMA running.
   for (int i = 0; i < NUM_SLOTS; ++i) {
@@ -352,7 +347,9 @@ void compositeOutFlashAcquire(CompositeOutState *s) {
   for (int i = 0; i < NUM_SLOTS; ++i) {
     dma_channel_abort(s->dmaChannels[i]);
   }
-  pio_sm_clear_fifos(COMPOSITE_PIO, s->pioSm);
+  // Hold blanking for the duration of the flash write rather than freezing
+  // the output at whatever sample was in flight.
+  s->sink->park(s);
 }
 
 void compositeOutFlashRelease(CompositeOutState *s) {
@@ -361,10 +358,9 @@ void compositeOutFlashRelease(CompositeOutState *s) {
   // (fillScanline) can run again.
   setQmiTiming();
 
-  pio_sm_set_enabled(COMPOSITE_PIO, s->pioSm, false);
-  pio_sm_clear_fifos(COMPOSITE_PIO, s->pioSm);
-  pio_sm_restart(COMPOSITE_PIO, s->pioSm);
-  configurePioSm(s);
+  s->sink->setEnabled(s, false);
+  s->sink->park(s);
+  s->sink->configure(s);
   configureDmaChannels(s);
 
   // Restart from the top of the field.
@@ -374,7 +370,7 @@ void compositeOutFlashRelease(CompositeOutState *s) {
   s->newFrame = false;
 
   hw_set_bits(&bus_ctrl_hw->priority, BUSCTRL_BUS_PRIORITY_PROC1_BITS);
-  pio_sm_set_enabled(COMPOSITE_PIO, s->pioSm, true);
+  s->sink->setEnabled(s, true);
   multicore_launch_core1(core1Main);
 }
 
