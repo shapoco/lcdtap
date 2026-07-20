@@ -9,15 +9,18 @@
 
 #include "lcdtap/lcdtap.hpp"
 #include "lcdtap/osd.hpp"
+#include "lcdtap/pico2/composite_out.hpp"
 #include "lcdtap/pico2/hstx_out.hpp"
 #include "lcdtap/pico2/i2c_slave.hpp"
 #include "lcdtap/pico2/spi_slave.hpp"
 
 #include "config.h"
 #include "flash_config.hpp"
+#include "output_interface.hpp"
 #include "parallel_8bit.pio.h"
 #include "spi_3line_mode0.pio.h"
 #include "uart_intf.hpp"
+#include "video_backend.hpp"
 
 static_assert(PIN_SPI_CS == SPI_CS_PIN,
               "PIN_SPI_CS mismatch with spi_4line_mode0.pio");
@@ -81,12 +84,89 @@ static lcdtap::Osd gOsd;
 static lcdtap::pico2::SpiSlaveState gSpi;
 static lcdtap::pico2::I2cSlaveState gI2c;
 static lcdtap::pico2::HstxOutState gHstx;
+static lcdtap::pico2::CompositeOutState gCvbs;
+
+// =============================================================================
+// Video backend selection
+// Init keeps its real signatures (see video_backend.hpp); only the
+// steady-state operations are dispatched indirectly.
+// =============================================================================
+static const VideoBackend BACKEND_HSTX = {
+    [](void *s) {
+      lcdtap::pico2::hstxOutLaunchCore1((lcdtap::pico2::HstxOutState *)s);
+    },
+    [](void *s) {
+      return lcdtap::pico2::hstxOutConsumeNewFrame(
+          (lcdtap::pico2::HstxOutState *)s);
+    },
+    [](void *s) {
+      lcdtap::pico2::hstxOutFlashAcquire((lcdtap::pico2::HstxOutState *)s);
+    },
+    [](void *s) {
+      lcdtap::pico2::hstxOutFlashRelease((lcdtap::pico2::HstxOutState *)s);
+    },
+};
+
+static const VideoBackend BACKEND_COMPOSITE = {
+    [](void *s) {
+      lcdtap::pico2::compositeOutLaunchCore1(
+          (lcdtap::pico2::CompositeOutState *)s);
+    },
+    [](void *s) {
+      return lcdtap::pico2::compositeOutConsumeNewFrame(
+          (lcdtap::pico2::CompositeOutState *)s);
+    },
+    [](void *s) {
+      lcdtap::pico2::compositeOutFlashAcquire(
+          (lcdtap::pico2::CompositeOutState *)s);
+    },
+    [](void *s) {
+      lcdtap::pico2::compositeOutFlashRelease(
+          (lcdtap::pico2::CompositeOutState *)s);
+    },
+};
+
+static const VideoBackend *gVideo = &BACKEND_HSTX;
+static void *gVideoState = &gHstx;
+
+// Currently active output interface (mirrors ConfigFile::outputInterface).
+static OutputInterface gOutputIf = OutputInterface::DVI_D;
 
 // =============================================================================
 // OSD user items
 // =============================================================================
 
-static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {}
+// User item IDs must be >= OSD_USER_ITEM_ID_BASE so they never collide with
+// the library's system items.
+static constexpr uint16_t OSD_ITEM_ID_OUTPUT_IF =
+    lcdtap::OSD_USER_ITEM_ID_BASE + 0u;
+
+static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
+  // Called after initMenuItems() has populated every system item, so Apply
+  // already exists and can be used as an anchor.
+  lcdtap::OsdMenuItem it = {};
+  it.id = OSD_ITEM_ID_OUTPUT_IF;
+  it.isAction = false;
+  it.config.type = lcdtap::ValueType::ENUM;
+  it.config.name = "Output Interface";
+  it.config.unit = "";
+  it.config.options = OUTPUT_INTERFACE_NAMES;
+  it.config.min = 0;
+  it.config.max = OUTPUT_INTERFACE_COUNT - 1;
+  it.config.step = 1;
+  it.config.value = static_cast<int16_t>(gOutputIf);
+  // enableKeyId is auto-offset from ConfigId to OSD id only for system items
+  // (osd.cpp initMenuItems), so a user item must supply a resolved id.
+  it.config.enableKeyId = lcdtap::OSD_ITEM_ID_SYS_BASE +
+                          static_cast<int16_t>(lcdtap::ConfigId::BUS_INTERFACE);
+  it.config.enableKeyValueMin = static_cast<int16_t>(lcdtap::BusType::I2C);
+  it.config.enableKeyValueMax =
+      static_cast<int16_t>(lcdtap::BusType::SPI_3LINE);
+  // insertItem() does not run updateItemEnables(), so seed isEnabled here.
+  it.isEnabled = (gCurrentIface != lcdtap::BusType::PARALLEL);
+
+  osd->insertItem(osd->getItemIndexById(lcdtap::OSD_ITEM_ID_APPLY), it);
+}
 
 static bool onOsdActionActivated(lcdtap::Osd *osd,
                                  const lcdtap::OsdMenuItem *item,
@@ -223,9 +303,9 @@ static void switchInterface(lcdtap::BusType newIface) {
 // cannot access flash-resident code (fillScanline, OSD) during erase/program.
 // =============================================================================
 static void saveConfigSafe(const ConfigFile &cfg) {
-  lcdtap::pico2::hstxOutFlashAcquire(&gHstx);
+  gVideo->flashAcquire(gVideoState);
   saveConfig(cfg);
-  lcdtap::pico2::hstxOutFlashRelease(&gHstx);
+  gVideo->flashRelease(gVideoState);
 }
 
 // =============================================================================
@@ -314,9 +394,40 @@ int main() {
   }
 
   // -------------------------------------------------------------------------
-  // 2. Clock init (PLL_USB → clk_sys=288MHz; PLL_SYS → clk_hstx=bit_clk/2)
+  // 1c. Resolve the video backend.
+  //     Must happen before clock init: NTSC and PAL each need their own
+  //     clk_sys so that the sample rate is an exact integer division of it.
   // -------------------------------------------------------------------------
-  lcdtap::pico2::hstxOutClockInit(timing);
+  if (hasSavedCfg) {
+    // Sanitize against a config written by an older build, a hand-crafted
+    // flash image, or a bus/output combination that is no longer legal.
+    gOutputIf = outputInterfaceSanitize(
+        static_cast<OutputInterface>(savedCfg.outputInterface),
+        savedCfg.libConfig.busInterface);
+  }
+
+  const lcdtap::pico2::CompositeTiming *cvbsTiming = nullptr;
+  if (gOutputIf == OutputInterface::NTSC) {
+    cvbsTiming = &lcdtap::pico2::COMPOSITE_TIMING_NTSC_J_240P;
+  } else if (gOutputIf == OutputInterface::PAL) {
+    cvbsTiming = &lcdtap::pico2::COMPOSITE_TIMING_PAL_B_288P;
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. Clock init
+  //    DVI-D : PLL_USB → clk_sys=312MHz; PLL_SYS → clk_hstx=bit_clk/2
+  //    NTSC  : PLL_SYS → clk_sys=315.000MHz (÷22 = 4x fsc, exact)
+  //    PAL   : PLL_SYS → clk_sys=301.500MHz (÷17 = 4x fsc, +46 ppm)
+  //    Composite ignores PIN_CFG_OUT_720P and the RIGHT-key timing override;
+  //    those only select between DVI-D modes.
+  // -------------------------------------------------------------------------
+  if (cvbsTiming != nullptr) {
+    lcdtap::pico2::compositeOutClockInit(cvbsTiming);
+    gVideo = &BACKEND_COMPOSITE;
+    gVideoState = &gCvbs;
+  } else {
+    lcdtap::pico2::hstxOutClockInit(timing);
+  }
 
   // -------------------------------------------------------------------------
   // 3. LED
@@ -332,8 +443,13 @@ int main() {
   gpio_set_dir(PIN_RST, GPIO_IN);
   gpio_pull_up(PIN_RST);
 
-  const uint32_t dviW = (uint32_t)timing->h_active_pixels;
-  const uint32_t dviH = (uint32_t)timing->v_active_lines;
+  // Output raster size. The saved dviWidth/dviHeight are always overridden
+  // below, so this must follow the selected backend or composite would run
+  // with DVI geometry.
+  const uint32_t outW = cvbsTiming ? (uint32_t)cvbsTiming->hActivePixels
+                                   : (uint32_t)timing->h_active_pixels;
+  const uint32_t outH = cvbsTiming ? (uint32_t)cvbsTiming->vActiveLines
+                                   : (uint32_t)timing->v_active_lines;
 
   // -------------------------------------------------------------------------
   // 6. LcdTap init
@@ -343,8 +459,8 @@ int main() {
   cfg.buffWidth = lcdW;
   cfg.buffHeight = lcdH;
   cfg.scaleMode = lcdtap::ScaleMode::FIT;
-  cfg.dviWidth = static_cast<uint16_t>(dviW);
-  cfg.dviHeight = static_cast<uint16_t>(dviH);
+  cfg.dviWidth = static_cast<uint16_t>(outW);
+  cfg.dviHeight = static_cast<uint16_t>(outH);
 
   if (hasSavedCfg) {
     savedCfg.libConfig.dviWidth = cfg.dviWidth;
@@ -400,29 +516,63 @@ int main() {
   switchInterface(gCurrentIface);
 
   // -------------------------------------------------------------------------
-  // 10. Launch Core 1 (fillScanline + OSD overlay + HSTX DVI output)
+  // 10. Launch Core 1 (fillScanline + OSD overlay + video output)
   // -------------------------------------------------------------------------
-  lcdtap::pico2::HstxOutConfig hstxCfg = {PIN_LED, LED_TOGGLE_FRAMES,
-                                          lcdtap::pico2::HSTX_PICO_SOCK_PINOUT};
-  lcdtap::pico2::hstxOutInit(&gHstx, timing, &inst, universalFillScanline,
-                             nullptr, hstxCfg);
-  lcdtap::pico2::hstxOutLaunchCore1(&gHstx);
+  if (cvbsTiming != nullptr) {
+    // Hardware safety: in PARALLEL mode GPIO5-11 are data/DC lines driven by
+    // the external host controller, so the DAC must never be enabled there.
+    // outputInterfaceSanitize() already covers this; the check stays because
+    // the failure mode is an output-vs-output conflict, not a blank screen.
+    if (gCurrentIface == lcdtap::BusType::PARALLEL) {
+      panic("composite output is not available on the parallel bus");
+    }
+    // SPI modes get the 7-bit ladder on GPIO5-11; I2C occupies GPIO8/9 so it
+    // uses the 3-bit ladder on GPIO5-7 and runs monochrome.
+    const lcdtap::pico2::CompositeDacProfile *dac =
+        (gCurrentIface == lcdtap::BusType::I2C)
+            ? &lcdtap::pico2::COMPOSITE_DAC_3BIT_GPIO5
+            : &lcdtap::pico2::COMPOSITE_DAC_7BIT_GPIO5;
+    lcdtap::pico2::CompositeOutConfig cvbsCfg = {PIN_LED, LED_TOGGLE_FRAMES,
+                                                 dac};
+    if (!lcdtap::pico2::compositeOutInit(&gCvbs, cvbsTiming, &inst,
+                                         universalFillScanline, nullptr,
+                                         cvbsCfg)) {
+      panic("composite output init failed");
+    }
+    lcdtap::pico2::compositeOutLaunchCore1(&gCvbs);
+  } else {
+    lcdtap::pico2::HstxOutConfig hstxCfg = {
+        PIN_LED, LED_TOGGLE_FRAMES, lcdtap::pico2::HSTX_PICO_SOCK_PINOUT};
+    lcdtap::pico2::hstxOutInit(&gHstx, timing, &inst, universalFillScanline,
+                               nullptr, hstxCfg);
+    lcdtap::pico2::hstxOutLaunchCore1(&gHstx);
+  }
 
   // -------------------------------------------------------------------------
   // 11. USB CDC serial interface
   // -------------------------------------------------------------------------
-  uartIfInit(&inst, &gCurrentIface, switchInterface, saveConfigSafe);
+  uartIfInit(&inst, &gCurrentIface, &gOutputIf, switchInterface,
+             saveConfigSafe);
 
   // -------------------------------------------------------------------------
   // 12. Main loop (Core 0)
-  //     Core 1 handles fillScanline + HSTX DVI output; Core 0 drains the
+  //     Core 1 handles fillScanline + video output; Core 0 drains the
   //     SPI/I2C ring buffers continuously without timer preemption.
-  //     hstxOutConsumeNewFrame returns true once per frame boundary.
+  //     consumeNewFrame returns true once per frame boundary.
   // -------------------------------------------------------------------------
   while (true) {
     processInputBuf();
     uartIfProcess();
-    if (lcdtap::pico2::hstxOutConsumeNewFrame(&gHstx)) {
+
+    // A UART client changed the output interface; reboot once the response
+    // has been flushed so the host actually sees the acknowledgement.
+    if (uartIfRebootPending() && uartIfRespIdle()) {
+      sleep_ms(20);
+      watchdog_reboot(0, 0, 10);
+      while (true) tight_loop_contents();
+    }
+
+    if (gVideo->consumeNewFrame(gVideoState)) {
       uint64_t nowMs =
           static_cast<uint64_t>(to_ms_since_boot(get_absolute_time()));
       uint8_t action = gOsd.update(nowMs, *gInst, readKeys());
@@ -435,11 +585,35 @@ int main() {
             ifaceItem ? static_cast<lcdtap::BusType>(ifaceItem->config.value)
                       : gCurrentIface;
 
-        ConfigFile toSave;
+        const lcdtap::OsdMenuItem *outIfItem = nullptr;
+        gOsd.getItemById(OSD_ITEM_ID_OUTPUT_IF, &outIfItem);
+        OutputInterface newOutIf =
+            outIfItem ? static_cast<OutputInterface>(outIfItem->config.value)
+                      : gOutputIf;
+        // The item retains its value while greyed out, so a switch to the
+        // parallel bus must not carry a stale NTSC/PAL selection into flash.
+        newOutIf = outputInterfaceSanitize(newOutIf, newIface);
+
+        const bool busChanged = (newIface != gCurrentIface);
+        const bool outIfChanged = (newOutIf != gOutputIf);
+
+        ConfigFile toSave = {};
         toSave.libConfig = gInst->getConfig();
+        toSave.outputInterface = static_cast<uint8_t>(newOutIf);
         saveConfigSafe(toSave);
 
-        if (newIface != gCurrentIface) {
+        // Reboot when the output interface changes, because clk_sys differs
+        // between all three modes. Also reboot when the bus changes while
+        // composite is active: the DAC width is chosen from the bus at init
+        // (7-bit for SPI, 3-bit for I2C), and the 7-bit ladder occupies
+        // GPIO5-11, which overlaps the I2C pins. Handing GPIO8/9 to the I2C
+        // driver while the PIO still drives them would be a pin conflict.
+        if (outIfChanged ||
+            (busChanged && outputInterfaceIsComposite(newOutIf))) {
+          watchdog_reboot(0, 0, 50);
+          while (true) tight_loop_contents();
+        }
+        if (busChanged) {
           switchInterface(newIface);
         }
       }

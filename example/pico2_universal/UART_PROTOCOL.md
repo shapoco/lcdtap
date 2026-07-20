@@ -79,6 +79,24 @@ Get the list of configuration parameters held by LcdTap as JSON.
 
 The `id` field of each parameter is `"cfg0"`, `"cfg1"`, ..., `"cfg14"`, corresponding to the `ConfigId` enum index in the firmware. Use the same ids as keys in `setparams`.
 
+One additional parameter, `"outputInterface"`, is appended after the `cfgN` entries. It is a host-side setting rather than a `ConfigId`, so it has a name instead of an index:
+
+```json
+{
+    "id": "outputInterface",
+    "type": "ENUM",
+    "name": "Output Interface",
+    "unit": null,
+    "options": {"DVI-D": 0, "NTSC": 1, "PAL": 2},
+    "value": 0,
+    "enableKeyId": "cfg1",
+    "enableKeyValueMin": 0,
+    "enableKeyValueMax": 2
+}
+```
+
+`NTSC` and `PAL` drive a resistor-ladder DAC on GPIO5-11, which are inputs driven by the host controller when the bus interface is `Parallel8`. The setting is therefore only selectable when `cfg1` is 0-2, and is silently forced back to `DVI-D` otherwise.
+
 Parameter list element types:
 
 - Integer:
@@ -151,7 +169,7 @@ Set LcdTap configuration parameters in bulk from the host.
     }
     ```
 
-    - Keys are the `id` values returned by `getparams` (`"cfg0"` through `"cfg14"`).
+    - Keys are the `id` values returned by `getparams` (`"cfg0"` through `"cfg14"`, plus `"outputInterface"`).
     - It is not necessary to include all parameters; omitted parameters retain their current values.
 
 - Response:
@@ -159,6 +177,10 @@ Set LcdTap configuration parameters in bulk from the host.
     ```json
     {"response": "ok"}
     ```
+
+**Changing `outputInterface` resets the device.** Each output mode needs a different system clock (DVI-D 312 MHz, NTSC 315 MHz, PAL 301.5 MHz), so the firmware saves the new value, sends the `ok` response, and then reboots. The USB CDC connection will drop and re-enumerate; reconnect before sending further commands.
+
+This is also the escape route if a composite mode is selected with no TV attached: USB CDC keeps working in every mode, so `setparams` with `"outputInterface": 0` restores DVI-D. Holding the LEFT key at power-on also boots with default settings.
 
 ### getframebuffer
 

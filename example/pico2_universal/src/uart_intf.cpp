@@ -14,8 +14,10 @@
 
 static lcdtap::LcdTap* gLcdTap = nullptr;
 static lcdtap::BusType* gCurrentIface = nullptr;
+static OutputInterface* gCurrentOutIf = nullptr;
 static SwitchIfaceFn gSwitchIface = nullptr;
 static SaveConfigFn gSaveConfig = nullptr;
+static bool gRebootPending = false;
 
 // =============================================================================
 // Parser
@@ -356,11 +358,32 @@ static void chunkFromStr(const char* s) {
 // =============================================================================
 
 // Build the JSON fragment for ConfigId at index idx into chunkBuf.
+// Index numConfigs is the host-side "outputInterface" parameter, which is not
+// a ConfigId and so cannot be addressed as cfgN.
 // Returns false when idx is out of range.
 static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
-                            lcdtap::BusType iface) {
+                            lcdtap::BusType iface, OutputInterface outIf) {
   const int numConfigs = static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS);
-  if (idx < 0 || idx >= numConfigs) return false;
+  if (idx < 0 || idx > numConfigs) return false;
+
+  if (idx == numConfigs) {
+    // Host-side setting; also closes the params array.
+    char* obuf = gResp.chunkBuf;
+    int ocap = static_cast<int>(sizeof(gResp.chunkBuf));
+    int opos =
+        snprintf(obuf, static_cast<size_t>(ocap),
+                 "{\"id\":\"outputInterface\",\"type\":\"ENUM\","
+                 "\"name\":\"Output Interface\",\"unit\":null,"
+                 "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2},\"value\":%d,"
+                 "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":0,"
+                 "\"enableKeyValueMax\":%d}]}\r\n",
+                 static_cast<int>(outIf),
+                 static_cast<int>(lcdtap::ConfigId::BUS_INTERFACE),
+                 static_cast<int>(lcdtap::BusType::PARALLEL) - 1);
+    gResp.chunkLen = opos < ocap ? opos : ocap - 1;
+    gResp.chunkPos = 0;
+    return true;
+  }
 
   lcdtap::ConfigEntry e;
   lcdtap::ConfigId cfgId = static_cast<lcdtap::ConfigId>(idx);
@@ -430,12 +453,8 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
                     static_cast<int>(e.enableKeyValueMax));
   }
 
-  pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "}");
-  if (idx == numConfigs - 1) {
-    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "]}\r\n");
-  } else {
-    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), ",");
-  }
+  // The array is closed by the outputInterface chunk at index numConfigs.
+  pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "},");
 
   gResp.chunkLen = pos < cap ? pos : cap - 1;
   gResp.chunkPos = 0;
@@ -512,10 +531,18 @@ static void execCommand(const Parser& p) {
   if (strcmp(cmd, "setparams") == 0) {
     lcdtap::LcdTapConfig cfg = gLcdTap->getConfig();
     lcdtap::BusType oldIface = *gCurrentIface;
+    OutputInterface newOutIf = *gCurrentOutIf;
 
     for (int i = 0; i < p.numParams; i++) {
       const char* k = p.params[i].key;
       int32_t v = p.params[i].value;
+      // Host-side setting; not a ConfigId, so it has its own key.
+      if (strcmp(k, "outputInterface") == 0) {
+        if (v >= 0 && v < static_cast<int32_t>(OUTPUT_INTERFACE_COUNT)) {
+          newOutIf = static_cast<OutputInterface>(v);
+        }
+        continue;
+      }
       // Accept "cfgN" keys and map to ConfigId by index.
       if (k[0] == 'c' && k[1] == 'f' && k[2] == 'g' && k[3] != '\0') {
         long idx = strtol(k + 3, nullptr, 10);
@@ -533,15 +560,31 @@ static void execCommand(const Parser& p) {
       return;
     }
 
-    if (cfg.busInterface != oldIface) {
+    // Composite output is unavailable on the parallel bus, so a combined
+    // change to both settings must not persist an illegal pair.
+    newOutIf = outputInterfaceSanitize(newOutIf, cfg.busInterface);
+
+    const bool busChanged = (cfg.busInterface != oldIface);
+    const bool outIfChanged = (newOutIf != *gCurrentOutIf);
+    // A bus change while composite is active also needs a reboot: the DAC
+    // width comes from the bus at init, and the 7-bit ladder occupies
+    // GPIO5-11, overlapping the I2C pins. Switching the bus in place would
+    // hand GPIO8/9 to the I2C driver while the PIO still drives them.
+    const bool needReboot =
+        outIfChanged || (busChanged && outputInterfaceIsComposite(newOutIf));
+
+    if (busChanged && !needReboot) {
       gSwitchIface(cfg.busInterface);
     }
 
-    ConfigFile toSave;
+    ConfigFile toSave = {};
     toSave.libConfig = gLcdTap->getConfig();
+    toSave.outputInterface = static_cast<uint8_t>(newOutIf);
     gSaveConfig(toSave);
 
     respSetShort("{\"response\":\"ok\"}\r\n");
+    // Reboot only after the response has been flushed, so the client sees it.
+    if (needReboot) gRebootPending = true;
     return;
   }
 
@@ -742,7 +785,9 @@ static void respFlush() {
         cfg = gLcdTap->getConfig();
         iface = *gCurrentIface;
       }
-      if (!buildParamChunk(gResp.paramIdx, cfg, iface)) {
+      // outputInterface is a host setting, so presets never carry one; always
+      // report the live value.
+      if (!buildParamChunk(gResp.paramIdx, cfg, iface, *gCurrentOutIf)) {
         gResp.phase = RespPhase::IDLE;
         break;
       }
@@ -903,11 +948,14 @@ static void processRxChar(char c) {
 // =============================================================================
 
 void uartIfInit(lcdtap::LcdTap* lcdtap, lcdtap::BusType* currentIface,
-                SwitchIfaceFn switchIface, SaveConfigFn saveConfig) {
+                OutputInterface* currentOutIf, SwitchIfaceFn switchIface,
+                SaveConfigFn saveConfig) {
   gLcdTap = lcdtap;
   gCurrentIface = currentIface;
+  gCurrentOutIf = currentOutIf;
   gSwitchIface = switchIface;
   gSaveConfig = saveConfig;
+  gRebootPending = false;
 
   trxInit();
 
@@ -915,6 +963,10 @@ void uartIfInit(lcdtap::LcdTap* lcdtap, lcdtap::BusType* currentIface,
   gParser.reset();
   gResp = {};
 }
+
+bool uartIfRebootPending() { return gRebootPending; }
+
+bool uartIfRespIdle() { return gResp.phase == RespPhase::IDLE; }
 
 void uartIfProcess() {
   if (!trxIsConnected()) return;

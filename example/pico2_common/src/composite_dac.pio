@@ -1,0 +1,46 @@
+; Composite video DAC output.
+;
+; Streams pre-encoded DAC samples to an R-2R / weighted resistor ladder. The
+; state machine does nothing but shift: all sync, burst and active-video
+; structure is baked into the sample stream by composite_encode.cpp, so the
+; program is a single instruction and the timing is set entirely by the clock
+; divider.
+;
+; Sample rate = clk_sys / clkdiv, with clkdiv always an exact integer:
+;   NTSC : 315.000 MHz / 22 = 14.318182 MHz  (4x fsc, 0 ppm)
+;   PAL  : 301.500 MHz / 17 = 17.735294 MHz  (4x fsc, +46 ppm)
+;
+; One instruction executes per clkdiv system clocks, so one sample is emitted
+; per sample period with no jitter.
+;
+; OSR shift direction: RIGHT — sample 0 occupies the least significant bits.
+; AUTOPULL: enabled, threshold = samples_per_word * bits.
+;
+; Word layout for the 7-bit DAC (threshold 28, 4 samples per word):
+;   bits [6:0]   = sample 0      bits [20:14] = sample 2
+;   bits [13:7]  = sample 1      bits [27:21] = sample 3
+;   bits [31:28] = unused, discarded by the autopull
+;
+; Word layout for the 3-bit DAC (threshold 30, 10 samples per word):
+;   bits [2:0] = sample 0 ... bits [29:27] = sample 9
+;
+; Pin mapping: OUT_BASE = D0 of the ladder.
+;   7-bit (SPI slave modes)  : GPIO 5..11
+;   3-bit (I2C slave mode)   : GPIO 5..7   (the I2C bus occupies GPIO 8/9)
+
+; Both programs are a single wrapping instruction, so exactly one instruction
+; executes per sample. A jmp-based loop would take two instructions per
+; sample and force clkdiv to be halved, which PAL cannot do as an integer
+; (17 / 2 = 8.5) — hence .wrap rather than an explicit jmp.
+
+; 7-bit DAC: GPIO5..GPIO11.
+.program composite_dac7
+.wrap_target
+    out pins, 7
+.wrap
+
+; 3-bit DAC: GPIO5..GPIO7.
+.program composite_dac3
+.wrap_target
+    out pins, 3
+.wrap

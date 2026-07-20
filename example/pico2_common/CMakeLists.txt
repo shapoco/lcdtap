@@ -3,6 +3,9 @@ add_library(pico2_common STATIC
     src/i2c_slave.cpp
     src/dvi_timing.cpp
     src/hstx_out.cpp
+    src/composite_timing.cpp
+    src/composite_encode.cpp
+    src/composite_out.cpp
 )
 
 # Core library (MCU-agnostic)
@@ -10,6 +13,9 @@ add_subdirectory(../../lib lib)
 
 pico_generate_pio_header(pico2_common
     ${CMAKE_CURRENT_LIST_DIR}/src/spi_4line_mode0.pio
+)
+pico_generate_pio_header(pico2_common
+    ${CMAKE_CURRENT_LIST_DIR}/src/composite_dac.pio
 )
 
 target_include_directories(pico2_common
