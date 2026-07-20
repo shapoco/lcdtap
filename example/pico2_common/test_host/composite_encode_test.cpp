@@ -389,6 +389,110 @@ void testMonochrome() {
   }
 }
 
+// Demodulate the way a receiver does, and check the hue of each colour bar
+// against the standard NTSC vectorscope angles.
+//
+// Every other chroma assertion in this file is blind to the sign of the
+// quadrature axis: testBurst compares the encoder against its own burstCode
+// (and the burst has V = 0 anyway), testLevels only samples the white and
+// black bars, and testLevelMaps bounds excursion magnitude. A V-axis sign
+// inversion therefore passed the whole suite and only showed up on a TV, as
+// every hue mirrored about the U axis with luma untouched.
+//
+// The measurement is taken *relative to the burst*, because that is the only
+// reference a receiver has -- which also means the absolute handedness of the
+// basis used below cancels out and cannot bias the result.
+//
+// Honest limitation: the expected sense (delta = 180 - hue) was settled by
+// looking at a real TV, not derived from first principles. This is a
+// regression lock on verified behaviour, not a proof of standards
+// compliance. It is still worth having: it catches a V-sign regression, a
+// wrong subcarrier sense when PAL colour lands, a mis-indexed LUT, a burst
+// phase error, and any divergence between the R-2R and PWM sinks.
+void testChromaPhase() {
+  printf("chroma phase (demodulated against the burst)\n");
+
+  // Standard vectorscope angles, atan2(V, U) with the burst at 180 degrees.
+  struct Bar {
+    const char *name;
+    int index;  // position in makeColorBars
+    double hue;
+  };
+  const Bar bars[] = {
+      {"yellow", 1, 167.1}, {"cyan", 2, 283.5}, {"green", 3, 240.7},
+      {"magenta", 4, 60.7}, {"red", 5, 103.5},  {"blue", 6, 347.1},
+  };
+
+  const CompositeTiming *t = &COMPOSITE_TIMING_NTSC_J_240P;
+  const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
+                                     &COMPOSITE_DAC_PWM_GPIO10};
+
+  for (const CompositeDacProfile *d : ds) {
+    const Field f = generateField(t, d);
+    if (f.samples.empty()) continue;
+
+    const uint32_t line = t->vTotalLines - 1;
+    const uint32_t base = line * t->samplesPerLine;
+
+    // Correlate a sample run against the quadrature basis. `first` is the
+    // absolute sample index so the phase reference is the same one the
+    // encoder used.
+    auto project = [&](uint32_t first, uint32_t count, double *outU,
+                       double *outV) {
+      double su = 0.0, sv = 0.0;
+      for (uint32_t i = 0; i < count; ++i) {
+        const double c = (double)f.samples[first + i] - (double)f.codeBlank;
+        const uint32_t p = (first + i) & 3u;
+        const double cosv[4] = {1, 0, -1, 0};
+        const double sinv[4] = {0, 1, 0, -1};
+        su += c * cosv[p];
+        sv += c * sinv[p];
+      }
+      *outU = su * 2.0 / count;
+      *outV = sv * 2.0 / count;
+    };
+
+    double bu, bv;
+    project(base + t->hBurstStart, t->hBurstCycles * 4u, &bu, &bv);
+    const double burstAngle = atan2(bv, bu) * 180.0 / M_PI;
+    const double burstAmp = sqrt(bu * bu + bv * bv);
+    CHECK(burstAmp > 0.5, "%s: no burst detected (amplitude %.2f)", d->name,
+          burstAmp);
+
+    int barsOk = 0;
+    for (const Bar &b : bars) {
+      // Sample the middle of the bar to stay clear of the transitions.
+      const uint32_t barW = t->hActiveSamples / 8u;
+      const uint32_t start = t->hActiveStart + b.index * barW + barW / 4u;
+      const uint32_t count = (barW / 2u) & ~3u;  // whole subcarrier cycles
+
+      double cu, cv;
+      project(base + start, count, &cu, &cv);
+      const double amp = sqrt(cu * cu + cv * cv);
+      double delta = atan2(cv, cu) * 180.0 / M_PI - burstAngle;
+      delta = fmod(delta + 720.0, 360.0);
+
+      // NTSC places a colour of hue h at (180 - h) from the burst.
+      double want = fmod(180.0 - b.hue + 720.0, 360.0);
+      double err = fabs(delta - want);
+      if (err > 180.0) err = 360.0 - err;
+
+      // The "mirrored" figure is the reading a V-axis sign inversion would
+      // give; if that is what matches the expectation, the quadrature sense
+      // is backwards rather than the hue merely being imprecise.
+      CHECK(err < 12.0,
+            "%s/%s: hue is %.1f deg from the burst, expected %.1f "
+            "(off by %.1f -- mirrored hue reads as %.1f)",
+            d->name, b.name, delta, want, err, fmod(360.0 - delta, 360.0));
+      CHECK(amp > 0.5, "%s/%s: no chroma (amplitude %.2f)", d->name, b.name,
+            amp);
+      if (err < 12.0 && amp > 0.5) barsOk++;
+    }
+    printf("  %-20s burst at %.1f deg, %d/%d bars on target\n", d->name,
+           burstAngle, barsOk, (int)(sizeof(bars) / sizeof(bars[0])));
+  }
+}
+
 void testLevelMaps() {
   printf("level maps\n");
   const CompositeTiming *ts[] = {&COMPOSITE_TIMING_NTSC_J_240P,
@@ -460,6 +564,7 @@ void testLevelMaps() {
 int main() {
   printf("composite_encode tests\n\n");
   testLevelMaps();
+  testChromaPhase();
   testGeometry();
   testTimingTables();
   testFieldStructure();

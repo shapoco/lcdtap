@@ -253,14 +253,27 @@ bool compositeEncoderInit(CompositeEncoder *e, const CompositeTiming *timing,
       const int32_t v = ((r8 - y) * 225) >> 8;  // 0.879 * (R - Y)
 
       // Four consecutive samples, one per subcarrier phase.
+      //
+      // NTSC modulates as C = U*sin(wt) + V*cos(wt). With the burst on -U
+      // (phases 0 and 2 here), that places +V a quarter cycle EARLIER than
+      // +U, not later -- hence -v on phase 1 and +v on phase 3. Getting this
+      // backwards mirrors every hue about the U axis while leaving luma
+      // untouched, which is exactly what the first hardware test showed:
+      // skin and brown came out green, green came out orange, cyan came out
+      // purple. testChromaPhase() demodulates the colour bars against the
+      // burst and pins this down.
+      //
+      // A 90 degree absolute offset remains against the textbook form, but
+      // the burst carries the same offset, so the receiver -- which has no
+      // reference other than the burst -- cannot see it.
       uint32_t s[COMPOSITE_NUM_PHASES];
       for (uint32_t k = 0u; k < COMPOSITE_NUM_PHASES; ++k) {
         int32_t c;
         switch ((set + k) & 3u) {
           case 0: c = u; break;
-          case 1: c = v; break;
+          case 1: c = -v; break;
           case 2: c = -u; break;
-          default: c = -v; break;
+          default: c = v; break;
         }
         const int32_t off = (c * lumaSpan * chromaGain) / (255 * 256);
         s[k] = compositeLevelToCode(map, clampLevel(lvl + off));
