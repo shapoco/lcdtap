@@ -77,15 +77,15 @@ Get the list of configuration parameters held by LcdTap as JSON.
     {"params":[parameter list]}
     ```
 
-The `id` field of each parameter is `"cfg0"`, `"cfg1"`, ..., `"cfg14"`, corresponding to the `ConfigId` enum index in the firmware. Use the same ids as keys in `setparams`.
+The `id` field of each parameter is `"cfg0"`, `"cfg1"`, ..., `"cfg15"`, corresponding to the `ConfigId` enum index in the firmware. Use the same ids as keys in `setparams`.
 
-Two additional parameters are appended after the `cfgN` entries. They are host-side settings rather than `ConfigId`s, so they have names instead of indices:
+Two host-side settings appear in the list as well. They are not `ConfigId`s, so they have names instead of indices. **They are not at the end** — they sit immediately before `Output Rotation`, matching the position they occupy in the OSD menu. Match parameters by `id`, never by position:
 
 ```json
 {
     "id": "outputInterface",
     "type": "ENUM",
-    "name": "Output",
+    "name": "Output Interface",
     "unit": null,
     "options": {"DVI-D": 0, "NTSC": 1, "PAL": 2},
     "value": 0,
@@ -96,17 +96,25 @@ Two additional parameters are appended after the `cfgN` entries. They are host-s
 {
     "id": "compositeDac",
     "type": "ENUM",
-    "name": "Composite DAC",
+    "name": "NTSC/PAL DAC Type",
     "unit": null,
     "options": {"PWM": 0, "R-2R": 1},
     "value": 0,
-    "enableKeyId": "cfg1",
+    "enableKeyId": "outputInterface",
     "enableKeyValueMin": 1,
     "enableKeyValueMax": 2
 }
 ```
 
+Note that `compositeDac` is gated on `outputInterface` — an `enableKeyId` can name any parameter, not just a `cfgN`.
+
 Composite output needs GPIOs that the parallel bus already uses, so `outputInterface` is only selectable when `cfg1` (bus interface) is 0-2, and is silently forced back to `DVI-D` otherwise.
+
+### Enable-key cascade
+
+A parameter is enabled when its enable key is in range **and the enable key itself is enabled**. Clients must resolve this transitively, or gating will be wrong wherever the chain is longer than one link.
+
+Concretely: on the parallel bus, `cfg1` is 3, which disables `outputInterface`. `compositeDac` points at `outputInterface`, so it must be disabled too — even though `outputInterface`'s *value* may still read as `NTSC`. Evaluating only the immediate key would leave `compositeDac` selectable there.
 
 `compositeDac` selects which DAC carries the composite signal:
 
@@ -187,7 +195,7 @@ Set LcdTap configuration parameters in bulk from the host.
     }
     ```
 
-    - Keys are the `id` values returned by `getparams` (`"cfg0"` through `"cfg14"`, plus `"outputInterface"` and `"compositeDac"`).
+    - Keys are the `id` values returned by `getparams` (`"cfg0"` through `"cfg15"`, plus `"outputInterface"` and `"compositeDac"`).
     - It is not necessary to include all parameters; omitted parameters retain their current values.
 
 - Response:

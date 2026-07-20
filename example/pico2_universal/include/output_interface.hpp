@@ -19,6 +19,17 @@ enum class OutputInterface : uint8_t {
 
 static constexpr uint8_t OUTPUT_INTERFACE_COUNT = 3u;
 
+// Number of host-side settings that sit alongside the library's ConfigId
+// list: outputInterface and compositeDac.
+static constexpr int NUM_HOST_PARAMS = 2;
+
+// Both the OSD menu (onOsdMenuOpen in main.cpp) and the UART parameter list
+// (buildParamChunk in uart_intf.cpp) place the host-side settings immediately
+// before this library setting, so the two orders stay in step. Change it here
+// and both follow.
+static constexpr lcdtap::ConfigId HOST_PARAM_ANCHOR =
+    lcdtap::ConfigId::OUTPUT_ROT;
+
 // Static storage duration is required: ConfigEntry::options holds this
 // pointer and formatConfigValue() dereferences it on every OSD render.
 static const char *OUTPUT_INTERFACE_NAMES[] = {"DVI-D", "NTSC", "PAL"};

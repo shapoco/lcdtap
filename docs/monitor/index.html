@@ -766,17 +766,47 @@ async function loadParams() {
 
 let paramElements = {};  // id → input/select element
 
+// A parameter is enabled when its enable key is in range AND the enable key
+// itself is enabled. That second condition is a cascade: it is what makes
+// "NTSC/PAL DAC Type" grey out on the parallel bus, where it is "Output
+// Interface" that the bus disables, not the DAC directly. Mirrors
+// Osd::updateItemEnables() in lib/src/osd.cpp.
 function updateParamEnables() {
+  const byId = {};
+  for (const p of params) byId[p.id] = p;
+
+  const state = {};     // id -> resolved enabled flag
+  const visiting = {};  // ids on the current resolution path
+
+  function isEnabled(p) {
+    if (state[p.id] !== undefined) return state[p.id];
+    if (visiting[p.id]) return true;  // guard against a dependency cycle
+    visiting[p.id] = true;
+
+    let enabled = true;
+    if (p.enableKeyId != null) {
+      const keyEl = paramElements[p.enableKeyId];
+      const keyParam = byId[p.enableKeyId];
+      if (keyEl && keyParam) {
+        const keyVal = keyEl.type === 'checkbox'
+          ? (keyEl.checked ? 1 : 0)
+          : parseInt(keyEl.value, 10);
+        enabled = isEnabled(keyParam) &&
+                  keyVal >= p.enableKeyValueMin &&
+                  keyVal <= p.enableKeyValueMax;
+      }
+      // An unresolvable enable key leaves the row enabled rather than
+      // hiding a control the user might need.
+    }
+
+    delete visiting[p.id];
+    state[p.id] = enabled;
+    return enabled;
+  }
+
   for (const p of params) {
-    if (p.enableKeyId == null) continue;
-    const keyEl = paramElements[p.enableKeyId];
-    if (!keyEl) continue;
-    const keyVal = keyEl.type === 'checkbox'
-      ? (keyEl.checked ? 1 : 0)
-      : parseInt(keyEl.value, 10);
-    const enabled = keyVal >= p.enableKeyValueMin && keyVal <= p.enableKeyValueMax;
     const row = paramElements[p.id]?.closest('.param-row');
-    if (row) row.classList.toggle('param-disabled', !enabled);
+    if (row) row.classList.toggle('param-disabled', !isEnabled(p));
   }
 }
 

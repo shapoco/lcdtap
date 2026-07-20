@@ -194,10 +194,11 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   dac.config.enableKeyValueMax = static_cast<int16_t>(OutputInterface::PAL);
   dac.isEnabled = compositeDacAllowed(CompositeDacKind::R2R, gCurrentIface);
 
-  // Insert before Output Rotation. The first insert shifts Output Rotation down
-  // by one, so the anchor has to be looked up again for the second.
-  uint16_t insertId = lcdtap::OSD_ITEM_ID_SYS_BASE +
-                      static_cast<int16_t>(lcdtap::ConfigId::OUTPUT_ROT);
+  // Insert before the anchor setting. The first insert shifts the anchor down
+  // by one, so it has to be looked up again for the second. The UART parameter
+  // list uses the same anchor, so both orders match.
+  uint16_t insertId =
+      lcdtap::OSD_ITEM_ID_SYS_BASE + static_cast<int16_t>(HOST_PARAM_ANCHOR);
   osd->insertItem(osd->getItemIndexById(insertId), out);
   osd->insertItem(osd->getItemIndexById(insertId), dac);
 }

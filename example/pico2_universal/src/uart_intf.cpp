@@ -50,7 +50,7 @@ enum class ParseState {
 // outputInterface and compositeDac were appended -- those two landed last on
 // the wire and were exactly the ones dropped. The spare slots are headroom for
 // clients that send extra keys.
-static constexpr int NUM_HOST_PARAMS = 2;  // outputInterface, compositeDac
+// NUM_HOST_PARAMS lives in output_interface.hpp, next to the ordering anchor.
 static constexpr int MAX_PARAMS =
     static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS) + NUM_HOST_PARAMS + 6;
 
@@ -374,56 +374,79 @@ static void chunkFromStr(const char* s) {
 // getparams output helpers
 // =============================================================================
 
-// Build the JSON fragment for ConfigId at index idx into chunkBuf.
-// Index numConfigs is the host-side "outputInterface" parameter, which is not
-// a ConfigId and so cannot be addressed as cfgN.
-// Returns false when idx is out of range.
-static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
+// Total entries in the getparams list, and the slot the host-side settings
+// occupy. The OSD inserts them immediately before HOST_PARAM_ANCHOR, so
+// using the same anchor here keeps the two menus in the same order.
+static constexpr int NUM_PARAM_SLOTS =
+    static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS) + NUM_HOST_PARAMS;
+static constexpr int HOST_PARAM_SLOT = static_cast<int>(HOST_PARAM_ANCHOR);
+
+// Emission slot -> ConfigId. Only meaningful for slots that are not host
+// settings. Note that slot and ConfigId diverge past HOST_PARAM_SLOT: the
+// "cfgN" number MUST come from here and never from the slot, or setparams
+// would write the value into a different setting.
+static lcdtap::ConfigId configIdForSlot(int slot) {
+  return static_cast<lcdtap::ConfigId>(
+      slot < HOST_PARAM_SLOT ? slot : slot - NUM_HOST_PARAMS);
+}
+
+static bool slotIsHostParam(int slot) {
+  return slot >= HOST_PARAM_SLOT && slot < HOST_PARAM_SLOT + NUM_HOST_PARAMS;
+}
+
+// Build the JSON fragment for one emission slot into chunkBuf.
+// Returns false when slot is out of range.
+static bool buildParamChunk(int slot, const lcdtap::LcdTapConfig& cfg,
                             lcdtap::BusType iface, OutputInterface outIf,
                             CompositeDacKind dac) {
-  const int numConfigs = static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS);
-  if (idx < 0 || idx > numConfigs + 1) return false;
+  if (slot < 0 || slot >= NUM_PARAM_SLOTS) return false;
 
-  if (idx == numConfigs + 1) {
-    // Second host-side setting; closes the params array.
-    char* obuf = gResp.chunkBuf;
-    int ocap = static_cast<int>(sizeof(gResp.chunkBuf));
-    int opos = snprintf(obuf, static_cast<size_t>(ocap),
-                        "{\"id\":\"compositeDac\",\"type\":\"ENUM\","
-                        "\"name\":\"Composite DAC\",\"unit\":null,"
-                        "\"options\":{\"PWM\":0,\"R-2R\":1},\"value\":%d,"
-                        "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":%d,"
-                        "\"enableKeyValueMax\":%d}]}\r\n",
-                        static_cast<int>(dac),
-                        static_cast<int>(lcdtap::ConfigId::BUS_INTERFACE),
-                        static_cast<int>(lcdtap::BusType::SPI_4LINE),
-                        static_cast<int>(lcdtap::BusType::SPI_3LINE));
-    gResp.chunkLen = opos < ocap ? opos : ocap - 1;
-    gResp.chunkPos = 0;
-    return true;
+  // Every item ends the same way; only the last one closes the array.
+  const char* tail = (slot == NUM_PARAM_SLOTS - 1) ? "}]}\r\n" : "},";
+
+  char* buf = gResp.chunkBuf;
+  int cap = static_cast<int>(sizeof(gResp.chunkBuf));
+  int pos = 0;
+
+  if (slot == 0) {
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "{\"params\":[");
   }
 
-  if (idx == numConfigs) {
-    // Host-side setting.
-    char* obuf = gResp.chunkBuf;
-    int ocap = static_cast<int>(sizeof(gResp.chunkBuf));
-    int opos =
-        snprintf(obuf, static_cast<size_t>(ocap),
-                 "{\"id\":\"outputInterface\",\"type\":\"ENUM\","
-                 "\"name\":\"Output\",\"unit\":null,"
-                 "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2},\"value\":%d,"
-                 "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":0,"
-                 "\"enableKeyValueMax\":%d},",
-                 static_cast<int>(outIf),
-                 static_cast<int>(lcdtap::ConfigId::BUS_INTERFACE),
-                 static_cast<int>(lcdtap::BusType::PARALLEL) - 1);
-    gResp.chunkLen = opos < ocap ? opos : ocap - 1;
+  if (slotIsHostParam(slot)) {
+    if (slot == HOST_PARAM_SLOT) {
+      // Composite output needs GPIOs the parallel bus already owns.
+      pos += snprintf(
+          buf + pos, static_cast<size_t>(cap - pos),
+          "{\"id\":\"outputInterface\",\"type\":\"ENUM\","
+          "\"name\":\"Output Interface\",\"unit\":null,"
+          "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2},\"value\":%d,"
+          "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":0,"
+          "\"enableKeyValueMax\":%d%s",
+          static_cast<int>(outIf),
+          static_cast<int>(lcdtap::ConfigId::BUS_INTERFACE),
+          static_cast<int>(lcdtap::BusType::PARALLEL) - 1, tail);
+    } else {
+      // Gated on the output interface, mirroring the OSD: the DAC only means
+      // anything once a composite mode is selected. A client that honours the
+      // enable-key cascade also greys this out when outputInterface itself is
+      // disabled, which is how the parallel bus rules it out.
+      pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
+                      "{\"id\":\"compositeDac\",\"type\":\"ENUM\","
+                      "\"name\":\"NTSC/PAL DAC Type\",\"unit\":null,"
+                      "\"options\":{\"PWM\":0,\"R-2R\":1},\"value\":%d,"
+                      "\"enableKeyId\":\"outputInterface\","
+                      "\"enableKeyValueMin\":%d,\"enableKeyValueMax\":%d%s",
+                      static_cast<int>(dac),
+                      static_cast<int>(OutputInterface::NTSC),
+                      static_cast<int>(OutputInterface::PAL), tail);
+    }
+    gResp.chunkLen = pos < cap ? pos : cap - 1;
     gResp.chunkPos = 0;
     return true;
   }
 
   lcdtap::ConfigEntry e;
-  lcdtap::ConfigId cfgId = static_cast<lcdtap::ConfigId>(idx);
+  lcdtap::ConfigId cfgId = configIdForSlot(slot);
   lcdtap::getConfigEntryById(cfgId, &e);
 
   int16_t value;
@@ -433,20 +456,12 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
     value = lcdtap::getConfigValueById(cfg, cfgId);
   }
 
-  char* buf = gResp.chunkBuf;
-  int cap = static_cast<int>(sizeof(gResp.chunkBuf));
-  int pos = 0;
-
-  if (idx == 0) {
-    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "{\"params\":[");
-  }
-
   const char* typeStr = (e.type == lcdtap::ValueType::INT16)  ? "INTEGER"
                         : (e.type == lcdtap::ValueType::BOOL) ? "BOOLEAN"
                                                               : "ENUM";
   pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
-                  "{\"id\":\"cfg%d\",\"type\":\"%s\",\"name\":\"%s\",", idx,
-                  typeStr, e.name);
+                  "{\"id\":\"cfg%d\",\"type\":\"%s\",\"name\":\"%s\",",
+                  static_cast<int>(cfgId), typeStr, e.name);
 
   if (e.unit && e.unit[0] != '\0') {
     pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
@@ -490,8 +505,7 @@ static bool buildParamChunk(int idx, const lcdtap::LcdTapConfig& cfg,
                     static_cast<int>(e.enableKeyValueMax));
   }
 
-  // The array is closed by the outputInterface chunk at index numConfigs.
-  pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "},");
+  pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "%s", tail);
 
   gResp.chunkLen = pos < cap ? pos : cap - 1;
   gResp.chunkPos = 0;
