@@ -2,9 +2,15 @@
 
 namespace lcdtap::pico2 {
 
-// 7-bit R-2R ladder (R = 1.0k rungs, 2R = 2.0k series, 3.9k shunt) buffered
-// by an NPN emitter follower running off VSYS, then a 75 ohm series resistor.
-// Full scale (code 127) is 1.30 V at a 75 ohm terminated load.
+// 7-bit R-2R ladder driven straight into the 75 ohm line, no buffer.
+// R = 100 ohm series between nodes, 2R = 160 ohm rungs to each GPIO, 200 ohm
+// far-end termination. The rung is 160 not 200 because each pad adds ~40 ohm
+// at the 12 mA drive setting, so 160 + 40 ~= 200 = 2R and the binary ratio
+// holds (otherwise mid-grey goes non-monotonic). GPIO5 is the LSB and GPIO11
+// the MSB, so the output is tapped at the GPIO11 end into the RCA centre.
+// See README for the diagram and bench-trimming notes. Levels land ~8% high;
+// trim them with the resistors, not with lvlWhite/lvlBlank, which the PWM
+// sink shares.
 const CompositeDacProfile COMPOSITE_DAC_R2R_GPIO5 = {
     .name = "R-2R 7bit GPIO5-11",
     .kind = CompositeDacKind::R2R_7BIT,
