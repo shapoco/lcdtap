@@ -106,7 +106,8 @@ const CompositeTiming COMPOSITE_TIMING_NTSC_J_240P = {
 // colour lock are unaffected.
 const CompositeTiming COMPOSITE_TIMING_PAL_B_288P = {
     .name = "PAL-B 288p",
-    .colorEnabled = false,  // Phase 1 is monochrome; Phase 2 enables chroma
+    .colorEnabled =
+        true,  // chroma with the line-alternating V axis (palSwitch)
     .palSwitch = true,
 
     // 12 MHz / 2 * 201 = 1206 MHz VCO, / (2 * 2) = 301.500 MHz
@@ -145,14 +146,13 @@ const CompositeTiming COMPOSITE_TIMING_PAL_B_288P = {
     .burstAmplitude = 15,  // 300 mV peak-to-peak
     .chromaGain = 192,
 
-    // PWM: 14 gives 10 luma steps of the 17 available and an exact
-    // blank/white ratio. It leaves no room for chroma, which is fine only
-    // because colorEnabled is false above.
-    //
-    // *** Phase 2: setting colorEnabled = true REQUIRES changing this to 11
-    // *** (peak chroma would otherwise be 17.3 against a ceiling of 17).
-    // testLevelMaps() fails the build if these two are left inconsistent.
-    .pwmCcWhite = 14,
+    // PWM: 11 luma steps of the 17 available, chosen so peak chroma fits.
+    // Colour overshoots white by +133 IRE: blank maps to 3, span is 8, so
+    // peak = 3 + 1.33*8 = 13.6 <= 17. A larger value (e.g. 14, which gives an
+    // exact blank/white ratio) overflows the ceiling at 17.3 the moment
+    // colorEnabled is true. testLevelMaps() fails the build if this and
+    // colorEnabled drift apart.
+    .pwmCcWhite = 11,
 };
 
 }  // namespace lcdtap::pico2

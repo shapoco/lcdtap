@@ -100,8 +100,8 @@ static void __not_in_flash_func(core1Main)() {
       anyWork = true;
 
       CompositeSampleWriter w;
-      compositeWriterInit(&w, &s->enc, compositeSlotPtr(s, i));
       uint32_t line = s->fillLine[i];
+      compositeWriterInit(&w, &s->enc, compositeSlotPtr(s, i), line);
       for (uint32_t k = 0; k < s->enc.linesPerSlot; ++k, ++line) {
         uint32_t y = 0;
         const CompositeLineType type =
@@ -110,7 +110,7 @@ static void __not_in_flash_func(core1Main)() {
           if (s->inst) s->inst->fillScanline((uint16_t)y, s->rgbScratch);
           if (s->fillFn) s->fillFn((uint16_t)y, s->rgbScratch, s->fillUserData);
         }
-        compositeEmitLine(&w, &s->enc, type, s->rgbScratch);
+        compositeEmitLine(&w, &s->enc, type, line, s->rgbScratch);
       }
       __dmb();
       s->fillPending[i] = 0;
@@ -263,7 +263,8 @@ bool compositeOutInit(CompositeOutState *s, const CompositeTiming *timing,
   if (cfg.dac == nullptr) return false;
   s->sink = compositeSinkFor(cfg.dac);
 
-  s->lut = (uint32_t *)malloc(compositeLutWords(timing) * sizeof(uint32_t));
+  s->lut =
+      (uint32_t *)malloc(compositeLutWords(timing, cfg.dac) * sizeof(uint32_t));
   if (s->lut == nullptr) return false;
   if (!compositeEncoderInit(&s->enc, timing, cfg.dac, s->lut)) return false;
 
@@ -280,12 +281,12 @@ bool compositeOutInit(CompositeOutState *s, const CompositeTiming *timing,
   // very first pass through the ring is already a valid signal.
   for (int i = 0; i < NUM_SLOTS; ++i) {
     CompositeSampleWriter w;
-    compositeWriterInit(&w, &s->enc, compositeSlotPtr(s, (uint32_t)i));
     uint32_t line = (uint32_t)i * s->enc.linesPerSlot;
+    compositeWriterInit(&w, &s->enc, compositeSlotPtr(s, (uint32_t)i), line);
     for (uint32_t k = 0; k < s->enc.linesPerSlot; ++k, ++line) {
       uint32_t y = 0;
       compositeEmitLine(&w, &s->enc, compositeClassifyLine(timing, line, &y),
-                        s->rgbScratch);
+                        line, s->rgbScratch);
     }
     s->fillLine[i] = (uint16_t)((uint32_t)i * s->enc.linesPerSlot);
   }

@@ -26,6 +26,11 @@ target_include_directories(pico2_common
     # so spi_4line_mode0.pio.h is visible to all targets that link pico2_common.
 )
 
+# Selects the SRAM placement of the composite hot path (LCDTAP_CVBS_HOT). The
+# host test compiles composite_encode.cpp without this, so it stays a no-op
+# there and the file remains MCU-independent.
+target_compile_definitions(pico2_common PUBLIC LCDTAP_TARGET_PICO=1)
+
 target_link_libraries(pico2_common PUBLIC
     lcdtap
     pico_multicore

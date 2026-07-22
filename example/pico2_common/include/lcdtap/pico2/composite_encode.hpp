@@ -40,6 +40,20 @@
 
 #include "lcdtap/pico2/composite_timing.hpp"
 
+// Hot-path placement. On the MCU the per-sample line generator must run from
+// SRAM: Core 0 spins in a flash-resident loop, and a shared XIP stall on
+// Core 1's fill path is enough to miss a slot deadline on PAL (see
+// composite_out.cpp). The HSTX backend gets away with a flash-resident fill
+// because its Core 1 only calls fillScanline -- the TMDS expansion is in
+// hardware -- whereas composite also runs the whole sample encode on Core 1.
+// The host test defines this to nothing so the file stays MCU-independent.
+#if defined(LCDTAP_TARGET_PICO)
+#include "pico.h"
+#define LCDTAP_CVBS_HOT(name) __not_in_flash_func(name)
+#else
+#define LCDTAP_CVBS_HOT(name) name
+#endif
+
 namespace lcdtap::pico2 {
 
 // Upper bound on linesPerSlot across all supported timing/DAC combinations
@@ -69,7 +83,7 @@ struct CompositeEncoder;
 
 using CompositeEmitLineFn = void (*)(CompositeSampleWriter *w,
                                      const CompositeEncoder *e,
-                                     CompositeLineType type,
+                                     CompositeLineType type, uint32_t line,
                                      const uint16_t *px);
 
 struct CompositeEncoder {
@@ -97,21 +111,34 @@ struct CompositeEncoder {
   uint32_t codeWhite;
   uint32_t codeMax;
 
-  // Burst level per subcarrier phase index (absolute sample index & 3)
-  uint32_t burstCode[COMPOSITE_NUM_PHASES];
+  // Burst level per subcarrier phase index (absolute sample index & 3). The
+  // first index is the PAL line polarity (V switch): NTSC fills both rows with
+  // the same fixed -U burst; PAL fills them with the two swinging-burst phases.
+  uint32_t burstCode[2][COMPOSITE_NUM_PHASES];
 
-  // lut[set][color]: two packed 7-bit-space samples per half.
-  //   bits [13:0]  = the pixel's two samples when it starts at phase `set`
-  //   bits [29:16] = the same pixel when it starts at phase `set + 2`
+  // Chroma LUT, in a sink-specific layout chosen for zero unpacking on the
+  // per-pixel path:
+  //
+  //   R-2R: one word per colour per set.
+  //     bits [13:0]  = the pixel's two 7-bit samples when it starts at `set`
+  //     bits [29:16] = the same pixel when it starts at phase `set + 2`
+  //   PWM : two words per colour per set, ready to store as-is.
+  //     word[color]                        = s0 | s1 << 16  (starts at `set`)
+  //     word[COMPOSITE_LUT_COLORS + color] = s2 | s3 << 16  (`set + 2`)
+  //
   // Sets are indexed by subcarrier phase; PAL colour additionally uses the
   // upper sets for the inverted-V lines.
   uint32_t *lut;
   uint32_t lutSets;
 };
 
-// Sequential sample writer. `sampleIndex` counts from the start of the group
-// and drives subcarrier phase, so nothing needs to be transfer-aligned.
-// acc/nbits are used by the bit-packing policy only.
+// Sequential sample writer. `sampleIndex` counts absolute samples and drives
+// subcarrier phase, so nothing needs to be transfer-aligned. This struct is
+// only the boundary state between lines: the emit functions load it into
+// locals on entry and store it back on exit, because going through a pointer
+// inside the sample loops forces the compiler to reload every member after
+// each buffer store (the stores and the members are both uint32_t, so it must
+// assume they alias). acc/nbits are used by the R-2R bit packer only.
 struct CompositeSampleWriter {
   union {
     uint32_t *w;  // R-2R: packed words
@@ -120,9 +147,6 @@ struct CompositeSampleWriter {
   uint32_t acc;
   uint32_t nbits;
   uint32_t sampleIndex;
-  uint32_t bitsPerSample;
-  uint32_t samplesPerTransfer;
-  uint32_t flushBits;
 };
 
 // Compute the derived geometry, the physical level codes and the chroma LUT.
@@ -131,8 +155,10 @@ struct CompositeSampleWriter {
 bool compositeEncoderInit(CompositeEncoder *e, const CompositeTiming *timing,
                           const CompositeDacProfile *dac, uint32_t *lutStorage);
 
-// Number of uint32_t the caller must provide for the LUT.
-uint32_t compositeLutWords(const CompositeTiming *timing);
+// Number of uint32_t the caller must provide for the LUT. Depends on the DAC:
+// the PWM layout stores two words per colour (see CompositeEncoder::lut).
+uint32_t compositeLutWords(const CompositeTiming *timing,
+                           const CompositeDacProfile *dac);
 
 // Geometry of one line group, for the given timing and DAC profile.
 uint32_t compositeLinesPerSlot(const CompositeTiming *timing,
@@ -149,24 +175,31 @@ uint32_t compositeLevelToCode(const CompositeLevelMap &map, int32_t level);
 CompositeLineType compositeClassifyLine(const CompositeTiming *timing,
                                         uint32_t line, uint32_t *activeY);
 
+// Seeds the writer for the slot whose first line is `firstLine`. The subcarrier
+// phase is taken from sampleIndex & 3, so sampleIndex must start at the slot's
+// absolute sample offset -- not zero -- or the phase resets every slot. It
+// happens to land on 0 for NTSC and PAL R-2R, but PAL PWM (linesPerSlot 2,
+// 2*1135 == 2 mod 4) would flip 180 degrees on alternate slots.
 void compositeWriterInit(CompositeSampleWriter *w, const CompositeEncoder *e,
-                         void *dst);
+                         void *dst, uint32_t firstLine);
 
 // Emit exactly timing->samplesPerLine samples for one line, in the transfer
-// format of the sink the encoder was initialized for. `px` is ignored for
+// format of the sink the encoder was initialized for. `line` is the absolute
+// field line, used for the PAL V switch (line polarity). `px` is ignored for
 // every type except ACTIVE, where it must hold hActivePixels RGB565 values.
 inline void compositeEmitLine(CompositeSampleWriter *w,
                               const CompositeEncoder *e, CompositeLineType type,
-                              const uint16_t *px) {
-  e->emitLine(w, e, type, px);
+                              uint32_t line, const uint16_t *px) {
+  e->emitLine(w, e, type, line, px);
 }
 
 // The two concrete formats. Callers should use compositeEmitLine() instead;
 // these are what compositeEncoderInit() installs.
 void compositeEmitLinePacked(CompositeSampleWriter *w,
                              const CompositeEncoder *e, CompositeLineType type,
-                             const uint16_t *px);
+                             uint32_t line, const uint16_t *px);
 void compositeEmitLinePwm(CompositeSampleWriter *w, const CompositeEncoder *e,
-                          CompositeLineType type, const uint16_t *px);
+                          CompositeLineType type, uint32_t line,
+                          const uint16_t *px);
 
 }  // namespace lcdtap::pico2

@@ -47,7 +47,7 @@ struct Field {
   uint32_t codeBlank = 0;
   uint32_t codeWhite = 0;
   uint32_t codeMax = 0;
-  uint32_t burstCode[COMPOSITE_NUM_PHASES] = {};
+  uint32_t burstCode[2][COMPOSITE_NUM_PHASES] = {};
 };
 
 // A recognisable test pattern: eight vertical colour bars.
@@ -69,7 +69,7 @@ std::vector<uint16_t> makeColorBars(uint32_t nPx) {
 
 Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac) {
   Field f;
-  std::vector<uint32_t> lut(compositeLutWords(t));
+  std::vector<uint32_t> lut(compositeLutWords(t, dac));
   CompositeEncoder enc;
   if (!compositeEncoderInit(&enc, t, dac, lut.data())) {
     printf("  FAIL compositeEncoderInit(%s, %s) returned false\n", t->name,
@@ -83,8 +83,10 @@ Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac) {
   f.codeBlank = enc.codeBlank;
   f.codeWhite = enc.codeWhite;
   f.codeMax = enc.codeMax;
-  for (uint32_t i = 0; i < COMPOSITE_NUM_PHASES; ++i) {
-    f.burstCode[i] = enc.burstCode[i];
+  for (uint32_t pol = 0; pol < 2; ++pol) {
+    for (uint32_t i = 0; i < COMPOSITE_NUM_PHASES; ++i) {
+      f.burstCode[pol][i] = enc.burstCode[pol][i];
+    }
   }
 
   const std::vector<uint16_t> px = makeColorBars(t->hActivePixels);
@@ -98,12 +100,15 @@ Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac) {
   std::vector<uint8_t> slot(enc.bytesPerSlot);
   for (uint32_t s = 0; s < numSlots; ++s) {
     CompositeSampleWriter w;
-    compositeWriterInit(&w, &enc, slot.data());
+    const uint32_t firstLine = s * enc.linesPerSlot;
+    // Mirror the driver: seed the writer with the slot's absolute first line so
+    // the subcarrier phase is correct across slot boundaries.
+    compositeWriterInit(&w, &enc, slot.data(), firstLine);
     for (uint32_t k = 0; k < enc.linesPerSlot; ++k) {
       uint32_t y = 0;
-      const uint32_t line = s * enc.linesPerSlot + k;
+      const uint32_t line = firstLine + k;
       const CompositeLineType type = compositeClassifyLine(t, line, &y);
-      compositeEmitLine(&w, &enc, type, px.data());
+      compositeEmitLine(&w, &enc, type, line, px.data());
     }
     // The whole point of the group structure: a group always ends exactly on
     // a transfer boundary with nothing left in the accumulator.
@@ -113,9 +118,12 @@ Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac) {
     CHECK(end == slot.data() + enc.bytesPerSlot,
           "%s/%s slot %u: wrote %ld bytes, expected %u", t->name, dac->name, s,
           (long)(end - slot.data()), enc.bytesPerSlot);
-    CHECK(w.sampleIndex == enc.linesPerSlot * t->samplesPerLine,
-          "%s/%s slot %u: emitted %u samples, expected %u", t->name, dac->name,
-          s, w.sampleIndex, enc.linesPerSlot * t->samplesPerLine);
+    // sampleIndex is seeded with the slot's absolute offset, so it ends one
+    // slot further along, not at linesPerSlot * samplesPerLine.
+    const uint32_t wantIndex = (s + 1) * enc.linesPerSlot * t->samplesPerLine;
+    CHECK(w.sampleIndex == wantIndex,
+          "%s/%s slot %u: sampleIndex %u, expected %u", t->name, dac->name, s,
+          w.sampleIndex, wantIndex);
 
     // Recover individual sample codes from the transfer format.
     if (dac->kind == CompositeDacKind::PWM) {
@@ -272,49 +280,58 @@ void testFieldStructure() {
 
 void testBurst() {
   printf("colour burst\n");
-  // Only NTSC carries a burst in Phase 1; PAL is monochrome for now.
-  const CompositeTiming *t = &COMPOSITE_TIMING_NTSC_J_240P;
+  const CompositeTiming *ts[] = {&COMPOSITE_TIMING_NTSC_J_240P,
+                                 &COMPOSITE_TIMING_PAL_B_288P};
   const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
                                      &COMPOSITE_DAC_PWM_GPIO10};
-  for (const CompositeDacProfile *d : ds) {
-    const Field f = generateField(t, d);
-    if (f.samples.empty()) continue;
+  for (const CompositeTiming *t : ts) {
+    for (const CompositeDacProfile *d : ds) {
+      const Field f = generateField(t, d);
+      if (f.samples.empty()) continue;
 
-    const uint32_t activeStart = t->vTotalLines - t->vActiveLines;
-    bool ok = true;
-    for (uint32_t line = activeStart; line < t->vTotalLines && ok; ++line) {
-      const uint32_t base = line * t->samplesPerLine;
-      const uint16_t *s = &f.samples[base + t->hBurstStart];
-      for (uint32_t i = 0; i < t->hBurstCycles * 4u; ++i) {
-        // Phase comes from the absolute sample index, so burst and chroma
-        // share one reference. This is what makes PAL colour tractable later.
-        const uint32_t phase = (base + t->hBurstStart + i) & 3u;
-        if (s[i] != f.burstCode[phase]) {
-          CHECK(false,
-                "%s/%s line %u burst sample %u: %u, expected %u (phase %u)",
-                t->name, d->name, line, i, s[i], f.burstCode[phase], phase);
-          ok = false;
-          break;
+      const uint32_t activeStart = t->vTotalLines - t->vActiveLines;
+      bool ok = true;
+      for (uint32_t line = activeStart; line < t->vTotalLines && ok; ++line) {
+        const uint32_t base = line * t->samplesPerLine;
+        // PAL swings the burst per line; the polarity follows the same V switch
+        // (line parity) the encoder used. NTSC always uses polarity 0.
+        const uint32_t pol = t->palSwitch ? (line & 1u) : 0u;
+        const uint16_t *s = &f.samples[base + t->hBurstStart];
+        for (uint32_t i = 0; i < t->hBurstCycles * 4u; ++i) {
+          // Phase comes from the absolute sample index, so burst and chroma
+          // share one reference across slots.
+          const uint32_t phase = (base + t->hBurstStart + i) & 3u;
+          if (s[i] != f.burstCode[pol][phase]) {
+            CHECK(false,
+                  "%s/%s line %u burst sample %u: %u, expected %u "
+                  "(pol %u phase %u)",
+                  t->name, d->name, line, i, s[i], f.burstCode[pol][phase], pol,
+                  phase);
+            ok = false;
+            break;
+          }
         }
       }
-    }
-    // The burst must be suppressed through the vertical interval.
-    for (uint32_t line = 0; line < t->vBurstBlankEnd; ++line) {
-      const uint16_t *s = &f.samples[line * t->samplesPerLine + t->hBurstStart];
-      bool modulated = false;
-      for (uint32_t i = 0; i < t->hBurstCycles * 4u; ++i) {
-        if (s[i] != f.codeBlank && s[i] != f.codeSyncTip) modulated = true;
+      // The burst must be suppressed through the vertical interval.
+      for (uint32_t line = 0; line < t->vBurstBlankEnd; ++line) {
+        const uint16_t *s =
+            &f.samples[line * t->samplesPerLine + t->hBurstStart];
+        bool modulated = false;
+        for (uint32_t i = 0; i < t->hBurstCycles * 4u; ++i) {
+          if (s[i] != f.codeBlank && s[i] != f.codeSyncTip) modulated = true;
+        }
+        CHECK(!modulated,
+              "%s/%s line %u: burst present during vertical blanking", t->name,
+              d->name, line);
       }
-      CHECK(!modulated, "%s/%s line %u: burst present during vertical blanking",
-            t->name, d->name, line);
+      // Amplitude in physical codes. The PWM sink quantizes this brutally, and
+      // PAL's +-45 degree swing costs a further 1/sqrt(2), so print it as a
+      // number rather than a surprise on the bench.
+      const int amp = (int)f.burstCode[0][2] - (int)f.codeBlank;
+      printf("  %-12s %-20s %u cycles at %.2f us, amplitude +-%d of %u..%u\n",
+             t->name, d->name, t->hBurstCycles, t->hBurstStart * usPerSample(t),
+             amp, f.codeBlank, f.codeWhite);
     }
-    // Amplitude in physical codes. The PWM sink quantizes this brutally
-    // (+-2 of a 12-step luma span versus +-14 of 70), which is the weakest
-    // point of that sink -- print it so it is a number, not a surprise.
-    const int amp = (int)f.burstCode[2] - (int)f.codeBlank;
-    printf("  %-20s %u cycles at %.2f us, amplitude +-%d of %u..%u\n", d->name,
-           t->hBurstCycles, t->hBurstStart * usPerSample(t), amp, f.codeBlank,
-           f.codeWhite);
   }
 }
 
@@ -358,10 +375,11 @@ void testLevels() {
   }
 }
 
-void testMonochrome() {
-  printf("monochrome (PAL phase 1)\n");
-  // A monochrome timing must produce no chroma modulation at all: every
-  // active sample pair for a given pixel must be identical.
+void testPalColor() {
+  printf("PAL colour levels\n");
+  // PAL is now colour: verify the active line carries chroma (some pixel's two
+  // samples differ), the greyscale endpoints do not, and nothing exceeds the
+  // DAC range. testLevels only covers NTSC, so this extends level coverage.
   const CompositeTiming *t = &COMPOSITE_TIMING_PAL_B_288P;
   const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
                                      &COMPOSITE_DAC_PWM_GPIO10};
@@ -369,46 +387,67 @@ void testMonochrome() {
     const Field f = generateField(t, d);
     if (f.samples.empty()) continue;
 
+    // Nothing may exceed the DAC range or dip below the sync tip.
+    uint32_t lo = 0xFFFFu, hi = 0;
+    for (uint16_t v : f.samples) {
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    CHECK(hi <= f.codeMax, "%s: peak code %u exceeds codeMax %u", d->name, hi,
+          f.codeMax);
+    CHECK(lo == f.codeSyncTip, "%s: minimum code is %u, expected sync tip %u",
+          d->name, lo, f.codeSyncTip);
+    if (d->kind == CompositeDacKind::PWM) {
+      CHECK(hi < f.codeMax, "%s: peak code %u reaches codeMax %u", d->name, hi,
+            f.codeMax);
+    }
+
     const uint32_t line = t->vTotalLines - 1;
     const uint16_t *a = &f.samples[line * t->samplesPerLine + t->hActiveStart];
+    // Colour bars must modulate: at least one pixel's two samples must differ.
+    bool hasChroma = false;
     for (uint32_t i = 0; i < t->hActiveSamples; i += 2) {
-      if (a[i] != a[i + 1]) {
-        CHECK(false, "%s/%s: chroma present in monochrome mode at sample %u",
-              t->name, d->name, i);
-        break;
-      }
+      if (a[i] != a[i + 1]) hasChroma = true;
     }
-    for (uint16_t v : f.samples) {
-      if (v > f.codeMax) {
-        CHECK(false, "%s: emitted code %u above codeMax %u", d->name, v,
-              f.codeMax);
-        break;
-      }
-    }
-    printf("  %-20s no chroma, codes within 0..%u\n", d->name, f.codeMax);
+    CHECK(hasChroma, "%s/%s: no chroma on a colour line", t->name, d->name);
+    // The white and black end bars carry no chroma, so their pairs are flat.
+    const uint32_t lastBar = t->hActiveSamples - 8;
+    CHECK(a[8] == a[9] && a[8] == f.codeWhite,
+          "%s: white bar reads %u/%u, expected flat %u", d->name, a[8], a[9],
+          f.codeWhite);
+    CHECK(a[lastBar] == a[lastBar + 1] && a[lastBar] == f.codeBlank,
+          "%s: black bar reads %u/%u, expected flat %u", d->name, a[lastBar],
+          a[lastBar + 1], f.codeBlank);
+    printf("  %-20s chroma present, codes %u..%u within 0..%u\n", d->name, lo,
+           hi, f.codeMax);
   }
 }
 
 // Demodulate the way a receiver does, and check the hue of each colour bar
-// against the standard NTSC vectorscope angles.
+// against the standard vectorscope angles.
 //
 // Every other chroma assertion in this file is blind to the sign of the
-// quadrature axis: testBurst compares the encoder against its own burstCode
-// (and the burst has V = 0 anyway), testLevels only samples the white and
-// black bars, and testLevelMaps bounds excursion magnitude. A V-axis sign
-// inversion therefore passed the whole suite and only showed up on a TV, as
-// every hue mirrored about the U axis with luma untouched.
+// quadrature axis: testBurst compares the encoder against its own burstCode,
+// testLevels only samples the white and black bars, and testLevelMaps bounds
+// excursion magnitude. A V-axis sign inversion therefore passed the whole
+// suite and only showed up on a TV, as every hue mirrored about the U axis
+// with luma untouched.
 //
-// The measurement is taken *relative to the burst*, because that is the only
-// reference a receiver has -- which also means the absolute handedness of the
-// basis used below cancels out and cannot bias the result.
+// The measurement is taken *relative to the -U reference axis*, because that
+// is the only reference a receiver has -- which also means the absolute
+// handedness of the basis used below cancels out and cannot bias the result.
+// For PAL the burst swings +-45 degrees line to line, so the reference is
+// recovered by averaging two adjacent lines' bursts (the swing cancels), and
+// the transmitted V is de-switched per line parity before the hue is read.
+//
+// Several lines spanning multiple slots are checked. A per-slot subcarrier
+// phase error (the writer seed) rotates a whole slot 180 degrees relative to
+// the fixed reference, so both the burst-swing check and the hue check on the
+// lines in that slot would fail -- which is the point.
 //
 // Honest limitation: the expected sense (delta = 180 - hue) was settled by
 // looking at a real TV, not derived from first principles. This is a
-// regression lock on verified behaviour, not a proof of standards
-// compliance. It is still worth having: it catches a V-sign regression, a
-// wrong subcarrier sense when PAL colour lands, a mis-indexed LUT, a burst
-// phase error, and any divergence between the R-2R and PWM sinks.
+// regression lock on verified behaviour, not a proof of standards compliance.
 void testChromaPhase() {
   printf("chroma phase (demodulated against the burst)\n");
 
@@ -423,73 +462,108 @@ void testChromaPhase() {
       {"magenta", 4, 60.7}, {"red", 5, 103.5},  {"blue", 6, 347.1},
   };
 
-  const CompositeTiming *t = &COMPOSITE_TIMING_NTSC_J_240P;
+  const CompositeTiming *ts[] = {&COMPOSITE_TIMING_NTSC_J_240P,
+                                 &COMPOSITE_TIMING_PAL_B_288P};
   const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
                                      &COMPOSITE_DAC_PWM_GPIO10};
 
-  for (const CompositeDacProfile *d : ds) {
-    const Field f = generateField(t, d);
-    if (f.samples.empty()) continue;
+  for (const CompositeTiming *t : ts) {
+    for (const CompositeDacProfile *d : ds) {
+      const Field f = generateField(t, d);
+      if (f.samples.empty()) continue;
 
-    const uint32_t line = t->vTotalLines - 1;
-    const uint32_t base = line * t->samplesPerLine;
+      const uint32_t activeStart = t->vTotalLines - t->vActiveLines;
 
-    // Correlate a sample run against the quadrature basis. `first` is the
-    // absolute sample index so the phase reference is the same one the
-    // encoder used.
-    auto project = [&](uint32_t first, uint32_t count, double *outU,
-                       double *outV) {
-      double su = 0.0, sv = 0.0;
-      for (uint32_t i = 0; i < count; ++i) {
-        const double c = (double)f.samples[first + i] - (double)f.codeBlank;
-        const uint32_t p = (first + i) & 3u;
-        const double cosv[4] = {1, 0, -1, 0};
-        const double sinv[4] = {0, 1, 0, -1};
-        su += c * cosv[p];
-        sv += c * sinv[p];
+      // Correlate a sample run against the quadrature basis. `first` is the
+      // absolute sample index so the phase reference is the same one the
+      // encoder used.
+      auto project = [&](uint32_t first, uint32_t count, double *outU,
+                         double *outV) {
+        double su = 0.0, sv = 0.0;
+        for (uint32_t i = 0; i < count; ++i) {
+          const double c = (double)f.samples[first + i] - (double)f.codeBlank;
+          const uint32_t p = (first + i) & 3u;
+          const double cosv[4] = {1, 0, -1, 0};
+          const double sinv[4] = {0, 1, 0, -1};
+          su += c * cosv[p];
+          sv += c * sinv[p];
+        }
+        *outU = su * 2.0 / count;
+        *outV = sv * 2.0 / count;
+      };
+      auto burstOf = [&](uint32_t line, double *bu, double *bv) {
+        project(line * t->samplesPerLine + t->hBurstStart, t->hBurstCycles * 4u,
+                bu, bv);
+      };
+
+      // Fixed -U reference. PAL averages an adjacent pair so the +-45 swing
+      // cancels; NTSC has no swing, so one line is enough.
+      double ru, rv, u1, v1;
+      burstOf(activeStart, &ru, &rv);
+      if (t->palSwitch) {
+        burstOf(activeStart + 1u, &u1, &v1);
+        ru += u1;
+        rv += v1;
       }
-      *outU = su * 2.0 / count;
-      *outV = sv * 2.0 / count;
-    };
+      const double refAngle = atan2(rv, ru) * 180.0 / M_PI;
+      CHECK(sqrt(ru * ru + rv * rv) > 0.5, "%s/%s: no burst (amplitude %.2f)",
+            t->name, d->name, sqrt(ru * ru + rv * rv));
 
-    double bu, bv;
-    project(base + t->hBurstStart, t->hBurstCycles * 4u, &bu, &bv);
-    const double burstAngle = atan2(bv, bu) * 180.0 / M_PI;
-    const double burstAmp = sqrt(bu * bu + bv * bv);
-    CHECK(burstAmp > 0.5, "%s: no burst detected (amplitude %.2f)", d->name,
-          burstAmp);
+      // Lines spanning several slots, including a slot boundary.
+      const uint32_t lines[] = {activeStart,         activeStart + 1u,
+                                activeStart + 2u,    activeStart + 3u,
+                                t->vTotalLines - 2u, t->vTotalLines - 1u};
+      int barsOk = 0, barsTotal = 0;
+      for (uint32_t line : lines) {
+        const uint32_t base = line * t->samplesPerLine;
+        const uint32_t pol = t->palSwitch ? (line & 1u) : 0u;
 
-    int barsOk = 0;
-    for (const Bar &b : bars) {
-      // Sample the middle of the bar to stay clear of the transitions.
-      const uint32_t barW = t->hActiveSamples / 8u;
-      const uint32_t start = t->hActiveStart + b.index * barW + barW / 4u;
-      const uint32_t count = (barW / 2u) & ~3u;  // whole subcarrier cycles
+        // The burst must sit on the reference (NTSC) or swing +45 on even /
+        // -45 on odd lines (PAL).
+        double bu, bv;
+        burstOf(line, &bu, &bv);
+        double swing = atan2(bv, bu) * 180.0 / M_PI - refAngle;
+        swing = fmod(swing + 540.0, 360.0) - 180.0;  // -180..180
+        const double wantSwing = t->palSwitch ? (pol ? -45.0 : 45.0) : 0.0;
+        double swingErr = fabs(swing - wantSwing);
+        if (swingErr > 180.0) swingErr = 360.0 - swingErr;
+        CHECK(swingErr < 15.0,
+              "%s/%s line %u: burst swing %.1f deg, expected %.1f", t->name,
+              d->name, line, swing, wantSwing);
 
-      double cu, cv;
-      project(base + start, count, &cu, &cv);
-      const double amp = sqrt(cu * cu + cv * cv);
-      double delta = atan2(cv, cu) * 180.0 / M_PI - burstAngle;
-      delta = fmod(delta + 720.0, 360.0);
+        for (const Bar &b : bars) {
+          // Sample the middle of the bar to stay clear of the transitions.
+          const uint32_t barW = t->hActiveSamples / 8u;
+          const uint32_t start = t->hActiveStart + b.index * barW + barW / 4u;
+          const uint32_t count = (barW / 2u) & ~3u;  // whole subcarrier cycles
 
-      // NTSC places a colour of hue h at (180 - h) from the burst.
-      double want = fmod(180.0 - b.hue + 720.0, 360.0);
-      double err = fabs(delta - want);
-      if (err > 180.0) err = 360.0 - err;
+          double cu, cv;
+          project(base + start, count, &cu, &cv);
+          // De-switch the PAL V axis so the hue reads the same on both lines.
+          if (pol) cv = -cv;
+          const double amp = sqrt(cu * cu + cv * cv);
+          double delta = atan2(cv, cu) * 180.0 / M_PI - refAngle;
+          delta = fmod(delta + 720.0, 360.0);
 
-      // The "mirrored" figure is the reading a V-axis sign inversion would
-      // give; if that is what matches the expectation, the quadrature sense
-      // is backwards rather than the hue merely being imprecise.
-      CHECK(err < 12.0,
-            "%s/%s: hue is %.1f deg from the burst, expected %.1f "
-            "(off by %.1f -- mirrored hue reads as %.1f)",
-            d->name, b.name, delta, want, err, fmod(360.0 - delta, 360.0));
-      CHECK(amp > 0.5, "%s/%s: no chroma (amplitude %.2f)", d->name, b.name,
-            amp);
-      if (err < 12.0 && amp > 0.5) barsOk++;
+          // A colour of hue h sits at (180 - h) from the reference.
+          double want = fmod(180.0 - b.hue + 720.0, 360.0);
+          double err = fabs(delta - want);
+          if (err > 180.0) err = 360.0 - err;
+
+          barsTotal++;
+          CHECK(err < 12.0,
+                "%s/%s line %u %s: hue is %.1f deg, expected %.1f "
+                "(off by %.1f -- mirrored reads as %.1f)",
+                t->name, d->name, line, b.name, delta, want, err,
+                fmod(360.0 - delta, 360.0));
+          CHECK(amp > 0.5, "%s/%s line %u %s: no chroma (amplitude %.2f)",
+                t->name, d->name, line, b.name, amp);
+          if (err < 12.0 && amp > 0.5) barsOk++;
+        }
+      }
+      printf("  %-12s %-20s ref %.1f deg, %d/%d bar reads on target\n", t->name,
+             d->name, refAngle, barsOk, barsTotal);
     }
-    printf("  %-20s burst at %.1f deg, %d/%d bars on target\n", d->name,
-           burstAngle, barsOk, (int)(sizeof(bars) / sizeof(bars[0])));
   }
 }
 
@@ -570,7 +644,7 @@ int main() {
   testFieldStructure();
   testBurst();
   testLevels();
-  testMonochrome();
+  testPalColor();
   printf("\n%s (%d failure%s)\n", gFailures == 0 ? "PASS" : "FAIL", gFailures,
          gFailures == 1 ? "" : "s");
   return gFailures == 0 ? 0 : 1;

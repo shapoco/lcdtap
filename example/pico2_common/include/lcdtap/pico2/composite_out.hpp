@@ -27,8 +27,11 @@ using CompositeFillFunc = void (*)(uint16_t scanY, uint16_t *buf,
 
 // Number of line-group buffers in the DMA ring. Each slot holds linesPerSlot
 // lines, so Core 1 has (NUM_SLOTS-1) * linesPerSlot lines of fill budget
-// before a buffer it is still writing could be read back out.
-static constexpr int COMPOSITE_NUM_SLOTS = 4;
+// before a buffer it is still writing could be read back out. Six (not four)
+// leaves extra slack to ride out a transient Core 1 stall -- e.g. a burst of
+// host input contending the bus -- on top of the SRAM-resident encode. Uses
+// one DMA channel each; well within the 16 the RP2350 has.
+static constexpr int COMPOSITE_NUM_SLOTS = 6;
 
 struct CompositeOutConfig {
   uint32_t pinLed;
