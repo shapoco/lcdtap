@@ -64,8 +64,31 @@ static constexpr uint32_t COMPOSITE_MAX_LINES_PER_SLOT = 4u;
 // (NUM_SLOTS-1) * this many lines of fill budget regardless of sink.
 static constexpr uint32_t COMPOSITE_MIN_LINES_PER_SLOT = 2u;
 
-// Colours are quantized to RGB332 before chroma encoding.
+// Colours are quantized to RGB332 before chroma encoding (LUT mode only).
 static constexpr uint32_t COMPOSITE_LUT_COLORS = 256u;
+
+// How active-video pixels are converted to chroma-modulated samples.
+//
+//   LUT          : RGB565 -> RGB332 index -> per-phase chroma LUT (the
+//                  original path). Cheapest per pixel; colour resolution is
+//                  8 bits.
+//   DIRECT_NAIVE : per-pixel YUV computed with exactly the same integer math
+//                  the LUT builder uses (divisions included). Bit-identical
+//                  to LUT for colours representable in RGB332; full RGB565
+//                  resolution otherwise. Correctness reference -- not
+//                  expected to meet the PAL line budget.
+//   DIRECT_OPT   : per-pixel YUV with every division folded into Q16
+//                  fixed-point coefficients at init, and the subcarrier
+//                  phase/sign selection hoisted out of the pixel loop (within
+//                  a line, a pixel's two samples are always one U-axis and
+//                  one V-axis sample with loop-invariant signs). Within +-2
+//                  codes of DIRECT_NAIVE. The real-time candidate; must be
+//                  validated against the cycle budget on hardware.
+enum class CompositeChromaMode : uint8_t {
+  LUT = 0,
+  DIRECT_NAIVE = 1,
+  DIRECT_OPT = 2,
+};
 
 enum class CompositeLineType : uint8_t {
   EQ,             // equalizing pulses (two narrow sync pulses)
@@ -127,9 +150,30 @@ struct CompositeEncoder {
   //     word[COMPOSITE_LUT_COLORS + color] = s2 | s3 << 16  (`set + 2`)
   //
   // Sets are indexed by subcarrier phase; PAL colour additionally uses the
-  // upper sets for the inverted-V lines.
+  // upper sets for the inverted-V lines. Null in the DIRECT modes.
   uint32_t *lut;
   uint32_t lutSets;
+
+  // Active-pixel conversion path; records which emitLine was installed.
+  CompositeChromaMode chromaMode;
+
+  // Level->code map, kept for the DIRECT_NAIVE path and the host tests (the
+  // LUT path bakes it into the table at init).
+  CompositeLevelMap map;
+
+  // DIRECT_OPT constants: Q16 fixed point, pre-scaled into *physical code*
+  // space so the pixel loop is multiply/add/shift only:
+  //
+  //   code(sample) = clamp((dirBaseQ16 + y*dirKyQ16 +- d*dirK{u,v}Q16) >> 16)
+  //
+  // where d is (B-Y) or (R-Y). dirBaseQ16 carries lvlBlack plus the +0.5
+  // rounding of the final shift; dirKuQ16/dirKvQ16 fold the 0.492/0.879
+  // demodulation constants, lumaSpan, chromaGain and the level->code scale
+  // into a single coefficient. Divisions happen once here, never per pixel.
+  int32_t dirBaseQ16;
+  int32_t dirKyQ16;
+  int32_t dirKuQ16;
+  int32_t dirKvQ16;
 };
 
 // Sequential sample writer. `sampleIndex` counts absolute samples and drives
@@ -149,16 +193,21 @@ struct CompositeSampleWriter {
   uint32_t sampleIndex;
 };
 
-// Compute the derived geometry, the physical level codes and the chroma LUT.
-// `lutStorage` must hold at least compositeLutWords(timing) uint32_t.
+// Compute the derived geometry, the physical level codes and (in LUT mode)
+// the chroma LUT. `lutStorage` must hold at least compositeLutWords() uint32_t
+// in LUT mode; the DIRECT modes ignore it and accept nullptr.
 // Returns false if the combination is unsupported.
-bool compositeEncoderInit(CompositeEncoder *e, const CompositeTiming *timing,
-                          const CompositeDacProfile *dac, uint32_t *lutStorage);
+bool compositeEncoderInit(
+    CompositeEncoder *e, const CompositeTiming *timing,
+    const CompositeDacProfile *dac, uint32_t *lutStorage,
+    CompositeChromaMode chromaMode = CompositeChromaMode::LUT);
 
 // Number of uint32_t the caller must provide for the LUT. Depends on the DAC:
 // the PWM layout stores two words per colour (see CompositeEncoder::lut).
-uint32_t compositeLutWords(const CompositeTiming *timing,
-                           const CompositeDacProfile *dac);
+// Zero in the DIRECT modes, which use no LUT.
+uint32_t compositeLutWords(
+    const CompositeTiming *timing, const CompositeDacProfile *dac,
+    CompositeChromaMode chromaMode = CompositeChromaMode::LUT);
 
 // Geometry of one line group, for the given timing and DAC profile.
 uint32_t compositeLinesPerSlot(const CompositeTiming *timing,
@@ -170,6 +219,27 @@ uint32_t compositeBytesPerSlot(const CompositeTiming *timing,
 
 // Normalized 7-bit level -> physical DAC code. Init-time only.
 uint32_t compositeLevelToCode(const CompositeLevelMap &map, int32_t level);
+
+// RGB565 -> RGB888 by MSB replication. Shared by the DIRECT paths and the
+// host tests so both sides agree on the expansion bit for bit.
+inline void compositeRgb565To888(uint32_t v, int32_t *r8, int32_t *g8,
+                                 int32_t *b8) {
+  *r8 = static_cast<int32_t>(((v >> 8) & 0xF8u) | (v >> 13));
+  *g8 = static_cast<int32_t>(((v >> 3) & 0xFCu) | ((v >> 9) & 0x03u));
+  *b8 = static_cast<int32_t>(((v << 3) & 0xF8u) | ((v >> 2) & 0x07u));
+}
+
+// One luma+chroma sample for an RGB888 colour at absolute sample index
+// `phase` (only the low two bits matter), with the PAL V-switch sign vSign
+// (+1 normal line, -1 inverted line). Returns a physical DAC code. This is
+// the single source of truth for the chroma math: the LUT builder, the
+// DIRECT_NAIVE hot path and the host tests all evaluate exactly this
+// function, which is what makes "LUT vs direct" verifiable bit for bit.
+// Out-of-line wrapper for init/test use; the hot paths inline it.
+uint32_t compositeChromaSampleAt(const CompositeTiming *timing,
+                                 const CompositeLevelMap &map, int32_t r8,
+                                 int32_t g8, int32_t b8, uint32_t phase,
+                                 int32_t vSign);
 
 // Classify a field line and, for active lines, report the source row.
 CompositeLineType compositeClassifyLine(const CompositeTiming *timing,
@@ -193,13 +263,29 @@ inline void compositeEmitLine(CompositeSampleWriter *w,
   e->emitLine(w, e, type, line, px);
 }
 
-// The two concrete formats. Callers should use compositeEmitLine() instead;
-// these are what compositeEncoderInit() installs.
+// The concrete formats: one per sink x chroma mode. Callers should use
+// compositeEmitLine() instead; these are what compositeEncoderInit()
+// installs according to the DAC kind and CompositeChromaMode.
 void compositeEmitLinePacked(CompositeSampleWriter *w,
                              const CompositeEncoder *e, CompositeLineType type,
                              uint32_t line, const uint16_t *px);
+void compositeEmitLinePackedNaive(CompositeSampleWriter *w,
+                                  const CompositeEncoder *e,
+                                  CompositeLineType type, uint32_t line,
+                                  const uint16_t *px);
+void compositeEmitLinePackedOpt(CompositeSampleWriter *w,
+                                const CompositeEncoder *e,
+                                CompositeLineType type, uint32_t line,
+                                const uint16_t *px);
 void compositeEmitLinePwm(CompositeSampleWriter *w, const CompositeEncoder *e,
                           CompositeLineType type, uint32_t line,
                           const uint16_t *px);
+void compositeEmitLinePwmNaive(CompositeSampleWriter *w,
+                               const CompositeEncoder *e,
+                               CompositeLineType type, uint32_t line,
+                               const uint16_t *px);
+void compositeEmitLinePwmOpt(CompositeSampleWriter *w,
+                             const CompositeEncoder *e, CompositeLineType type,
+                             uint32_t line, const uint16_t *px);
 
 }  // namespace lcdtap::pico2

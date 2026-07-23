@@ -33,6 +33,173 @@ LCDTAP_CVBS_INLINE uint32_t rgb565ToIndex(uint32_t v) {
   return ((v >> 8) & 0xE0u) | ((v >> 6) & 0x1Cu) | ((v >> 3) & 0x03u);
 }
 
+// Inline body of compositeLevelToCode(); shared so the DIRECT_NAIVE hot path
+// never calls out of line (a call target in flash would defeat the SRAM
+// placement of the emit functions).
+LCDTAP_CVBS_INLINE uint32_t levelToCodeInner(const CompositeLevelMap &map,
+                                             int32_t level) {
+  level = clampLevel(level);
+  uint32_t code =
+      (static_cast<uint32_t>(level) * map.codeWhite + map.levelWhite / 2u) /
+      map.levelWhite;
+  if (code > map.codeMax) code = map.codeMax;
+  return code;
+}
+
+// The chroma+luma math, per sample. Single source of truth: the LUT builder,
+// the DIRECT_NAIVE path and compositeChromaSampleAt() all evaluate exactly
+// this, which is what makes LUT-vs-direct equivalence testable bit for bit.
+//
+// Four consecutive samples carry the phases {+U, -V, -U, +V}.
+//
+// NTSC modulates as C = U*sin(wt) + V*cos(wt). With the burst on -U (phases
+// 0 and 2 here), that places +V a quarter cycle EARLIER than +U, not later
+// -- hence -v on phase 1 and +v on phase 3. Getting this backwards mirrors
+// every hue about the U axis while leaving luma untouched, which is exactly
+// what the first hardware test showed: skin and brown came out green, green
+// came out orange, cyan came out purple. testChromaPhase() demodulates the
+// colour bars against the burst and pins this down.
+//
+// A 90 degree absolute offset remains against the textbook form, but the
+// burst carries the same offset, so the receiver -- which has no reference
+// other than the burst -- cannot see it.
+//
+// vSign negates the V component for the PAL inverted-V lines.
+LCDTAP_CVBS_INLINE uint32_t chromaSampleInner(const CompositeTiming *t,
+                                              const CompositeLevelMap &map,
+                                              int32_t r8, int32_t g8,
+                                              int32_t b8, uint32_t phase,
+                                              int32_t vSign) {
+  const int32_t lumaSpan = static_cast<int32_t>(t->lvlWhite) - t->lvlBlack;
+  const int32_t chromaGain = t->colorEnabled ? t->chromaGain : 0;
+
+  const int32_t y = (77 * r8 + 150 * g8 + 29 * b8) >> 8;
+  const int32_t lvl = t->lvlBlack + (y * lumaSpan) / 255;
+  const int32_t u = ((b8 - y) * 126) >> 8;  // 0.492 * (B - Y)
+  const int32_t v = ((r8 - y) * 225) >> 8;  // 0.879 * (R - Y)
+
+  int32_t c;
+  switch (phase & 3u) {
+    case 0: c = u; break;
+    case 1: c = -vSign * v; break;
+    case 2: c = -u; break;
+    default: c = vSign * v; break;
+  }
+  const int32_t off = (c * lumaSpan * chromaGain) / (255 * 256);
+  return levelToCodeInner(map, clampLevel(lvl + off));
+}
+
+// --- DIRECT-mode pixel-pair sources ----------------------------------------
+//
+// The DIRECT emit loops are structured exactly like the LUT loops -- one
+// iteration per pixel pair, four samples per iteration -- but instead of two
+// LUT loads they call samples(), which fills the pair's four physical codes.
+// Because every iteration advances exactly one subcarrier period, the phase
+// pattern is identical for every pair in the window and all phase/sign
+// decisions are hoisted to construction time.
+
+// DIRECT_NAIVE: the reference. Re-evaluates the full division-based math per
+// sample via chromaSampleInner(), so its output is bit-identical to what the
+// LUT builder would have produced for the same RGB888 input.
+struct NaiveChromaSrc {
+  const CompositeTiming *t;
+  const CompositeLevelMap *map;
+  const uint16_t *px;
+  uint32_t p0;    // subcarrier phase of a pair's first sample
+  int32_t vSign;  // +1, or -1 on PAL inverted-V lines
+
+  LCDTAP_CVBS_INLINE void samples(uint32_t i, uint32_t s[4]) const {
+    int32_t r8, g8, b8;
+    compositeRgb565To888(px[i], &r8, &g8, &b8);
+    s[0] = chromaSampleInner(t, *map, r8, g8, b8, p0, vSign);
+    s[1] = chromaSampleInner(t, *map, r8, g8, b8, p0 + 1u, vSign);
+    compositeRgb565To888(px[i + 1u], &r8, &g8, &b8);
+    s[2] = chromaSampleInner(t, *map, r8, g8, b8, p0 + 2u, vSign);
+    s[3] = chromaSampleInner(t, *map, r8, g8, b8, p0 + 3u, vSign);
+  }
+};
+
+// DIRECT_OPT: division-free. On the phase grid {+U, -V', -U, +V'}
+// (V' = vSign*V), a pixel's two samples are always one U-axis and one V-axis
+// sample; which axis comes first and with which signs depends only on the
+// pair's start phase, so both are folded into (uFirst, k0, k1) at line
+// entry. Pixel B of a pair sits 180 degrees later and just negates both
+// coefficients. Per sample this leaves: one multiply, one add, one shift,
+// one clamp.
+struct OptChromaSrc {
+  const uint16_t *px;
+  int32_t base;   // dirBaseQ16 (rounding pre-added)
+  int32_t ky;     // dirKyQ16
+  int32_t k0;     // signed Q16 coefficient, pixel A sample 0
+  int32_t k1;     // signed Q16 coefficient, pixel A sample 1
+  int32_t codeMax;
+  bool uFirst;    // sample 0 of a pixel modulates U (else V)
+
+  LCDTAP_CVBS_INLINE uint32_t sampleOf(int32_t lum, int32_t d,
+                                       int32_t k) const {
+    int32_t c = (lum + d * k) >> 16;
+    if (c < 0) c = 0;
+    if (c > codeMax) c = codeMax;  // codeMax is runtime; the compiler cannot
+                                   // use USAT here, costing ~2 extra cycles
+    return static_cast<uint32_t>(c);
+  }
+
+  LCDTAP_CVBS_INLINE void pixel(uint32_t v, int32_t c0, int32_t c1,
+                                uint32_t out[2]) const {
+    int32_t r8, g8, b8;
+    compositeRgb565To888(v, &r8, &g8, &b8);
+    const int32_t y = (77 * r8 + 150 * g8 + 29 * b8) >> 8;
+    const int32_t lum = base + y * ky;
+    const int32_t db = b8 - y;
+    const int32_t dr = r8 - y;
+    out[0] = sampleOf(lum, uFirst ? db : dr, c0);
+    out[1] = sampleOf(lum, uFirst ? dr : db, c1);
+  }
+
+  LCDTAP_CVBS_INLINE void samples(uint32_t i, uint32_t s[4]) const {
+    pixel(px[i], k0, k1, s);
+    pixel(px[i + 1u], -k0, -k1, s + 2);
+  }
+};
+
+// Fold the pair's start phase and the PAL V switch into an OptChromaSrc.
+// Sample slot k has type (p0 + k) & 3 on the grid {+U, -V', -U, +V'}; kvs
+// carries vSign so the switch below only reasons about the grid.
+LCDTAP_CVBS_INLINE OptChromaSrc makeOptSrc(const CompositeEncoder *e,
+                                           const uint16_t *px, uint32_t p0,
+                                           uint32_t vSwitch) {
+  OptChromaSrc s;
+  s.px = px;
+  s.base = e->dirBaseQ16;
+  s.ky = e->dirKyQ16;
+  s.codeMax = static_cast<int32_t>(e->codeMax);
+  const int32_t ku = e->dirKuQ16;
+  const int32_t kvs = vSwitch ? -e->dirKvQ16 : e->dirKvQ16;
+  switch (p0) {
+    case 0u:  // slots {+U, -V'}
+      s.uFirst = true;
+      s.k0 = ku;
+      s.k1 = -kvs;
+      break;
+    case 1u:  // slots {-V', -U}
+      s.uFirst = false;
+      s.k0 = -kvs;
+      s.k1 = -ku;
+      break;
+    case 2u:  // slots {-U, +V'}
+      s.uFirst = true;
+      s.k0 = -ku;
+      s.k1 = kvs;
+      break;
+    default:  // slots {+V', +U}
+      s.uFirst = false;
+      s.k0 = kvs;
+      s.k1 = ku;
+      break;
+  }
+  return s;
+}
+
 uint32_t lcm(uint32_t a, uint32_t b) { return a / gcd(a, b) * b; }
 
 // --- sink cursors ----------------------------------------------------------
@@ -111,16 +278,17 @@ struct R2rCursor {
     for (uint32_t i = 0u; i < n; ++i) put(e->burstCode[vSwitch][phase & 3u]);
   }
 
-  // Active window. Each LUT entry already holds a pixel's two samples as a
-  // packed 14-bit pair (low half: pixel starting at this phase; bits 16..29:
-  // the same pixel 180 degrees later), so splice 14 bits at a time instead of
-  // unpacking to four 7-bit puts. Two pixels are 28 bits -- exactly one word
-  // -- so nbits returns to its entry value after every pixel pair, and the
-  // packing alignment can be hoisted out of the loop: four branch-free inner
-  // loops, one per entry alignment. nPx is even by the timing tables.
-  LCDTAP_CVBS_INLINE void emitActive(const CompositeEncoder *e,
-                                     uint32_t vSwitch, const uint16_t *px,
-                                     uint32_t nPx) {
+  // Active window, LUT mode. Each LUT entry already holds a pixel's two
+  // samples as a packed 14-bit pair (low half: pixel starting at this phase;
+  // bits 16..29: the same pixel 180 degrees later), so splice 14 bits at a
+  // time instead of unpacking to four 7-bit puts. Two pixels are 28 bits --
+  // exactly one word -- so nbits returns to its entry value after every pixel
+  // pair, and the packing alignment can be hoisted out of the loop: four
+  // branch-free inner loops, one per entry alignment. nPx is even by the
+  // timing tables.
+  LCDTAP_CVBS_INLINE void emitActiveLut(const CompositeEncoder *e,
+                                        uint32_t vSwitch, const uint16_t *px,
+                                        uint32_t nPx) {
     const uint32_t *lutSet =
         e->lut + (((phase & 3u) | (vSwitch << 2)) * COMPOSITE_LUT_COLORS);
     switch (nbits) {
@@ -151,6 +319,56 @@ struct R2rCursor {
         for (uint32_t i = 0u; i < nPx; i += 2u) {
           const uint32_t pA = lutSet[rgb565ToIndex(px[i])] & 0x3FFFu;
           const uint32_t pB = lutSet[rgb565ToIndex(px[i + 1u])] >> 16;
+          *dst++ = acc | ((pA & 0x7Fu) << 21);
+          acc = (pA >> 7) | (pB << 7);
+        }
+        break;
+    }
+    phase += nPx * 2u;
+  }
+
+  // Active window, DIRECT modes. Same four alignment-specialized loops as
+  // emitActiveLut -- only the origin of the 14-bit pairs differs: `src`
+  // computes the pair's four physical codes instead of loading them. The
+  // group-alignment reasoning is unchanged.
+  template <class S>
+  LCDTAP_CVBS_INLINE void emitActiveDirect(const S &src, uint32_t nPx) {
+    switch (nbits) {
+      case 0u:
+        for (uint32_t i = 0u; i < nPx; i += 2u) {
+          uint32_t s[4];
+          src.samples(i, s);
+          const uint32_t pA = s[0] | (s[1] << 7);
+          const uint32_t pB = s[2] | (s[3] << 7);
+          *dst++ = pA | (pB << 14);
+        }
+        break;
+      case 7u:
+        for (uint32_t i = 0u; i < nPx; i += 2u) {
+          uint32_t s[4];
+          src.samples(i, s);
+          const uint32_t pA = s[0] | (s[1] << 7);
+          const uint32_t pB = s[2] | (s[3] << 7);
+          *dst++ = acc | (pA << 7) | ((pB & 0x7Fu) << 21);
+          acc = pB >> 7;
+        }
+        break;
+      case 14u:
+        for (uint32_t i = 0u; i < nPx; i += 2u) {
+          uint32_t s[4];
+          src.samples(i, s);
+          const uint32_t pA = s[0] | (s[1] << 7);
+          const uint32_t pB = s[2] | (s[3] << 7);
+          *dst++ = acc | (pA << 14);
+          acc = pB;
+        }
+        break;
+      default:  // 21
+        for (uint32_t i = 0u; i < nPx; i += 2u) {
+          uint32_t s[4];
+          src.samples(i, s);
+          const uint32_t pA = s[0] | (s[1] << 7);
+          const uint32_t pB = s[2] | (s[3] << 7);
           *dst++ = acc | ((pA & 0x7Fu) << 21);
           acc = (pA >> 7) | (pB << 7);
         }
@@ -205,12 +423,13 @@ struct PwmCursor {
     for (uint32_t i = 0u; i < n; ++i) put(e->burstCode[vSwitch][phase & 3u]);
   }
 
-  // Active window. The PWM LUT stores ready-made 32-bit words (two 16-bit
-  // samples each): one load and one store per pixel, no unpacking. The word
-  // alignment of dst is constant across the window, so it is resolved once.
-  LCDTAP_CVBS_INLINE void emitActive(const CompositeEncoder *e,
-                                     uint32_t vSwitch, const uint16_t *px,
-                                     uint32_t nPx) {
+  // Active window, LUT mode. The PWM LUT stores ready-made 32-bit words (two
+  // 16-bit samples each): one load and one store per pixel, no unpacking. The
+  // word alignment of dst is constant across the window, so it is resolved
+  // once.
+  LCDTAP_CVBS_INLINE void emitActiveLut(const CompositeEncoder *e,
+                                        uint32_t vSwitch, const uint16_t *px,
+                                        uint32_t nPx) {
     const uint32_t *setA = e->lut + (((phase & 3u) | (vSwitch << 2)) *
                                      (COMPOSITE_LUT_COLORS * 2u));
     const uint32_t *setB = setA + COMPOSITE_LUT_COLORS;
@@ -229,6 +448,33 @@ struct PwmCursor {
         dst[1] = static_cast<uint16_t>(a >> 16);
         dst[2] = static_cast<uint16_t>(b);
         dst[3] = static_cast<uint16_t>(b >> 16);
+        dst += 4;
+      }
+    }
+    phase += nPx * 2u;
+  }
+
+  // Active window, DIRECT modes. Identical store structure to emitActiveLut;
+  // the four codes per pair come from `src` instead of the LUT.
+  template <class S>
+  LCDTAP_CVBS_INLINE void emitActiveDirect(const S &src, uint32_t nPx) {
+    if ((reinterpret_cast<uintptr_t>(dst) & 3u) == 0u) {
+      uint32_t *p = reinterpret_cast<uint32_t *>(dst);
+      for (uint32_t i = 0u; i < nPx; i += 2u) {
+        uint32_t s[4];
+        src.samples(i, s);
+        *p++ = s[0] | (s[1] << 16);
+        *p++ = s[2] | (s[3] << 16);
+      }
+      dst = reinterpret_cast<uint16_t *>(p);
+    } else {
+      for (uint32_t i = 0u; i < nPx; i += 2u) {
+        uint32_t s[4];
+        src.samples(i, s);
+        dst[0] = static_cast<uint16_t>(s[0]);
+        dst[1] = static_cast<uint16_t>(s[1]);
+        dst[2] = static_cast<uint16_t>(s[2]);
+        dst[3] = static_cast<uint16_t>(s[3]);
         dst += 4;
       }
     }
@@ -273,12 +519,14 @@ uint32_t compositeBytesPerSlot(const CompositeTiming *timing,
 }
 
 uint32_t compositeLevelToCode(const CompositeLevelMap &map, int32_t level) {
-  level = clampLevel(level);
-  uint32_t code =
-      (static_cast<uint32_t>(level) * map.codeWhite + map.levelWhite / 2u) /
-      map.levelWhite;
-  if (code > map.codeMax) code = map.codeMax;
-  return code;
+  return levelToCodeInner(map, level);
+}
+
+uint32_t compositeChromaSampleAt(const CompositeTiming *timing,
+                                 const CompositeLevelMap &map, int32_t r8,
+                                 int32_t g8, int32_t b8, uint32_t phase,
+                                 int32_t vSign) {
+  return chromaSampleInner(timing, map, r8, g8, b8, phase, vSign);
 }
 
 namespace {
@@ -293,7 +541,10 @@ uint32_t lutSetsOf(const CompositeTiming *timing) {
 }  // namespace
 
 uint32_t compositeLutWords(const CompositeTiming *timing,
-                           const CompositeDacProfile *dac) {
+                           const CompositeDacProfile *dac,
+                           CompositeChromaMode chromaMode) {
+  // The DIRECT modes compute per pixel and use no LUT at all.
+  if (chromaMode != CompositeChromaMode::LUT) return 0u;
   // The PWM layout stores two ready-made words per colour (see the lut
   // comment in composite_encode.hpp); the R-2R layout packs one.
   const uint32_t wordsPerColor = dac->kind == CompositeDacKind::PWM ? 2u : 1u;
@@ -301,9 +552,10 @@ uint32_t compositeLutWords(const CompositeTiming *timing,
 }
 
 bool compositeEncoderInit(CompositeEncoder *e, const CompositeTiming *timing,
-                          const CompositeDacProfile *dac,
-                          uint32_t *lutStorage) {
-  if (timing == nullptr || dac == nullptr || lutStorage == nullptr)
+                          const CompositeDacProfile *dac, uint32_t *lutStorage,
+                          CompositeChromaMode chromaMode) {
+  if (timing == nullptr || dac == nullptr) return false;
+  if (chromaMode == CompositeChromaMode::LUT && lutStorage == nullptr)
     return false;
   if ((timing->hActivePixels & 1u) != 0u) return false;
   if (timing->hActiveSamples != timing->hActivePixels * 2u) return false;
@@ -317,10 +569,19 @@ bool compositeEncoderInit(CompositeEncoder *e, const CompositeTiming *timing,
   e->bytesPerSlot = compositeBytesPerSlot(timing, dac);
   if (e->linesPerSlot > COMPOSITE_MAX_LINES_PER_SLOT) return false;
 
+  // One emit entry point per sink x chroma mode, so each SRAM-resident
+  // function carries only its own active-pixel path.
+  static const CompositeEmitLineFn PACKED_FNS[3] = {
+      compositeEmitLinePacked, compositeEmitLinePackedNaive,
+      compositeEmitLinePackedOpt};
+  static const CompositeEmitLineFn PWM_FNS[3] = {
+      compositeEmitLinePwm, compositeEmitLinePwmNaive, compositeEmitLinePwmOpt};
+
+  e->chromaMode = chromaMode;
   if (dac->kind == CompositeDacKind::PWM) {
     e->bitsPerSample = 0u;
     e->flushBits = 0u;
-    e->emitLine = compositeEmitLinePwm;
+    e->emitLine = PWM_FNS[static_cast<int>(chromaMode)];
   } else {
     // R2rCursor hardcodes the 7-bit packing geometry; the only ladder is the
     // 7-bit one and there are no plans for another, so reject anything else
@@ -328,7 +589,7 @@ bool compositeEncoderInit(CompositeEncoder *e, const CompositeTiming *timing,
     if (dac->bits != COMPOSITE_LEVEL_BITS) return false;
     e->bitsPerSample = dac->bits;
     e->flushBits = e->samplesPerTransfer * dac->bits;
-    e->emitLine = compositeEmitLinePacked;
+    e->emitLine = PACKED_FNS[static_cast<int>(chromaMode)];
   }
 
   const CompositeLevelMap map = compositeLevelMap(timing, dac);
@@ -385,17 +646,58 @@ bool compositeEncoderInit(CompositeEncoder *e, const CompositeTiming *timing,
     }
   }
 
-  e->lut = lutStorage;
   e->lutSets = lutSetsOf(timing);
+  e->map = map;
 
-  const int32_t lumaSpan =
-      static_cast<int32_t>(timing->lvlWhite) - timing->lvlBlack;
-  const int32_t chromaGain = timing->colorEnabled ? timing->chromaGain : 0;
+  // DIRECT_OPT constants. All divisions of the per-sample math are folded
+  // here, once, in 64-bit and rounded to nearest:
+  //
+  //   naive: lvl = lvlBlack + y*lumaSpan/255
+  //          off = c * lumaSpan * chromaGain / (255*256),  c = d*126>>8 etc.
+  //          code = (lvl+off) * codeWhite / levelWhite     (level->code map)
+  //
+  // fold the level->code scale into every term and express the chroma path
+  // directly in terms of d = (B-Y) or (R-Y):
+  //
+  //   codeQ16 = dirBaseQ16 + y*dirKyQ16 +- d*dirK{u,v}Q16
+  //
+  // dirBaseQ16 pre-adds 0x8000 so the final >>16 rounds instead of
+  // truncating. The naive path truncates several intermediates instead, which
+  // is where the +-2 code tolerance between the two comes from.
+  {
+    const int64_t Q = 65536;
+    const int32_t lumaSpan =
+        static_cast<int32_t>(timing->lvlWhite) - timing->lvlBlack;
+    const int32_t chromaGain = timing->colorEnabled ? timing->chromaGain : 0;
+    const int64_t cw = map.codeWhite;
+    const int64_t lw = map.levelWhite;
+    const int64_t denomC = 256LL * 255 * 256 * lw;
+    e->dirBaseQ16 = static_cast<int32_t>(
+        (static_cast<int64_t>(timing->lvlBlack) * cw * Q + lw / 2) / lw);
+    e->dirBaseQ16 += 32768;
+    e->dirKyQ16 = static_cast<int32_t>(
+        (static_cast<int64_t>(lumaSpan) * cw * Q + (255 * lw) / 2) /
+        (255 * lw));
+    e->dirKuQ16 = static_cast<int32_t>(
+        (126LL * lumaSpan * chromaGain * cw * Q + denomC / 2) / denomC);
+    e->dirKvQ16 = static_cast<int32_t>(
+        (225LL * lumaSpan * chromaGain * cw * Q + denomC / 2) / denomC);
+  }
+
+  // The DIRECT modes compute per pixel; no table to build.
+  if (chromaMode != CompositeChromaMode::LUT) {
+    e->lut = nullptr;
+    return true;
+  }
+
+  e->lut = lutStorage;
   const bool pwmLut = dac->kind == CompositeDacKind::PWM;
 
   // Sets 0..3 are the four subcarrier phases. For PAL colour, sets 4..7 repeat
   // them with the V axis inverted -- the line-alternating switch that
-  // emitActive() selects between via vSwitch. NTSC has only the lower four.
+  // emitActiveLut() selects between via vSwitch. NTSC has only the lower four.
+  // The per-sample math lives in chromaSampleInner() (see the phase-sign
+  // discussion there), shared verbatim with the DIRECT_NAIVE path.
   for (uint32_t set = 0u; set < e->lutSets; ++set) {
     uint32_t *dst = e->lut + set * COMPOSITE_LUT_COLORS * (pwmLut ? 2u : 1u);
     const uint32_t phase0 = set & 3u;
@@ -405,38 +707,9 @@ bool compositeEncoderInit(CompositeEncoder *e, const CompositeTiming *timing,
       const int32_t g8 = static_cast<int32_t>(((idx >> 2) & 7u) * 255u / 7u);
       const int32_t b8 = static_cast<int32_t>((idx & 3u) * 255u / 3u);
 
-      const int32_t y = (77 * r8 + 150 * g8 + 29 * b8) >> 8;
-      const int32_t lvl = timing->lvlBlack + (y * lumaSpan) / 255;
-      const int32_t u = ((b8 - y) * 126) >> 8;  // 0.492 * (B - Y)
-      const int32_t v = ((r8 - y) * 225) >> 8;  // 0.879 * (R - Y)
-
-      // Four consecutive samples, one per subcarrier phase.
-      //
-      // NTSC modulates as C = U*sin(wt) + V*cos(wt). With the burst on -U
-      // (phases 0 and 2 here), that places +V a quarter cycle EARLIER than
-      // +U, not later -- hence -v on phase 1 and +v on phase 3. Getting this
-      // backwards mirrors every hue about the U axis while leaving luma
-      // untouched, which is exactly what the first hardware test showed:
-      // skin and brown came out green, green came out orange, cyan came out
-      // purple. testChromaPhase() demodulates the colour bars against the
-      // burst and pins this down.
-      //
-      // A 90 degree absolute offset remains against the textbook form, but
-      // the burst carries the same offset, so the receiver -- which has no
-      // reference other than the burst -- cannot see it.
-      //
-      // vSign negates the V component for the upper (PAL inverted-V) sets.
       uint32_t s[COMPOSITE_NUM_PHASES];
       for (uint32_t k = 0u; k < COMPOSITE_NUM_PHASES; ++k) {
-        int32_t c;
-        switch ((phase0 + k) & 3u) {
-          case 0: c = u; break;
-          case 1: c = -vSign * v; break;
-          case 2: c = -u; break;
-          default: c = vSign * v; break;
-        }
-        const int32_t off = (c * lumaSpan * chromaGain) / (255 * 256);
-        s[k] = compositeLevelToCode(map, clampLevel(lvl + off));
+        s[k] = chromaSampleInner(timing, map, r8, g8, b8, phase0 + k, vSign);
       }
       // Sink-specific layout; see the lut comment in composite_encode.hpp.
       if (pwmLut) {
@@ -485,10 +758,13 @@ void LCDTAP_CVBS_HOT(compositeWriterInit)(CompositeSampleWriter *w,
 
 namespace {
 
-// The line structure, written once and instantiated per sink cursor. All
-// writer state stays in the cursor (registers) from here to the end of the
-// line; see the cursor block above for why.
-template <class C>
+// The line structure, written once and instantiated per sink cursor and
+// chroma mode. All writer state stays in the cursor (registers) from here to
+// the end of the line; see the cursor block above for why. MODE is a
+// compile-time constant (0 = LUT, 1 = DIRECT_NAIVE, 2 = DIRECT_OPT), so the
+// mode branches below fold away and each public entry point contains only
+// its own active-pixel path.
+template <class C, int MODE>
 LCDTAP_CVBS_INLINE void emitLineT(CompositeSampleWriter *w,
                                   const CompositeEncoder *e,
                                   CompositeLineType type, uint32_t line,
@@ -532,7 +808,16 @@ LCDTAP_CVBS_INLINE void emitLineT(CompositeSampleWriter *w,
       }
       if (type == CompositeLineType::ACTIVE) {
         cwBlankTo(c, e, lineStart, t->hActiveStart);
-        c.emitActive(e, vSwitch, px, t->hActivePixels);
+        if (MODE == 0) {
+          c.emitActiveLut(e, vSwitch, px, t->hActivePixels);
+        } else if (MODE == 1) {
+          const NaiveChromaSrc src = {t, &e->map, px, c.phase & 3u,
+                                      vSwitch ? -1 : 1};
+          c.emitActiveDirect(src, t->hActivePixels);
+        } else {
+          const OptChromaSrc src = makeOptSrc(e, px, c.phase & 3u, vSwitch);
+          c.emitActiveDirect(src, t->hActivePixels);
+        }
       }
       cwBlankTo(c, e, lineStart, t->samplesPerLine);
       break;
@@ -548,14 +833,46 @@ void LCDTAP_CVBS_HOT(compositeEmitLinePacked)(CompositeSampleWriter *w,
                                               CompositeLineType type,
                                               uint32_t line,
                                               const uint16_t *px) {
-  emitLineT<R2rCursor>(w, e, type, line, px);
+  emitLineT<R2rCursor, 0>(w, e, type, line, px);
+}
+
+void LCDTAP_CVBS_HOT(compositeEmitLinePackedNaive)(CompositeSampleWriter *w,
+                                                   const CompositeEncoder *e,
+                                                   CompositeLineType type,
+                                                   uint32_t line,
+                                                   const uint16_t *px) {
+  emitLineT<R2rCursor, 1>(w, e, type, line, px);
+}
+
+void LCDTAP_CVBS_HOT(compositeEmitLinePackedOpt)(CompositeSampleWriter *w,
+                                                 const CompositeEncoder *e,
+                                                 CompositeLineType type,
+                                                 uint32_t line,
+                                                 const uint16_t *px) {
+  emitLineT<R2rCursor, 2>(w, e, type, line, px);
 }
 
 void LCDTAP_CVBS_HOT(compositeEmitLinePwm)(CompositeSampleWriter *w,
                                            const CompositeEncoder *e,
                                            CompositeLineType type,
                                            uint32_t line, const uint16_t *px) {
-  emitLineT<PwmCursor>(w, e, type, line, px);
+  emitLineT<PwmCursor, 0>(w, e, type, line, px);
+}
+
+void LCDTAP_CVBS_HOT(compositeEmitLinePwmNaive)(CompositeSampleWriter *w,
+                                                const CompositeEncoder *e,
+                                                CompositeLineType type,
+                                                uint32_t line,
+                                                const uint16_t *px) {
+  emitLineT<PwmCursor, 1>(w, e, type, line, px);
+}
+
+void LCDTAP_CVBS_HOT(compositeEmitLinePwmOpt)(CompositeSampleWriter *w,
+                                              const CompositeEncoder *e,
+                                              CompositeLineType type,
+                                              uint32_t line,
+                                              const uint16_t *px) {
+  emitLineT<PwmCursor, 2>(w, e, type, line, px);
 }
 
 }  // namespace lcdtap::pico2

@@ -137,3 +137,15 @@ static constexpr size_t MEM_POOL_SIZE = 310u * 1024u;
 #ifndef LCDTAP_LCD_SIZE_H
 #define LCDTAP_LCD_SIZE_H 320
 #endif
+
+// =============================================================================
+// Composite output: chroma conversion path (see plan_direct_yuv.md)
+//   0 = RGB332 LUT (production default)
+//   1 = per-pixel YUV, naive reference (divisions; expected too slow for PAL)
+//   2 = per-pixel YUV, optimized Q16 (the RGB565-resolution candidate)
+// Override via cmake: -DCVBS_CHROMA_MODE=2. Pair with COMPOSITE_PERF_STATS=1
+// to expose slot-fill timing and validate the cycle budget on hardware.
+// =============================================================================
+#ifndef CVBS_CHROMA_MODE
+#define CVBS_CHROMA_MODE 2
+#endif

@@ -570,8 +570,9 @@ int main() {
         (gCvbsDac == CompositeDacKind::R2R)
             ? &lcdtap::pico2::COMPOSITE_DAC_R2R_GPIO5
             : &lcdtap::pico2::COMPOSITE_DAC_PWM_GPIO10;
-    lcdtap::pico2::CompositeOutConfig cvbsCfg = {PIN_LED, LED_TOGGLE_FRAMES,
-                                                 dac};
+    lcdtap::pico2::CompositeOutConfig cvbsCfg = {
+        PIN_LED, LED_TOGGLE_FRAMES, dac,
+        static_cast<lcdtap::pico2::CompositeChromaMode>(CVBS_CHROMA_MODE)};
     if (!lcdtap::pico2::compositeOutInit(&gCvbs, cvbsTiming, &inst,
                                          universalFillScanline, nullptr,
                                          cvbsCfg)) {

@@ -322,3 +322,49 @@ Get the contents of the command dump.
         "data": captured command data encoded as Base64 (string)
     }
     ```
+
+### cvbsstats
+
+Read composite-output health counters, for the chroma-mode (direct YUV)
+experiment. `underruns` counts DMA slots that were transmitted before Core 1
+finished refilling them — any nonzero value means the current chroma mode
+misses the fill deadline. `slotLast` / `slotMax` are the last / worst slot
+refill times in sysclk cycles and `slotPeriod` is the deadline to compare
+against; they read 0 unless the firmware was built with
+`COMPOSITE_PERF_STATS=1`.
+
+- Command:
+
+    ```json
+    {"command": "cvbsstats"}
+    ```
+
+- Response:
+
+    ```json
+    {
+        "chromaMode": 0 | 1 | 2,
+        "underruns": count (integer),
+        "slotLast": cycles (integer),
+        "slotMax": cycles (integer),
+        "slotCount": slots measured (integer),
+        "slotPeriod": cycles (integer),
+        "perfStats": 0 | 1
+    }
+    ```
+
+### cvbsstats_reset
+
+Clear the `cvbsstats` counters (between test runs).
+
+- Command:
+
+    ```json
+    {"command": "cvbsstats_reset"}
+    ```
+
+- Response:
+
+    ```json
+    {"response": "ok"}
+    ```

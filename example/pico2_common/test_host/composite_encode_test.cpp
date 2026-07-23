@@ -35,6 +35,19 @@ static int gFailures = 0;
 
 namespace {
 
+// Chroma mode under test. Field-based tests read this instead of taking a
+// parameter so the whole existing suite can be re-run per mode from main()
+// without touching every call site.
+CompositeChromaMode gMode = CompositeChromaMode::LUT;
+
+const char *modeName(CompositeChromaMode m) {
+  switch (m) {
+    case CompositeChromaMode::LUT: return "LUT";
+    case CompositeChromaMode::DIRECT_NAIVE: return "DIRECT_NAIVE";
+    default: return "DIRECT_OPT";
+  }
+}
+
 // One generated field, unpacked back into individual DAC codes.
 struct Field {
   std::vector<uint16_t> samples;  // one physical DAC code per entry
@@ -67,11 +80,15 @@ std::vector<uint16_t> makeColorBars(uint32_t nPx) {
   return px;
 }
 
-Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac) {
+// Generates one whole field in the current gMode. `customPx` substitutes the
+// default colour bars on every active line when non-null.
+Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac,
+                    const std::vector<uint16_t> *customPx = nullptr) {
   Field f;
-  std::vector<uint32_t> lut(compositeLutWords(t, dac));
+  std::vector<uint32_t> lut(compositeLutWords(t, dac, gMode));
   CompositeEncoder enc;
-  if (!compositeEncoderInit(&enc, t, dac, lut.data())) {
+  if (!compositeEncoderInit(&enc, t, dac, lut.empty() ? nullptr : lut.data(),
+                            gMode)) {
     printf("  FAIL compositeEncoderInit(%s, %s) returned false\n", t->name,
            dac->name);
     gFailures++;
@@ -89,7 +106,8 @@ Field generateField(const CompositeTiming *t, const CompositeDacProfile *dac) {
     }
   }
 
-  const std::vector<uint16_t> px = makeColorBars(t->hActivePixels);
+  const std::vector<uint16_t> px =
+      customPx != nullptr ? *customPx : makeColorBars(t->hActivePixels);
   const uint32_t numSlots = t->vTotalLines / enc.linesPerSlot;
 
   CHECK(t->vTotalLines % enc.linesPerSlot == 0,
@@ -633,18 +651,213 @@ void testLevelMaps() {
   }
 }
 
+// --- direct-path (LUT-less) chroma tests -----------------------------------
+
+// The LUT must be exactly what compositeChromaSampleAt() computes, in both
+// sink layouts. Near-tautological since the builder now calls the same
+// function, but it locks the entry packing and would catch either side
+// drifting.
+void testChromaMathEquivalence() {
+  printf("chroma math equivalence (LUT entries vs compositeChromaSampleAt)\n");
+  const CompositeTiming *ts[] = {&COMPOSITE_TIMING_NTSC_J_240P,
+                                 &COMPOSITE_TIMING_PAL_B_288P};
+  const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
+                                     &COMPOSITE_DAC_PWM_GPIO10};
+  for (const CompositeTiming *t : ts) {
+    for (const CompositeDacProfile *d : ds) {
+      std::vector<uint32_t> lut(compositeLutWords(t, d));
+      CompositeEncoder enc;
+      if (!compositeEncoderInit(&enc, t, d, lut.data())) {
+        CHECK(false, "%s/%s: init failed", t->name, d->name);
+        continue;
+      }
+      const bool pwm = d->kind == CompositeDacKind::PWM;
+      uint32_t mismatches = 0;
+      for (uint32_t set = 0; set < enc.lutSets; ++set) {
+        const uint32_t phase0 = set & 3u;
+        const int32_t vSign = (set >= COMPOSITE_NUM_PHASES) ? -1 : 1;
+        const uint32_t *entry =
+            enc.lut + set * COMPOSITE_LUT_COLORS * (pwm ? 2u : 1u);
+        for (uint32_t idx = 0; idx < COMPOSITE_LUT_COLORS; ++idx) {
+          const int32_t r8 = (int32_t)(((idx >> 5) & 7u) * 255u / 7u);
+          const int32_t g8 = (int32_t)(((idx >> 2) & 7u) * 255u / 7u);
+          const int32_t b8 = (int32_t)((idx & 3u) * 255u / 3u);
+          uint32_t s[4];
+          if (pwm) {
+            s[0] = entry[idx] & 0xFFFFu;
+            s[1] = entry[idx] >> 16;
+            s[2] = entry[COMPOSITE_LUT_COLORS + idx] & 0xFFFFu;
+            s[3] = entry[COMPOSITE_LUT_COLORS + idx] >> 16;
+          } else {
+            s[0] = entry[idx] & 0x7Fu;
+            s[1] = (entry[idx] >> 7) & 0x7Fu;
+            s[2] = (entry[idx] >> 16) & 0x7Fu;
+            s[3] = (entry[idx] >> 23) & 0x7Fu;
+          }
+          for (uint32_t k = 0; k < 4; ++k) {
+            const uint32_t want = compositeChromaSampleAt(
+                t, enc.map, r8, g8, b8, phase0 + k, vSign);
+            if (s[k] != want) mismatches++;
+          }
+        }
+      }
+      CHECK(mismatches == 0, "%s/%s: %u LUT samples differ from the shared math",
+            t->name, d->name, mismatches);
+      printf("  %-12s %-20s %u sets x 256 colours x 4 samples OK\n", t->name,
+             d->name, enc.lutSets);
+    }
+  }
+}
+
+// Whole-field equivalence across chroma modes.
+//
+// The colour bars are RGB332-exact (every channel is 0 or full scale, where
+// the RGB332 and RGB565 expansions agree), so DIRECT_NAIVE must reproduce the
+// LUT field *bit for bit* -- sync, burst, blanking and active alike.
+// DIRECT_OPT replaces truncating divisions with rounded Q16 multiplies and
+// must stay within +-2 codes of NAIVE, here checked on a random-pixel field
+// that exercises the full RGB565 space.
+void testDirectFieldEquivalence() {
+  printf("direct-path field equivalence\n");
+  const CompositeTiming *ts[] = {&COMPOSITE_TIMING_NTSC_J_240P,
+                                 &COMPOSITE_TIMING_PAL_B_288P};
+  const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
+                                     &COMPOSITE_DAC_PWM_GPIO10};
+  for (const CompositeTiming *t : ts) {
+    for (const CompositeDacProfile *d : ds) {
+      // -- colour bars: NAIVE == LUT, bit-exact --
+      gMode = CompositeChromaMode::LUT;
+      const Field fLut = generateField(t, d);
+      gMode = CompositeChromaMode::DIRECT_NAIVE;
+      const Field fNaive = generateField(t, d);
+      gMode = CompositeChromaMode::LUT;
+      if (fLut.samples.empty() || fNaive.samples.empty()) continue;
+
+      CHECK(fLut.samples.size() == fNaive.samples.size(),
+            "%s/%s: field sizes differ", t->name, d->name);
+      uint32_t diff = 0;
+      for (size_t i = 0; i < fLut.samples.size(); ++i) {
+        if (fLut.samples[i] != fNaive.samples[i]) diff++;
+      }
+      CHECK(diff == 0,
+            "%s/%s: NAIVE differs from LUT on %u samples of an RGB332-exact "
+            "pattern",
+            t->name, d->name, diff);
+
+      // -- random pixels: OPT within +-2 of NAIVE --
+      std::vector<uint16_t> px(t->hActivePixels);
+      uint32_t lcg = 0x12345678u;
+      for (auto &p : px) {
+        lcg = lcg * 1664525u + 1013904223u;
+        p = (uint16_t)(lcg >> 16);
+      }
+      gMode = CompositeChromaMode::DIRECT_NAIVE;
+      const Field fN2 = generateField(t, d, &px);
+      gMode = CompositeChromaMode::DIRECT_OPT;
+      const Field fOpt = generateField(t, d, &px);
+      gMode = CompositeChromaMode::LUT;
+      if (fN2.samples.empty() || fOpt.samples.empty()) continue;
+
+      int maxDelta = 0;
+      uint64_t deltas = 0;
+      for (size_t i = 0; i < fN2.samples.size(); ++i) {
+        const int e = std::abs((int)fN2.samples[i] - (int)fOpt.samples[i]);
+        if (e > maxDelta) maxDelta = e;
+        if (e != 0) deltas++;
+      }
+      CHECK(maxDelta <= 2, "%s/%s: OPT deviates %d codes from NAIVE", t->name,
+            d->name, maxDelta);
+      printf("  %-12s %-20s bars: NAIVE==LUT, random: |OPT-NAIVE| max %d "
+             "(%.2f%% samples differ)\n",
+             t->name, d->name, maxDelta,
+             100.0 * (double)deltas / (double)fN2.samples.size());
+    }
+  }
+}
+
+// The point of the whole experiment: gradients that RGB332 collapses must
+// survive the direct path. A full-width green ramp (64 levels; the densest
+// RGB565 channel) is emitted through both paths and the distinct DAC codes
+// on one fixed subcarrier phase are counted.
+void testResolutionGain() {
+  printf("RGB565 resolution gain (green ramp, distinct codes per line)\n");
+  const CompositeTiming *ts[] = {&COMPOSITE_TIMING_NTSC_J_240P,
+                                 &COMPOSITE_TIMING_PAL_B_288P};
+  const CompositeDacProfile *ds[] = {&COMPOSITE_DAC_R2R_GPIO5,
+                                     &COMPOSITE_DAC_PWM_GPIO10};
+  for (const CompositeTiming *t : ts) {
+    for (const CompositeDacProfile *d : ds) {
+      std::vector<uint16_t> px(t->hActivePixels);
+      for (uint32_t i = 0; i < t->hActivePixels; ++i) {
+        const uint32_t g6 = (i * 64u) / t->hActivePixels;
+        px[i] = (uint16_t)(g6 << 5);
+      }
+      auto distinctCodes = [&](CompositeChromaMode m) {
+        gMode = m;
+        const Field f = generateField(t, d, &px);
+        gMode = CompositeChromaMode::LUT;
+        if (f.samples.empty()) return 0u;
+        const uint32_t line = t->vTotalLines - 1;
+        const uint32_t base = line * t->samplesPerLine + t->hActiveStart;
+        bool seen[128] = {};
+        uint32_t n = 0;
+        for (uint32_t k = 0; k < t->hActiveSamples; k += 4) {
+          const uint16_t c = f.samples[base + k];
+          if (c < 128 && !seen[c]) {
+            seen[c] = true;
+            n++;
+          }
+        }
+        return n;
+      };
+      const uint32_t nLut = distinctCodes(CompositeChromaMode::LUT);
+      const uint32_t nDir = distinctCodes(CompositeChromaMode::DIRECT_NAIVE);
+      const uint32_t nOpt = distinctCodes(CompositeChromaMode::DIRECT_OPT);
+      // The R-2R DAC has the head-room to show the gain; the PWM DAC's code
+      // space is so coarse (white at 11..17) that most of the extra
+      // resolution quantizes away, so only demand it does not regress.
+      if (d->kind == CompositeDacKind::PWM) {
+        CHECK(nDir >= nLut, "%s/%s: direct path lost resolution (%u < %u)",
+              t->name, d->name, nDir, nLut);
+      } else {
+        CHECK(nDir >= 2 * nLut,
+              "%s/%s: expected >= 2x distinct codes, got LUT %u direct %u",
+              t->name, d->name, nLut, nDir);
+      }
+      printf("  %-12s %-20s LUT %2u codes, NAIVE %2u, OPT %2u\n", t->name,
+             d->name, nLut, nDir, nOpt);
+    }
+  }
+}
+
 }  // namespace
 
 int main() {
   printf("composite_encode tests\n\n");
   testLevelMaps();
-  testChromaPhase();
   testGeometry();
   testTimingTables();
-  testFieldStructure();
-  testBurst();
-  testLevels();
-  testPalColor();
+  testChromaMathEquivalence();
+  testDirectFieldEquivalence();
+  testResolutionGain();
+
+  // The full field suite runs once per chroma mode: the structural and
+  // signal-level invariants must hold no matter how the active pixels were
+  // converted.
+  const CompositeChromaMode modes[] = {CompositeChromaMode::LUT,
+                                       CompositeChromaMode::DIRECT_NAIVE,
+                                       CompositeChromaMode::DIRECT_OPT};
+  for (CompositeChromaMode m : modes) {
+    gMode = m;
+    printf("\n--- field suite, chroma mode %s ---\n", modeName(m));
+    testChromaPhase();
+    testFieldStructure();
+    testBurst();
+    testLevels();
+    testPalColor();
+  }
+  gMode = CompositeChromaMode::LUT;
+
   printf("\n%s (%d failure%s)\n", gFailures == 0 ? "PASS" : "FAIL", gFailures,
          gFailures == 1 ? "" : "s");
   return gFailures == 0 ? 0 : 1;
