@@ -33,24 +33,15 @@ using CompositeFillFunc = void (*)(uint16_t scanY, uint16_t *buf,
 // one DMA channel each; well within the 16 the RP2350 has.
 static constexpr int COMPOSITE_NUM_SLOTS = 6;
 
-// Optional Core 1 fill-time instrumentation, for validating that a chroma
-// mode meets the slot deadline (see plan_direct_yuv.md). When enabled, Core 1
-// times every slot refill with the DWT cycle counter and keeps last/max in
-// CompositeOutState. Off by default: the counters themselves are cheap, but
-// perf numbers should never silently ship in a release build.
-//   cmake: target_compile_definitions(... COMPOSITE_PERF_STATS=1)
-#ifndef COMPOSITE_PERF_STATS
-#define COMPOSITE_PERF_STATS 0
-#endif
-
 struct CompositeOutConfig {
   uint32_t pinLed;
   uint32_t ledToggleFrames;
   // Which DAC drives the output: the R-2R ladder or the PWM pin.
   const CompositeDacProfile *dac;
-  // Active-pixel conversion path. LUT is the production default; the DIRECT
-  // modes are the RGB565-resolution experiment and must not ship as default
-  // until the cycle budget is confirmed on hardware.
+  // Active-pixel conversion path. Honoured as requested except for PAL + PWM,
+  // which compositeOutInit() forces to LUT: that combination cannot meet the
+  // Core 1 slot deadline on the DIRECT paths once the OSD overlay is drawn
+  // (measured; see the comment in compositeOutInit()).
   CompositeChromaMode chromaMode = CompositeChromaMode::LUT;
 };
 
@@ -64,21 +55,6 @@ struct CompositeOutState {
   lcdtap::LcdTap *inst;
 
   volatile bool newFrame;
-
-  // Diagnostics: incremented by the DMA IRQ when it hands a slot back to
-  // Core 1 whose previous fill request is still pending -- i.e. the hardware
-  // just transmitted stale samples because Core 1 missed the deadline. Zero
-  // in healthy operation; any nonzero value means the current chroma mode /
-  // load combination does not fit the budget.
-  volatile uint32_t underrunCount;
-
-  // COMPOSITE_PERF_STATS only (otherwise left at zero): per-slot refill time
-  // in sysclk cycles, measured on Core 1 around fillScanline + the fillFn
-  // overlay + compositeEmitLine for all lines of a slot. Compare against the
-  // slot period, samplesPerLine * linesPerSlot * clkPerSample cycles.
-  volatile uint32_t perfSlotLast;
-  volatile uint32_t perfSlotMax;
-  volatile uint32_t perfSlotCount;
 
   // Fill requests from the DMA IRQ to the Core 1 loop. Same-core handshake:
   // the IRQ writes fillLine[] then sets fillPending[]; single-byte writes are
@@ -143,12 +119,6 @@ void compositeOutLaunchCore1(CompositeOutState *s);
 
 // Consume the new-frame flag. Returns true once per field.
 bool compositeOutConsumeNewFrame(CompositeOutState *s);
-
-// The state whose Core 1 is currently running, or nullptr before
-// compositeOutLaunchCore1(). Only one instance can be active; this exists so
-// diagnostics (underrunCount, perfSlot*) can be read without plumbing the
-// state pointer through every consumer.
-CompositeOutState *compositeOutActiveState();
 
 // Stop Core 1, the PIO SM and all DMA so Core 0 can safely erase/program
 // flash. Video output stops. Must be paired with compositeOutFlashRelease().

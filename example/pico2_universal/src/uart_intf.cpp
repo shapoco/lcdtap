@@ -8,8 +8,6 @@
 #include "uart_lex.hpp"
 #include "uart_trx.hpp"
 
-#include "lcdtap/pico2/composite_out.hpp"
-
 // =============================================================================
 // Module-level state
 // =============================================================================
@@ -544,43 +542,6 @@ static void execCommand(const Parser& p) {
   // ----- hello -----
   if (strcmp(cmd, "hello") == 0) {
     respSetShort("{\"response\":\"welcome lcdtap\"}\r\n");
-    return;
-  }
-
-  // ----- cvbsstats -----
-  // Composite-output health for the chroma-mode experiment (see
-  // plan_direct_yuv.md): the underrun count is the pass/fail verdict, the
-  // slot timings (COMPOSITE_PERF_STATS builds only, otherwise zero) give the
-  // margin. slotPeriod is the deadline in sysclk cycles for comparison
-  // against slotMax. cvbsstats_reset clears the counters between test runs.
-  if (strcmp(cmd, "cvbsstats") == 0 || strcmp(cmd, "cvbsstats_reset") == 0) {
-    lcdtap::pico2::CompositeOutState* cs =
-        lcdtap::pico2::compositeOutActiveState();
-    if (cs == nullptr) {
-      respSetShort("{\"error\":\"composite output not active\"}\r\n");
-      return;
-    }
-    if (strcmp(cmd, "cvbsstats_reset") == 0) {
-      cs->underrunCount = 0u;
-      cs->perfSlotLast = 0u;
-      cs->perfSlotMax = 0u;
-      cs->perfSlotCount = 0u;
-      respSetShort("{\"response\":\"ok\"}\r\n");
-      return;
-    }
-    const uint32_t slotPeriod = (uint32_t)cs->timing->samplesPerLine *
-                                cs->enc.linesPerSlot *
-                                cs->timing->clkPerSample;
-    static char statsResp[256];
-    snprintf(statsResp, sizeof(statsResp),
-             "{\"chromaMode\":%d,\"underruns\":%lu,\"slotLast\":%lu,"
-             "\"slotMax\":%lu,\"slotCount\":%lu,\"slotPeriod\":%lu,"
-             "\"perfStats\":%d}\r\n",
-             (int)cs->enc.chromaMode, (unsigned long)cs->underrunCount,
-             (unsigned long)cs->perfSlotLast, (unsigned long)cs->perfSlotMax,
-             (unsigned long)cs->perfSlotCount, (unsigned long)slotPeriod,
-             COMPOSITE_PERF_STATS ? 1 : 0);
-    respSetShort(statsResp);
     return;
   }
 

@@ -1,4 +1,5 @@
 #include <lcdtap/font8x16.hpp>
+#include <lcdtap/hot.hpp>
 #include <lcdtap/osd.hpp>
 
 #include <cstdio>
@@ -286,7 +287,9 @@ uint8_t Osd::updateDumpView(LcdTap& lcdtap, uint64_t nowMs,
 // Osd::fillScanline
 //=============================================================================
 
-void Osd::fillScanline(uint16_t line, uint16_t* dst) const {
+// SRAM-resident: called per scanline from Core 1 (see hot.hpp). The glyph
+// bitmap it reads is SRAM-resident too (font8x16.hpp).
+void LCDTAP_RAM_FUNC Osd::fillScanline(uint16_t line, uint16_t* dst) const {
   if (state_ == OsdState::HIDDEN || line >= static_cast<uint16_t>(OSD_HEIGHT))
     return;
 

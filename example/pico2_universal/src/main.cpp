@@ -356,8 +356,12 @@ static void processInputBuf() {
 // =============================================================================
 // OSD overlay for Core 1 (called after LcdTap::fillScanline)
 // =============================================================================
-static void universalFillScanline(uint16_t scanY, uint16_t *buf,
-                                  void * /*userData*/) {
+// SRAM-resident: runs per scanline on Core 1; everything it calls
+// (getOutputScreenSize, Osd::fillScanline) is SRAM-resident via
+// lcdtap/hot.hpp, keeping the whole per-line fill path off the flash.
+static void __not_in_flash_func(universalFillScanline)(uint16_t scanY,
+                                                       uint16_t *buf,
+                                                       void * /*userData*/) {
   uint16_t screenW, screenH;
   gInst->getOutputScreenSize(&screenW, &screenH);
   uint16_t yStart = (screenH - lcdtap::OSD_HEIGHT) / 2;

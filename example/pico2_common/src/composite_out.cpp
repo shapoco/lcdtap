@@ -68,12 +68,6 @@ static void __scratch_x("cvbs") compositeIrqHandler() {
   }
   s->groupLine = line;
 
-  // If this slot's previous fill request is still pending, Core 1 never got
-  // to it and the pass that just completed transmitted stale samples: an
-  // underrun. Count it -- this is the primary "does this chroma mode fit the
-  // budget" verdict on real hardware (see plan_direct_yuv.md).
-  if (s->fillPending[finishedIdx]) s->underrunCount++;
-
   s->fillLine[finishedIdx] = (uint16_t)line;
   __dmb();
   s->fillPending[finishedIdx] = 1;
@@ -81,32 +75,11 @@ static void __scratch_x("cvbs") compositeIrqHandler() {
 }
 
 // ---------------------------------------------------------------------------
-// DWT cycle counter (Core 1 fill-time instrumentation)
-// The M33 DWT is per-core, so enabling and reading it from Core 1 measures
-// exactly the fill path. Raw register addresses rather than SDK structs so
-// this stays self-contained and trivially SRAM-safe.
-// ---------------------------------------------------------------------------
-
-#if COMPOSITE_PERF_STATS
-static inline void dwtEnable() {
-  *(volatile uint32_t *)0xE000EDFCu |= 1u << 24;  // DEMCR.TRCENA
-  *(volatile uint32_t *)0xE0001000u |= 1u;        // DWT_CTRL.CYCCNTENA
-}
-static inline uint32_t dwtCyccnt() {
-  return *(volatile uint32_t *)0xE0001004u;
-}
-#endif
-
-// ---------------------------------------------------------------------------
 // Core 1 entry point
 // ---------------------------------------------------------------------------
 
 static void __not_in_flash_func(core1Main)() {
   CompositeOutState *s = sCvbs;
-
-#if COMPOSITE_PERF_STATS
-  dwtEnable();
-#endif
 
   const uint32_t chMask = s->chMask;
   dma_hw->intr = chMask;
@@ -126,9 +99,6 @@ static void __not_in_flash_func(core1Main)() {
       if (!s->fillPending[i]) continue;
       anyWork = true;
 
-#if COMPOSITE_PERF_STATS
-      const uint32_t perfT0 = dwtCyccnt();
-#endif
       CompositeSampleWriter w;
       uint32_t line = s->fillLine[i];
       compositeWriterInit(&w, &s->enc, compositeSlotPtr(s, i), line);
@@ -142,12 +112,6 @@ static void __not_in_flash_func(core1Main)() {
         }
         compositeEmitLine(&w, &s->enc, type, line, s->rgbScratch);
       }
-#if COMPOSITE_PERF_STATS
-      const uint32_t perfDt = dwtCyccnt() - perfT0;
-      s->perfSlotLast = perfDt;
-      if (perfDt > s->perfSlotMax) s->perfSlotMax = perfDt;
-      s->perfSlotCount++;
-#endif
       __dmb();
       s->fillPending[i] = 0;
     }
@@ -295,23 +259,32 @@ bool compositeOutInit(CompositeOutState *s, const CompositeTiming *timing,
   s->slotNum = 0;
   s->frame = 0u;
   s->led = false;
-  s->underrunCount = 0u;
-  s->perfSlotLast = 0u;
-  s->perfSlotMax = 0u;
-  s->perfSlotCount = 0u;
 
   if (cfg.dac == nullptr) return false;
   s->sink = compositeSinkFor(cfg.dac);
 
+  // PAL + PWM cannot afford the per-pixel DIRECT chroma paths: measured on
+  // hardware (DWT slot timing), even with the USAT/no-clamp encoder, the
+  // SRAM-resident fill path and the 319.2 MHz clock, the fill sits at ~95% of
+  // the two-line slot budget and the OSD overlay pushes it past 100% -- the
+  // ring then transmits stale slots and the picture tears whenever the menu
+  // is open. PAL R-2R has a four-line slot (twice the jitter averaging) and
+  // holds worst-case ~95% with the OSD open; NTSC has ~25% more cycles per
+  // pixel and holds on both DACs. So this one combination falls back to the
+  // RGB332 LUT path, which it can always afford.
+  CompositeChromaMode chromaMode = cfg.chromaMode;
+  if (timing->palSwitch && cfg.dac->kind == CompositeDacKind::PWM) {
+    chromaMode = CompositeChromaMode::LUT;
+  }
+
   // The DIRECT chroma modes use no LUT (lutWords == 0); don't malloc(0).
-  const uint32_t lutWords =
-      compositeLutWords(timing, cfg.dac, cfg.chromaMode);
+  const uint32_t lutWords = compositeLutWords(timing, cfg.dac, chromaMode);
   s->lut = nullptr;
   if (lutWords != 0u) {
     s->lut = (uint32_t *)malloc(lutWords * sizeof(uint32_t));
     if (s->lut == nullptr) return false;
   }
-  if (!compositeEncoderInit(&s->enc, timing, cfg.dac, s->lut, cfg.chromaMode))
+  if (!compositeEncoderInit(&s->enc, timing, cfg.dac, s->lut, chromaMode))
     return false;
 
   // A field must be a whole number of groups, otherwise the ring would drift.
@@ -382,8 +355,6 @@ bool compositeOutConsumeNewFrame(CompositeOutState *s) {
   }
   return false;
 }
-
-CompositeOutState *compositeOutActiveState() { return sCvbs; }
 
 void compositeOutFlashAcquire(CompositeOutState *s) {
   multicore_reset_core1();

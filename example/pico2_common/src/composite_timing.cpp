@@ -99,24 +99,30 @@ const CompositeTiming COMPOSITE_TIMING_NTSC_J_240P = {
 };
 
 // PAL-B, 288p non-interlaced.
-// 1135 samples/line at 17.735294 MHz = 63.9967 us.
+// 1135 samples/line at 17.733333 MHz = 64.0038 us.
 //
 // Note: fsc / fH is exactly 283.75 here, so the 25 Hz offset of broadcast PAL
 // is not reproduced. Dot crawl is slightly more visible as a result; sync and
 // colour lock are unaffected.
+//
+// The clock is 319.2 MHz / 18 rather than the previous 301.5 MHz / 17: the
+// per-pixel chroma modes need the extra ~5.9% of Core 1 cycles per line. fsc
+// lands at 4.433333 MHz, -285 Hz off nominal (the old clock was +205 Hz);
+// same order, opposite sign. 319.2 MHz itself is proven system-wide by the
+// 720p30 alt DVI timing.
 const CompositeTiming COMPOSITE_TIMING_PAL_B_288P = {
     .name = "PAL-B 288p",
     .colorEnabled =
         true,  // chroma with the line-alternating V axis (palSwitch)
     .palSwitch = true,
 
-    // 12 MHz / 2 * 201 = 1206 MHz VCO, / (2 * 2) = 301.500 MHz
-    .clkSysKhz = 301500,
-    .pllRefdiv = 2,
-    .pllFbdiv = 201,
-    .pllPostdiv1 = 2,
-    .pllPostdiv2 = 2,
-    .clkPerSample = 17,
+    // 12 MHz / 1 * 133 = 1596 MHz VCO, / (5 * 1) = 319.200 MHz
+    .clkSysKhz = 319200,
+    .pllRefdiv = 1,
+    .pllFbdiv = 133,
+    .pllPostdiv1 = 5,
+    .pllPostdiv2 = 1,
+    .clkPerSample = 18,
 
     .samplesPerLine = 1135,
     .hSyncWidth = 83,     // 4.7 us
@@ -146,13 +152,14 @@ const CompositeTiming COMPOSITE_TIMING_PAL_B_288P = {
     .burstAmplitude = 15,  // 300 mV peak-to-peak
     .chromaGain = 192,
 
-    // PWM: 11 luma steps of the 17 available, chosen so peak chroma fits.
-    // Colour overshoots white by +133 IRE: blank maps to 3, span is 8, so
-    // peak = 3 + 1.33*8 = 13.6 <= 17. A larger value (e.g. 14, which gives an
-    // exact blank/white ratio) overflows the ceiling at 17.3 the moment
-    // colorEnabled is true. testLevelMaps() fails the build if this and
-    // colorEnabled drift apart.
-    .pwmCcWhite = 11,
+    // PWM: 14 luma steps of the 18 available, chosen so peak chroma fits.
+    // Colour overshoots white by +133 IRE: blank maps to 4 (exactly:
+    // 28*14/98), span is 10, so peak = 4 + 1.33*10 = 17.3 <= 18; 15 overflows
+    // at 18.6. testLevelMaps() fails the build if this and colorEnabled drift
+    // apart. The old 17-count clock allowed only 11 -- the new clock buys
+    // both amplitude (10/18 vs 8/17 of the period) and an exact blank/white
+    // ratio.
+    .pwmCcWhite = 14,
 };
 
 }  // namespace lcdtap::pico2

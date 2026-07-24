@@ -139,12 +139,14 @@ static constexpr size_t MEM_POOL_SIZE = 310u * 1024u;
 #endif
 
 // =============================================================================
-// Composite output: chroma conversion path (see plan_direct_yuv.md)
-//   0 = RGB332 LUT (production default)
-//   1 = per-pixel YUV, naive reference (divisions; expected too slow for PAL)
-//   2 = per-pixel YUV, optimized Q16 (the RGB565-resolution candidate)
-// Override via cmake: -DCVBS_CHROMA_MODE=2. Pair with COMPOSITE_PERF_STATS=1
-// to expose slot-fill timing and validate the cycle budget on hardware.
+// Composite output: chroma conversion path
+//   0 = RGB332 LUT
+//   1 = per-pixel YUV, naive reference (divisions; too slow for real time)
+//   2 = per-pixel YUV, optimized Q16 (full RGB565 resolution; the default)
+// Mode 2 is validated on hardware for NTSC (both DACs) and PAL R-2R. PAL +
+// PWM cannot meet the Core 1 slot deadline with the OSD open, so the driver
+// forces that one combination to LUT regardless of this setting (see
+// compositeOutInit()). Override via cmake: -DCVBS_CHROMA_MODE=0.
 // =============================================================================
 #ifndef CVBS_CHROMA_MODE
 #define CVBS_CHROMA_MODE 2

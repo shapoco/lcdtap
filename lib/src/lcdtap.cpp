@@ -1,3 +1,4 @@
+#include <lcdtap/hot.hpp>
 #include <lcdtap/lcdtap.hpp>
 
 #include <algorithm>
@@ -656,7 +657,13 @@ void LCDTAP_INLINE scaleLine(const uint16_t* src, uint16_t* dest,
 #endif
 }
 
-void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
+// SRAM-resident (LCDTAP_RAM_FUNC): called per scanline from Core 1, where a
+// flash-resident body makes the fill time depend on XIP contention with
+// Core 0 (see hot.hpp). scaleLine() is always_inline, so it is carried along.
+// The border clears are open-coded loops instead of memset() because memset
+// itself lives in flash.
+void LCDTAP_RAM_FUNC LcdTap::fillScanline(uint16_t dviLine,
+                                          uint16_t* dst) const {
   if (!impl_) return;
   const ControllerBase* ctrl = static_cast<const ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || !ctrl->frameBuffer) return;
@@ -682,7 +689,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
       !ctrl->config.forcePowerOn && (ctrl->sleeping || !ctrl->displayOn);
   if (powerOff || dviLine < destY || dviLine >= destY + destH || srcW == 0 ||
       srcH == 0) {
-    memset(dst, 0, dviW * sizeof(uint16_t));
+    for (uint32_t i = 0; i < dviW; ++i) dst[i] = 0;
     return;
   }
 
@@ -693,7 +700,7 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   uint16_t* dest = dst;
 
   // Left black border
-  memset(dest, 0, (size_t)destX * sizeof(uint16_t));
+  for (uint32_t i = 0; i < destX; ++i) dest[i] = 0;
   dest += destX;
 
   // Active area: horizontal scaling + brightness inversion + rotation
@@ -734,7 +741,8 @@ void LcdTap::fillScanline(uint16_t dviLine, uint16_t* dst) const {
   dest += destW;
 
   // Right black border
-  memset(dest, 0, (size_t)(dviW - destX - destW) * sizeof(uint16_t));
+  const uint32_t rightW = dviW - destX - destW;
+  for (uint32_t i = 0; i < rightW; ++i) dest[i] = 0;
 }
 
 LcdTapConfig LcdTap::getConfig() const {
@@ -822,7 +830,9 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   return Status::OK;
 }
 
-void LcdTap::getOutputScreenSize(uint16_t* width, uint16_t* height) const {
+// SRAM-resident: the fill callback of every example queries this per line.
+void LCDTAP_RAM_FUNC LcdTap::getOutputScreenSize(uint16_t* width,
+                                                 uint16_t* height) const {
   if (!impl_) {
     *width = *height = 0;
     return;

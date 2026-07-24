@@ -3,6 +3,8 @@
 
 #include <cstdint>
 
+#include <lcdtap/hot.hpp>
+
 namespace lcdtap {
 namespace font8x16 {
 
@@ -11,8 +13,12 @@ static constexpr int GLYPH_HEIGHT = 16;
 static constexpr char CODE_FIRST = 0x20;
 static constexpr char CODE_LAST = 0x8f;
 
+// SRAM-resident on RP2350 (LCDTAP_RAM_DATA): Osd::fillScanline() reads one
+// glyph row per column per scanline while the OSD is visible; flash-resident
+// rows would reintroduce XIP latency into the Core 1 fill path that hot.hpp
+// exists to remove. ~2.3 KB.
 // clang-format off
-static const uint8_t bitmap[] = {
+static const uint8_t bitmap[] LCDTAP_RAM_DATA = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x1c, 0x1c, 0x1c, 0x1c, 0x1c, 0x1c, 0x00, 0x00, 0x1c, 0x1c, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x6c, 0x6c, 0x48, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -128,7 +134,7 @@ static const uint8_t bitmap[] = {
 };
 // clang-format on
 
-} // namespace font8x16
-} // namespace lcdtap
+}  // namespace font8x16
+}  // namespace lcdtap
 
-#endif // LCDTAP_FONT8X16_HPP
+#endif  // LCDTAP_FONT8X16_HPP

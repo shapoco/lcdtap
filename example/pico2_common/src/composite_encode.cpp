@@ -11,6 +11,52 @@ namespace lcdtap::pico2 {
 
 namespace {
 
+// Shift-and-saturate helpers for the DIRECT_OPT sample path. On the target,
+// USAT folds the >>16, the clamp at 0 and the clamp at 2^bits-1 into a single
+// instruction (the operand shift is free), replacing the five-instruction
+// asr/bic/cmp/it/mov sequence the generic clamp compiles to. Semantics are
+// identical to the C fallback below, so host golden compares stay bit-exact.
+#if defined(LCDTAP_TARGET_PICO)
+LCDTAP_CVBS_INLINE uint32_t satCode7Asr16(int32_t v) {
+  uint32_t r;
+  asm("usat %0, #7, %1, asr #16" : "=r"(r) : "r"(v));
+  return r;
+}
+LCDTAP_CVBS_INLINE uint32_t satCode5Asr16(int32_t v) {
+  uint32_t r;
+  asm("usat %0, #5, %1, asr #16" : "=r"(r) : "r"(v));
+  return r;
+}
+// Branch-free min for two small non-negative codes (both fit a halfword).
+// SSUB16 sets the GE flags from c - m, SEL then picks m when c >= m: two
+// single-cycle instructions with no IT block, against the three-instruction
+// cmp/it/mov the plain expression compiles to.
+LCDTAP_CVBS_INLINE uint32_t minCode(uint32_t c, uint32_t m) {
+  uint32_t d, scratch;
+  asm("ssub16 %1, %2, %3\n\tsel %0, %3, %2"
+      : "=r"(d), "=&r"(scratch)
+      : "r"(c), "r"(m)
+      : "cc");
+  return d;
+}
+#else
+LCDTAP_CVBS_INLINE uint32_t satCode7Asr16(int32_t v) {
+  int32_t c = v >> 16;
+  if (c < 0) c = 0;
+  if (c > 127) c = 127;
+  return static_cast<uint32_t>(c);
+}
+LCDTAP_CVBS_INLINE uint32_t satCode5Asr16(int32_t v) {
+  int32_t c = v >> 16;
+  if (c < 0) c = 0;
+  if (c > 31) c = 31;
+  return static_cast<uint32_t>(c);
+}
+LCDTAP_CVBS_INLINE uint32_t minCode(uint32_t c, uint32_t m) {
+  return c < m ? c : m;
+}
+#endif
+
 uint32_t gcd(uint32_t a, uint32_t b) {
   while (b != 0u) {
     const uint32_t t = a % b;
@@ -124,51 +170,74 @@ struct NaiveChromaSrc {
 // sample; which axis comes first and with which signs depends only on the
 // pair's start phase, so both are folded into (uFirst, k0, k1) at line
 // entry. Pixel B of a pair sits 180 degrees later and just negates both
-// coefficients. Per sample this leaves: one multiply, one add, one shift,
-// one clamp.
+// coefficients. Per sample this leaves: one multiply-accumulate and one
+// saturate.
+//
+// STATIC_CODE_MAX selects the clamp: COMPOSITE_LEVEL_MAX (127) means the
+// sink's ceiling is exactly USAT #7's, so the shift and both clamps collapse
+// into a single instruction (what the R-2R PAL line budget needs); -1 means
+// the ceiling is the runtime codeMax (PWM, where it is clkPerSample),
+// pre-clamped with USAT #5 and finished with a min. Each cursor advertises
+// its value as C::DIRECT_CODE_MAX.
+template <int32_t STATIC_CODE_MAX>
 struct OptChromaSrc {
   const uint16_t *px;
-  int32_t base;   // dirBaseQ16 (rounding pre-added)
-  int32_t ky;     // dirKyQ16
-  int32_t k0;     // signed Q16 coefficient, pixel A sample 0
-  int32_t k1;     // signed Q16 coefficient, pixel A sample 1
+  int32_t base;  // dirBaseQ16 (rounding pre-added)
+  int32_t ky;    // dirKyQ16
+  int32_t k0;    // signed Q16 coefficient, pixel A sample 0
+  int32_t k1;    // signed Q16 coefficient, pixel A sample 1
   int32_t codeMax;
-  bool uFirst;    // sample 0 of a pixel modulates U (else V)
+  bool uFirst;  // sample 0 of a pixel modulates U (else V)
 
   LCDTAP_CVBS_INLINE uint32_t sampleOf(int32_t lum, int32_t d,
                                        int32_t k) const {
-    int32_t c = (lum + d * k) >> 16;
-    if (c < 0) c = 0;
-    if (c > codeMax) c = codeMax;  // codeMax is runtime; the compiler cannot
-                                   // use USAT here, costing ~2 extra cycles
-    return static_cast<uint32_t>(c);
+    const int32_t t = lum + d * k;
+    if (STATIC_CODE_MAX == static_cast<int32_t>(COMPOSITE_LEVEL_MAX)) {
+      return satCode7Asr16(t);
+    }
+    if (STATIC_CODE_MAX == 31) {
+      // Installed only after compositeEncoderInit() proved, over all 65536
+      // colours, that no sample exceeds the runtime codeMax -- the USAT #5
+      // ceiling is then unreachable and exists as a store-safety net.
+      return satCode5Asr16(t);
+    }
+    // Runtime ceiling. Clamping to 31 first and codeMax second equals
+    // clamping to codeMax directly while codeMax <= 31; encoder init rejects
+    // PWM timings that would break this.
+    return minCode(satCode5Asr16(t), static_cast<uint32_t>(codeMax));
   }
 
-  LCDTAP_CVBS_INLINE void pixel(uint32_t v, int32_t c0, int32_t c1,
-                                uint32_t out[2]) const {
+  // NEG negates both coefficients (pixel B of a pair, 180 degrees later).
+  // It is applied to d instead of k0/k1: the negation folds into the existing
+  // b8-y / r8-y subtractions for free, where negated coefficient copies cost
+  // two extra live registers -- which is what previously spilled k0/k1 to the
+  // stack inside the pair loop.
+  template <bool NEG>
+  LCDTAP_CVBS_INLINE void pixel(uint32_t v, uint32_t out[2]) const {
     int32_t r8, g8, b8;
     compositeRgb565To888(v, &r8, &g8, &b8);
     const int32_t y = (77 * r8 + 150 * g8 + 29 * b8) >> 8;
     const int32_t lum = base + y * ky;
-    const int32_t db = b8 - y;
-    const int32_t dr = r8 - y;
-    out[0] = sampleOf(lum, uFirst ? db : dr, c0);
-    out[1] = sampleOf(lum, uFirst ? dr : db, c1);
+    const int32_t db = NEG ? y - b8 : b8 - y;
+    const int32_t dr = NEG ? y - r8 : r8 - y;
+    out[0] = sampleOf(lum, uFirst ? db : dr, k0);
+    out[1] = sampleOf(lum, uFirst ? dr : db, k1);
   }
 
   LCDTAP_CVBS_INLINE void samples(uint32_t i, uint32_t s[4]) const {
-    pixel(px[i], k0, k1, s);
-    pixel(px[i + 1u], -k0, -k1, s + 2);
+    pixel<false>(px[i], s);
+    pixel<true>(px[i + 1u], s + 2);
   }
 };
 
 // Fold the pair's start phase and the PAL V switch into an OptChromaSrc.
 // Sample slot k has type (p0 + k) & 3 on the grid {+U, -V', -U, +V'}; kvs
 // carries vSign so the switch below only reasons about the grid.
-LCDTAP_CVBS_INLINE OptChromaSrc makeOptSrc(const CompositeEncoder *e,
-                                           const uint16_t *px, uint32_t p0,
-                                           uint32_t vSwitch) {
-  OptChromaSrc s;
+template <int32_t STATIC_CODE_MAX>
+LCDTAP_CVBS_INLINE OptChromaSrc<STATIC_CODE_MAX> makeOptSrc(
+    const CompositeEncoder *e, const uint16_t *px, uint32_t p0,
+    uint32_t vSwitch) {
+  OptChromaSrc<STATIC_CODE_MAX> s;
   s.px = px;
   s.base = e->dirBaseQ16;
   s.ky = e->dirKyQ16;
@@ -223,6 +292,10 @@ struct R2rCursor {
   static constexpr uint32_t BITS = 7u;
   static constexpr uint32_t FLUSH = 28u;
   static constexpr uint32_t SPW = 4u;  // samples per word
+  // The 7-bit ladder saturates exactly at USAT #7's ceiling; DIRECT_OPT
+  // clamps with a single instruction (see OptChromaSrc).
+  static constexpr int32_t DIRECT_CODE_MAX =
+      static_cast<int32_t>(COMPOSITE_LEVEL_MAX);
   // A 7-bit code replicated into all four sample lanes with one multiply.
   static constexpr uint32_t LANES = (1u << 21) | (1u << 14) | (1u << 7) | 1u;
 
@@ -380,6 +453,10 @@ struct R2rCursor {
 
 // PWM: one 16-bit counter-compare value per sample, no packing state.
 struct PwmCursor {
+  // The ceiling is the runtime clkPerSample; DIRECT_OPT uses the two-step
+  // USAT #5 + min clamp (see OptChromaSrc).
+  static constexpr int32_t DIRECT_CODE_MAX = -1;
+
   uint16_t *dst;
   uint32_t phase;
 
@@ -595,8 +672,15 @@ bool compositeEncoderInit(CompositeEncoder *e, const CompositeTiming *timing,
   const CompositeLevelMap map = compositeLevelMap(timing, dac);
   e->codeMax = map.codeMax;
   // The LUT packs samples into 7-bit fields, so no physical code may exceed
-  // that. Holds for both sinks (127 and 22/17), but assert rather than assume.
+  // that. Holds for both sinks (127 and 22/18), but assert rather than assume.
   if (map.codeMax > COMPOSITE_LEVEL_MAX) return false;
+  // The PWM DIRECT_OPT clamp pre-saturates with USAT #5, which is only
+  // equivalent to a direct codeMax clamp while codeMax <= 31. Holds for every
+  // timing (codeMax = clkPerSample), but assert rather than assume.
+  if (chromaMode == CompositeChromaMode::DIRECT_OPT &&
+      dac->kind == CompositeDacKind::PWM && map.codeMax > 31u) {
+    return false;
+  }
 
   e->codeSyncTip = compositeLevelToCode(map, timing->lvlSyncTip);
   e->codeBlank = compositeLevelToCode(map, timing->lvlBlank);
@@ -684,6 +768,35 @@ bool compositeEncoderInit(CompositeEncoder *e, const CompositeTiming *timing,
         (225LL * lumaSpan * chromaGain * cw * Q + denomC / 2) / denomC);
   }
 
+  // PWM DIRECT_OPT: the runtime codeMax min costs two instructions per sample
+  // in the hottest loop -- decisive on the PAL line budget. The level design
+  // (pwmCcWhite) keeps peak chroma under codeMax, so the clamp should never
+  // fire; prove that exhaustively over every RGB565 colour and both chroma
+  // axes with the exact hot-path integer math, and only then install the
+  // clamp-free variant. Anything out of range falls back to the clamping one,
+  // so the two builds are output-identical by construction.
+  if (chromaMode == CompositeChromaMode::DIRECT_OPT &&
+      dac->kind == CompositeDacKind::PWM) {
+    bool fits = true;
+    for (uint32_t v = 0u; v < 65536u && fits; ++v) {
+      int32_t r8, g8, b8;
+      compositeRgb565To888(v, &r8, &g8, &b8);
+      const int32_t y = (77 * r8 + 150 * g8 + 29 * b8) >> 8;
+      const int32_t lum = e->dirBaseQ16 + y * e->dirKyQ16;
+      const int32_t ds[2] = {b8 - y, r8 - y};
+      const int32_t ks[2] = {e->dirKuQ16, e->dirKvQ16};
+      for (int i = 0; i < 2 && fits; ++i) {
+        const int32_t hi = (lum + ds[i] * ks[i]) >> 16;
+        const int32_t lo = (lum - ds[i] * ks[i]) >> 16;
+        if (hi > static_cast<int32_t>(map.codeMax) ||
+            lo > static_cast<int32_t>(map.codeMax)) {
+          fits = false;
+        }
+      }
+    }
+    if (fits) e->emitLine = compositeEmitLinePwmOptNoClamp;
+  }
+
   // The DIRECT modes compute per pixel; no table to build.
   if (chromaMode != CompositeChromaMode::LUT) {
     e->lut = nullptr;
@@ -764,7 +877,9 @@ namespace {
 // compile-time constant (0 = LUT, 1 = DIRECT_NAIVE, 2 = DIRECT_OPT), so the
 // mode branches below fold away and each public entry point contains only
 // its own active-pixel path.
-template <class C, int MODE>
+// OPT_MAX overrides the cursor's default clamp for the DIRECT_OPT path; the
+// PWM no-clamp entry point passes 31 (see compositeEmitLinePwmOptNoClamp).
+template <class C, int MODE, int32_t OPT_MAX = C::DIRECT_CODE_MAX>
 LCDTAP_CVBS_INLINE void emitLineT(CompositeSampleWriter *w,
                                   const CompositeEncoder *e,
                                   CompositeLineType type, uint32_t line,
@@ -815,7 +930,8 @@ LCDTAP_CVBS_INLINE void emitLineT(CompositeSampleWriter *w,
                                       vSwitch ? -1 : 1};
           c.emitActiveDirect(src, t->hActivePixels);
         } else {
-          const OptChromaSrc src = makeOptSrc(e, px, c.phase & 3u, vSwitch);
+          const OptChromaSrc<OPT_MAX> src =
+              makeOptSrc<OPT_MAX>(e, px, c.phase & 3u, vSwitch);
           c.emitActiveDirect(src, t->hActivePixels);
         }
       }
@@ -873,6 +989,14 @@ void LCDTAP_CVBS_HOT(compositeEmitLinePwmOpt)(CompositeSampleWriter *w,
                                               uint32_t line,
                                               const uint16_t *px) {
   emitLineT<PwmCursor, 2>(w, e, type, line, px);
+}
+
+void LCDTAP_CVBS_HOT(compositeEmitLinePwmOptNoClamp)(CompositeSampleWriter *w,
+                                                     const CompositeEncoder *e,
+                                                     CompositeLineType type,
+                                                     uint32_t line,
+                                                     const uint16_t *px) {
+  emitLineT<PwmCursor, 2, 31>(w, e, type, line, px);
 }
 
 }  // namespace lcdtap::pico2

@@ -82,8 +82,10 @@ static constexpr uint32_t COMPOSITE_LUT_COLORS = 256u;
 //                  phase/sign selection hoisted out of the pixel loop (within
 //                  a line, a pixel's two samples are always one U-axis and
 //                  one V-axis sample with loop-invariant signs). Within +-2
-//                  codes of DIRECT_NAIVE. The real-time candidate; must be
-//                  validated against the cycle budget on hardware.
+//                  codes of DIRECT_NAIVE. Validated in real time on hardware
+//                  for NTSC (both DACs) and PAL R-2R; PAL + PWM misses the
+//                  slot deadline once the OSD overlay is drawn, so
+//                  compositeOutInit() forces that combination to LUT.
 enum class CompositeChromaMode : uint8_t {
   LUT = 0,
   DIRECT_NAIVE = 1,
@@ -287,5 +289,13 @@ void compositeEmitLinePwmNaive(CompositeSampleWriter *w,
 void compositeEmitLinePwmOpt(CompositeSampleWriter *w,
                              const CompositeEncoder *e, CompositeLineType type,
                              uint32_t line, const uint16_t *px);
+// Variant without the runtime codeMax clamp, installed by
+// compositeEncoderInit() only after it has proven -- exhaustively, over every
+// RGB565 colour -- that no sample can exceed codeMax with the current timing
+// constants. Output-identical to compositeEmitLinePwmOpt by construction.
+void compositeEmitLinePwmOptNoClamp(CompositeSampleWriter *w,
+                                    const CompositeEncoder *e,
+                                    CompositeLineType type, uint32_t line,
+                                    const uint16_t *px);
 
 }  // namespace lcdtap::pico2
