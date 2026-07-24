@@ -130,6 +130,35 @@
       or <a href="https://rennigou.jp/app" target="_blank">萌购任你购</a>.
     </p>
 
+    <h3>Composite Video Output</h3>
+    <p>
+      LcdTap-Pico2 Universal also supports composite video output.
+      Some external circuitry is required to use composite video output.
+      The PWM method is low quality but requires simple external circuitry.
+      The R-2R method is high quality but requires somewhat more complex external circuitry.
+    </p>
+    <p>
+      Composite output cannot be used simultaneously with parallel bus mode.
+      Also, the R-2R method cannot be used simultaneously with I2C bus mode.
+    </p>
+    <p>
+      <img src="image/composite-out-schematics.png" class="large-img" />
+    </p>
+    <p>
+      The boards sold at BOOTH have 47Ω damping resistors inserted in series on the GPIO pins,
+      so please subtract that value from the resistance values.
+    </p>
+    <p>
+      To switch to composite video output, connect the external circuitry as described above,
+      and set the Output Interface to NTSC or PAL in the Configuration menu,
+      then select the Video DAC Type (PWM or R-2R).
+    </p>
+    <p>
+      If video output does not appear and OSD control becomes unavailable,
+      please use <a href="./monitor/">LcdTap Monitor</a> to correct output interface,
+      or reset LcdTap while pressing the left key to initialize the settings.
+    </p>
+
     <h3>Technical Details</h3>
     <p>
       See <a href="https://github.com/shapoco/lcdtap/tree/main/example/pico2_universal">example/pico2_universal</a>.

@@ -133,7 +133,7 @@ accepted cost of this tier.
 The ladder drives the 75 Ω line **directly, with no buffer**. To deliver the
 ~1 V composite range into 75 Ω, its output impedance has to be low, so the
 resistors are ~10× smaller than a textbook ladder: **R = 100 Ω series, 2R =
-160 Ω rungs, 200 Ω termination.**
+200 Ω rungs, 200 Ω termination.**
 
 The firmware drives GPIO5 as the **LSB** and GPIO11 as the **MSB** (the PIO
 maps sample bit 0 to the lowest GPIO). In an R-2R ladder the bit nearest the
@@ -142,15 +142,15 @@ output node has the greatest weight, so the **output is tapped at the GPIO11
 the ladder, so it connects straight to the RCA centre — no coupling capacitor.
 
 ```
-GPIO11 -- 160R --+---------------- RCA centre       (MSB, weight 64)
+GPIO11 -- 200R --+---------------- RCA centre       (MSB, weight 64)
         (MSB)    |            |
                100R        (470pF)   optional reconstruction
                 |            |        cap to GND (~6 MHz)
-GPIO10 -- 160R --+          GND
+GPIO10 -- 200R --+          GND
                  :   (GPIO9, 8, 7, 6 identical)
                100R
                 |
-GPIO5  -- 160R --+                                  (LSB, weight 1)
+GPIO5  -- 200R --+                                  (LSB, weight 1)
         (LSB)    |
                200R    (2R termination)
                 |
@@ -161,26 +161,23 @@ Wiring it the other way round — output at GPIO5, termination at GPIO11 —
 reverses the bit weights and scrambles the picture, so double-check the
 orientation.
 
-**Why 160 Ω rungs and not 200 Ω:** at the 12 mA drive setting each GPIO pad has
-~40 Ω of its own resistance in series with its rung. 160 + 40 ≈ 200 = 2× the
-100 Ω series resistor, which restores the exact 2:1 R-2R ratio. With 200 Ω
-rungs the ratio becomes 2.4:1 and the DAC goes **non-monotonic at mid-grey**
-(code 63→64 dips ~60 mV), showing a faint contour at 50 % brightness.
+2R = 200 Ω keeps the exact 2:1 R-2R ratio against the 100 Ω series resistor,
+and in practice gives the most stable picture. The termination is another
+200 Ω, so every rung and the termination share the same value.
 
 Peak GPIO current is ~13 mA — just over the nominal 12 mA, which is fine here.
 The drive strength stays at 12 mA (set in firmware).
 
 > [!NOTE]
-> These are a bench starting point. The pad resistance varies per chip
-> (~30–50 Ω), so with a scope on a **50 % grey** field, nudge the rungs in the
-> 150–180 Ω range until the mid-scale step is clean and monotonic.
+> These are a bench starting point. With a scope on a **50 % grey** field,
+> confirm the mid-scale step is clean and monotonic.
 >
-> With nominal values the levels come out ~8 % high (full scale ~1.40 V, white
-> ~1.08 V, blanking ~0.31 V; sync tip 0 V). Trim this by scaling all three
-> resistor families up ~8 %, or just leave it — the receiver works on relative
-> levels. **Do not** retune it with `lvlWhite` / `lvlBlank` in
-> `composite_timing.cpp`: those are shared with the PWM DAC. Use 1 % resistors,
-> and keep 2R = 160 and the termination = 200 as a matched set.
+> With nominal values the levels come out a few percent high (full scale
+> ~1.4 V, white ~1.1 V, blanking ~0.3 V; sync tip 0 V). Trim this by scaling
+> all three resistor families up together, or just leave it — the receiver
+> works on relative levels. **Do not** retune it with `lvlWhite` / `lvlBlank`
+> in `composite_timing.cpp`: those are shared with the PWM DAC. Use 1 %
+> resistors, and keep 2R = 200 and the termination = 200 as a matched set.
 
 ## Uploading Firmware
 

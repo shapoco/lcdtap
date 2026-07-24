@@ -90,7 +90,9 @@ header h1 {
   transition: background 0.3s;
 }
 .conn-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.conn-dot.reconnecting { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); animation: conn-pulse 1s ease-in-out infinite; }
 .conn-dot.error { background: var(--red); }
+@keyframes conn-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
 .header-spacer { flex: 1; }
 
@@ -562,21 +564,57 @@ class SerialConnection {
     this._lineBuffer = '';
     this._lineResolvers = [];
     this._running = false;
+    this._ready = false;
+    // Kept so an unexpected drop (e.g. a self-reset after switching the
+    // output interface) can re-find and re-open the same granted port.
+    this._serialApi = null;
+    this._portInfo = null;
+    // Fired when the read loop ends while we still expected to be connected.
+    this.onLost = null;
   }
 
-  get connected() { return this._port !== null; }
+  get connected() { return this._ready; }
 
   async connect(serialApi) {
+    this._serialApi = serialApi;
     const port = await serialApi.requestPort();
+    await this._open(port);
+  }
+
+  // Re-open the previously granted port after an unexpected drop. The device
+  // re-enumerates with the same USB VID/PID, so the matching SerialPort can be
+  // re-opened without prompting again. Throws while the device is still gone.
+  async reopen() {
+    if (!this._serialApi) throw new Error('Never connected');
+    const ports = await this._serialApi.getPorts();
+    let port = null;
+    if (this._portInfo && this._portInfo.usbVendorId != null) {
+      port = ports.find(p => {
+        let info;
+        try { info = p.getInfo(); } catch (_) { return false; }
+        return info.usbVendorId === this._portInfo.usbVendorId &&
+               info.usbProductId === this._portInfo.usbProductId;
+      });
+    }
+    if (!port) port = ports[0];
+    if (!port) throw new Error('Serial port not available yet');
+    await this._open(port);
+  }
+
+  async _open(port) {
     await port.open({ baudRate: 115200 });
     this._port = port;
+    try { this._portInfo = port.getInfo(); } catch (_) {}
     this._writer = port.writable.getWriter();
+    this._lineBuffer = '';
     this._running = true;
+    this._ready = true;
     this._readLoop();
   }
 
   async disconnect() {
     this._running = false;
+    this._ready = false;
     // Reject any pending resolvers
     for (const { reject } of this._lineResolvers) {
       reject(new Error('Disconnected'));
@@ -589,6 +627,23 @@ class SerialConnection {
     this._port = null;
     this._reader = null;
     this._writer = null;
+  }
+
+  // Tear down state after an unexpected drop without touching the vanished
+  // port (closing it may hang), then notify the UI so it can auto-reconnect.
+  _handleLost() {
+    this._running = false;
+    this._ready = false;
+    for (const { reject } of this._lineResolvers) {
+      try { reject(new Error('Connection lost')); } catch (_) {}
+    }
+    this._lineResolvers = [];
+    this._lineBuffer = '';
+    try { if (this._writer) this._writer.releaseLock(); } catch (_) {}
+    this._writer = null;
+    this._reader = null;
+    this._port = null;
+    if (this.onLost) { try { this.onLost(); } catch (_) {} }
   }
 
   async _readLoop() {
@@ -616,10 +671,12 @@ class SerialConnection {
     } finally {
       try { reader.releaseLock(); } catch (_) {}
     }
+    // Loop exited while still expected to run: the device dropped.
+    if (this._running) this._handleLost();
   }
 
   async sendCommand(cmdObj, timeoutMs = 8000) {
-    if (!this._port) throw new Error('Not connected');
+    if (!this._ready || !this._writer) throw new Error('Not connected');
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         const idx = this._lineResolvers.findIndex(r => r.resolve === resolve || r.reject === reject);
@@ -686,6 +743,64 @@ function setConnected(yes) {
 const transportSelect = document.getElementById('transport-select');
 transportSelect.value = ('serial' in navigator) ? 'webserial' : 'webusb';
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// ─── Auto-reconnect ────────────────────────────────────────────────────────
+// Switching the output interface makes the device self-reset, dropping the USB
+// serial link for a few seconds while it re-enumerates. Detect the drop and
+// re-open the same granted port automatically, retrying until it comes back.
+
+let reconnecting = false;
+let reconnectCancel = false;
+const RECONNECT_RETRIES = 30;      // ~15 s total
+const RECONNECT_INTERVAL_MS = 500;
+
+conn.onLost = () => {
+  // Ignore drops we caused ourselves (user pressed Disconnect).
+  if (reconnecting) return;
+  attemptReconnect();
+};
+
+async function attemptReconnect() {
+  reconnecting = true;
+  reconnectCancel = false;
+  stopDumpPolling();
+  stopAutoReload();
+  setConnected(false);
+  // Keep Disconnect live so the user can abort the retry loop.
+  btnDisconnect.disabled = false;
+  elConnDot.className = 'conn-dot reconnecting';
+  showToast('Connection lost — reconnecting…', '', 4000);
+
+  for (let i = 1; i <= RECONNECT_RETRIES && !reconnectCancel; i++) {
+    elConnLabel.textContent = `Reconnecting… (${i}/${RECONNECT_RETRIES})`;
+    await sleep(RECONNECT_INTERVAL_MS);
+    if (reconnectCancel) break;
+    try {
+      await conn.reopen();
+      const resp = await conn.sendCommand({ command: 'hello' }, 3000);
+      const obj = JSON.parse(resp);
+      if (obj.response !== 'welcome lcdtap') throw new Error('bad hello');
+      reconnecting = false;
+      setConnected(true);
+      showToast('Reconnected', 'success');
+      await loadPresets();
+      await loadParams();
+      return;
+    } catch (_) {
+      // Device is still re-enumerating (or mid-boot); clean up and retry.
+      try { await conn.disconnect(); } catch (_) {}
+    }
+  }
+
+  reconnecting = false;
+  try { await conn.disconnect(); } catch (_) {}
+  setConnected(false);
+  if (!reconnectCancel) {
+    showToast('Auto-reconnect failed. Please reconnect manually.', 'error');
+  }
+}
+
 btnConnect.addEventListener('click', async () => {
   try {
     btnConnect.disabled = true;
@@ -709,6 +824,8 @@ btnConnect.addEventListener('click', async () => {
 });
 
 btnDisconnect.addEventListener('click', async () => {
+  reconnectCancel = true;   // abort an in-progress auto-reconnect, if any
+  reconnecting = false;
   stopDumpPolling();
   stopAutoReload();
   await conn.disconnect();
@@ -768,7 +885,7 @@ let paramElements = {};  // id → input/select element
 
 // A parameter is enabled when its enable key is in range AND the enable key
 // itself is enabled. That second condition is a cascade: it is what makes
-// "NTSC/PAL DAC Type" grey out on the parallel bus, where it is "Output
+// "Video DAC Type" grey out on the parallel bus, where it is "Output
 // Interface" that the bus disables, not the DAC directly. Mirrors
 // Osd::updateItemEnables() in lib/src/osd.cpp.
 function updateParamEnables() {
