@@ -53,50 +53,73 @@
     <h2 id="what-is-lcdtap">What is LcdTap?</h2>
 
     <p>
-      LcdTap is a library and its implementation that receives LCD controller
-      commands (via SPI or I2C) and outputs the framebuffer as a DVI-D signal.
-      You can also change settings and capture still images via UART.
+      LcdTap is a library that receives SPI/I2C LCD control commands and reconstructs
+      a copy of the display contents into a framebuffer. The framebuffer contents can be
+      output as DVI-D signals or composite video, or captured for use.
     </p>
     <p>
       <img src="./image/cover.jpg" class="large-img" />
     </p>
     <p>
       You can use it in many ways: play tiny screen games like Arduboy on a large screen,
-      enhance your product appeal at exhibitions and presentations, debug devices, and much more.
+      enhance your product appeal at exhibitions and presentations, debug devices,
+      and much more.
     </p>
     <p>
       <img src="./image/use-cases.png" class="large-img" />
     </p>
 
-    <h2 id="features">Features</h2>
+    <h2 id="features">Library Features</h2>
 
     <ul>
       <li>Receives LCD controller commands and reconstructs images into the framebuffer</li>
-      <li>Outputs framebuffer contents as DVI-D signal (via <a href="https://github.com/MichaelBell/dvhstx"
-          target="_blank">DVI for HSTX</a>).</li>
       <li>Programmable screen sizes (up to 480x320 supported on Pico2)</li>
       <li>Command Dump: Captures and displays LCD control commands</li>
-      <li>Supported Controllers: ST7735, ST7789, ILI9341, ILI9342, ILI9488, SSD1306, SSD1309, SSD1331, and some variants
+      <li>
+        Supported Controllers:
+        ST7735, ST7789,
+        ILI9341, ILI9342, ILI9488,
+        SSD1306, SSD1309, SSD1331,
+        and some variants
       </li>
-      <li>Supported Interfaces: SPI (4-line, 3-line), I2C, 8-bit Parallel</li>
       <li>Supported Pixel Formats: Monochrome, RGB111, RGB332, RGB444, RGB565, RGB666</li>
     </ul>
 
     <h2 id="lcdtap-pico2-universal">LcdTap-Pico2 Universal</h2>
 
     <p>
-      LcdTap-Pico2 Universal is an LcdTap implementation for Raspberry Pi Pico 2.
+      LcdTap-Pico2 Universal is an LcdTap application for Raspberry Pi Pico 2.
     </p>
     <p>
       <img src="image/pico2-universal-boards.jpg" class="large-img" />
     </p>
+    
+    <h3>Features</h3>
+    <ul>
+      <li>DVI-D Video Output (640x480@60Hz, 1280x720@30Hz)</li>
+      <li>Composite Video Output (NTSC/PAL, PWM or R-2R)</li>
+      <li>Support for SPI, I2C, 8-bit Parallel</li>
+      <li>Configuration changes via OSD and 5 buttons</li>
+      <li>Configuration changes and still image capture using browser</li>
+    </ul>
+
+    <h3>Purchase PCB</h3>
     <p>
-      By changing settings via five buttons or UART interface,
-      it can adapt to various LCD controllers and interfaces. You can view the contents of LCD control
-      commands using Command Dump, and also obtain pixel-perfect still image captures via UART interface.
+      Pre-assembled PCBs are available for purchase at
+      <a href="https://shapoco.booth.pm/items/8593353" target="_blank">BOOTH</a>.
+      While sales are primarily intended for Japan,
+      international orders are also possible through
+      <a href="https://media.buyee.jp/guide/addtobuyee/en/booth.html" target="_blank">Buyee</a>
+      or <a href="https://rennigou.jp/app" target="_blank">萌购任你购</a>.
     </p>
 
     <h3>Schematics</h3>
+    <p>
+      You can also build it yourself using Raspberry Pi Pico 2 and
+      <a href="https://github.com/Wren6991/Pico-DVI-Sock" target="_blank">Pico-DVI-Sock</a>.
+      In Japan, Pico-DVI-Sock is available for purchase at
+      <a href="https://www.switch-science.com/products/7431" target="_blank">Switch Science</a>.
+    </p>
     <p>
       <img src="https://github.com/shapoco/lcdtap/raw/main/example/pico2_universal/image/schematics.png"
         class="large-img" alt="LcdTap-Pico2 Universal Schematic" />
@@ -118,16 +141,6 @@
     <p>
       Serial Interface is available from
       <a href="https://shapoco.github.io/lcdtap/monitor/" target="_blank">LcdTap Monitor</a>.
-    </p>
-
-    <h3>Purchase PCB</h3>
-    <p>
-      Pre-assembled PCBs are available for purchase at
-      <a href="https://shapoco.booth.pm/items/8593353" target="_blank">BOOTH</a>.
-      While sales are primarily intended for Japan,
-      international orders are also possible through
-      <a href="https://media.buyee.jp/guide/addtobuyee/en/booth.html" target="_blank">Buyee</a>
-      or <a href="https://rennigou.jp/app" target="_blank">萌购任你购</a>.
     </p>
 
     <h3>Composite Video Output</h3>
