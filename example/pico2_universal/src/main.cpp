@@ -177,7 +177,7 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   dac.id = OSD_ITEM_ID_CVBS_DAC;
   dac.isAction = false;
   dac.config.type = lcdtap::ValueType::ENUM;
-  dac.config.name = "NTSC/PAL DAC Type";
+  dac.config.name = "Video DAC Type";
   dac.config.unit = "";
   dac.config.options = COMPOSITE_DAC_KIND_NAMES;
   dac.config.min = 0;

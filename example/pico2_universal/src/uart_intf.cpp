@@ -432,7 +432,7 @@ static bool buildParamChunk(int slot, const lcdtap::LcdTapConfig& cfg,
       // disabled, which is how the parallel bus rules it out.
       pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
                       "{\"id\":\"compositeDac\",\"type\":\"ENUM\","
-                      "\"name\":\"NTSC/PAL DAC Type\",\"unit\":null,"
+                      "\"name\":\"Video DAC Type\",\"unit\":null,"
                       "\"options\":{\"PWM\":0,\"R-2R\":1},\"value\":%d,"
                       "\"enableKeyId\":\"outputInterface\","
                       "\"enableKeyValueMin\":%d,\"enableKeyValueMax\":%d%s",

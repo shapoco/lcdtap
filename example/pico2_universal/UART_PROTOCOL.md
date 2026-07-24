@@ -96,7 +96,7 @@ Two host-side settings appear in the list as well. They are not `ConfigId`s, so 
 {
     "id": "compositeDac",
     "type": "ENUM",
-    "name": "NTSC/PAL DAC Type",
+    "name": "Video DAC Type",
     "unit": null,
     "options": {"PWM": 0, "R-2R": 1},
     "value": 0,
