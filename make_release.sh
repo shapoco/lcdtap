@@ -9,7 +9,7 @@ RELEASE_DIR="${SCRIPT_DIR}/release/${RELEASE_NAME}"
 # Build all example programs
 for example_dir in "${SCRIPT_DIR}/example"/*/; do
     dir_name="$(basename "${example_dir}")"
-    if [ "${dir_name}" = "pico2_common" ]; then
+    if [ "${dir_name}" = "pico2_common" ] || [ "${dir_name}" = "m5tab5" ]; then
         continue
     fi
 
@@ -28,7 +28,7 @@ cp -r "${SCRIPT_DIR}/image" "${RELEASE_DIR}/"
 # Copy per-example artifacts
 for example_dir in "${SCRIPT_DIR}/example"/*/; do
     dir_name="$(basename "${example_dir}")"
-    if [ "${dir_name}" = "pico2_common" ]; then
+    if [ "${dir_name}" = "pico2_common" ] || [ "${dir_name}" = "m5tab5" ]; then
         continue
     fi
     
