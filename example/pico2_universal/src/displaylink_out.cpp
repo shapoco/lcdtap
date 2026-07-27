@@ -38,7 +38,7 @@ static constexpr uint32_t UDH_RING_CAPACITY = 16384;
 // fragments — seen as thin lines at update-span edges. Default to plain
 // re-sends; the copy path is kept for experiments only.
 #ifndef DISPLAYLINK_USE_COPY16
-#define DISPLAYLINK_USE_COPY16 0
+#define DISPLAYLINK_USE_COPY16 1
 #endif
 
 // ---------------------------------------------------------------------------
