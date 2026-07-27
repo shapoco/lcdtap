@@ -30,6 +30,17 @@ static constexpr uint32_t MAX_FILLS_PER_CALL = 8;
 // Must match USB_DISP_UDH_RING_SIZE in usb_disp_udh_host.cpp (not exported).
 static constexpr uint32_t UDH_RING_CAPACITY = 16384;
 
+// Duplicate output lines could be produced with the COPY16 blit instead of
+// re-sending pixels, but on real DL hardware the blit engine runs
+// asynchronously from the command parser: with small RLE updates and many
+// back-to-back copies (a 1bpp source like the SSD1306 upscaled ~10x is the
+// worst case) the blit races the surrounding updates and leaves stale
+// fragments — seen as thin lines at update-span edges. Default to plain
+// re-sends; the copy path is kept for experiments only.
+#ifndef DISPLAYLINK_USE_COPY16
+#define DISPLAYLINK_USE_COPY16 0
+#endif
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -70,6 +81,7 @@ static void sendSpan(DisplaylinkOutState* s, uint32_t y, uint32_t x0,
   }
 }
 
+#if DISPLAYLINK_USE_COPY16
 static void copySpan(DisplaylinkOutState* s, uint32_t x0, uint32_t x1,
                      uint32_t ySrc, uint32_t yDst) {
   if (!usb_disp_copy(D(s), static_cast<uint16_t>(x0),
@@ -79,6 +91,7 @@ static void copySpan(DisplaylinkOutState* s, uint32_t x0, uint32_t x1,
     s->sendFailed = true;
   }
 }
+#endif
 
 // First output line whose mapped (crop-relative) source line index is t.
 // The mapping is srcLine(y) = ((y - destY) * stepV) >> 16, monotonic, so the
@@ -119,27 +132,69 @@ static bool srcRangeToSpan(const lcdtap::OutputMapInfo& mi, uint32_t sc0,
   return true;
 }
 
-// Send one group of duplicate output lines: fill+send the first, COPY16 the
-// rest (no pixel re-transmission for the vertical upscale). Lines under the
-// OSD overlay are not vertical duplicates of each other (the OSD renders
-// per-line content on top), so overlapping groups are generated and sent
-// line by line instead of copied.
-static void sendGroup(DisplaylinkOutState* s, uint32_t y0, uint32_t y1,
-                      uint32_t x0, uint32_t x1) {
+// Continue an in-flight duplicate-line group: send remaining rows while the
+// ring and the fill budget allow. The group's dirty bits are already
+// claimed, so the group persists across process() calls until every row went
+// out. Returns the number of fills consumed.
+static uint32_t pumpPendingGroup(DisplaylinkOutState* s, uint32_t maxFills) {
+  if (!s->groupActive) return 0;
+  uint32_t fills = 0;
+  const uint32_t x0 = s->groupX0;
+  const uint32_t x1 = s->groupX1;
+  while (s->groupNextY <= s->groupEndY) {
+    if (fills >= maxFills) return fills;
+    if (!ringHasRoom(s, x1 - x0 + 1u)) return fills;
+    if (s->groupPerLine) {
+      fillLine(s, s->groupNextY);
+      ++fills;
+    } else if (s->groupNeedFill) {
+      fillLine(s, s->groupFillLine);
+      s->groupNeedFill = false;
+      ++fills;
+    }
+    sendSpan(s, s->groupNextY, x0, x1);
+    ++s->groupNextY;
+    if (!s->groupPerLine) ++fills;  // per-row RLE encode is fill-like work
+  }
+  s->groupActive = false;
+  return fills;
+}
+
+// Send one group of duplicate output lines. Lines under the OSD overlay are
+// not vertical duplicates of each other (the OSD renders per-line content on
+// top), so overlapping groups are generated line by line. Returns fills
+// consumed; when the budget or the ring runs out mid-group, the remainder
+// stays pending (s->groupActive) and is finished by pumpPendingGroup().
+static uint32_t sendGroup(DisplaylinkOutState* s, uint32_t y0, uint32_t y1,
+                          uint32_t x0, uint32_t x1, uint32_t maxFills) {
   const bool overlapsOsd =
       s->osdActive && y1 > y0 && s->osdW != 0 && y1 >= s->osdY &&
       y0 <= static_cast<uint32_t>(s->osdY + s->osdH) - 1u && x1 >= s->osdX &&
       x0 <= static_cast<uint32_t>(s->osdX + s->osdW) - 1u;
+#if DISPLAYLINK_USE_COPY16
   if (overlapsOsd) {
     for (uint32_t y = y0; y <= y1; ++y) {
       fillLine(s, y);
       sendSpan(s, y, x0, x1);
     }
-    return;
+    return y1 - y0 + 1u;
   }
   fillLine(s, y0);
   sendSpan(s, y0, x0, x1);
   for (uint32_t y = y0 + 1u; y <= y1; ++y) copySpan(s, x0, x1, y0, y);
+  (void)maxFills;
+  return 1;
+#else
+  s->groupActive = true;
+  s->groupPerLine = overlapsOsd;
+  s->groupNeedFill = !overlapsOsd;
+  s->groupFillLine = y0;
+  s->groupNextY = y0;
+  s->groupEndY = y1;
+  s->groupX0 = x0;
+  s->groupX1 = x1;
+  return pumpPendingGroup(s, maxFills);
+#endif
 }
 
 // Start (or restart) a full repaint. The pending dirt is claimed here, at
@@ -157,6 +212,8 @@ static void startFullRepaint(DisplaylinkOutState* s) {
   s->dirtyRow = 0;
   s->aggValid = false;
   s->aggPending = 0;
+  // A pending duplicate-line group is superseded: the sweep covers its rows.
+  s->groupActive = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +223,7 @@ static void startFullRepaint(DisplaylinkOutState* s) {
 
 // Returns the number of fills consumed (0 = out of ring space, try later).
 static uint32_t sweepStep(DisplaylinkOutState* s,
-                          const lcdtap::OutputMapInfo& mi) {
+                          const lcdtap::OutputMapInfo& mi, uint32_t maxFills) {
   const uint32_t outH = s->outH;
   const uint32_t outW = s->outW;
   if (s->sweepY >= outH) return 0;
@@ -185,12 +242,14 @@ static uint32_t sweepStep(DisplaylinkOutState* s,
 
   const int32_t key = lineKey(y0);
   uint32_t y1 = y0;
-  // Cap the copy fan-out per step so one call never queues hundreds of
+  // Cap the group length per step so one call never queues hundreds of
   // commands (borders can span most of the screen).
   while (y1 + 1u < outH && (y1 + 1u - y0) < 64u && lineKey(y1 + 1u) == key) {
     ++y1;
   }
-  sendGroup(s, y0, y1, 0u, outW - 1u);
+  uint32_t fills = sendGroup(s, y0, y1, 0u, outW - 1u, maxFills);
+  // The remainder of a pending group is finished by pumpPendingGroup();
+  // the sweep cursor can advance regardless.
   s->sweepY = y1 + 1u;
 
   if (s->sweepY >= outH) {
@@ -201,7 +260,7 @@ static uint32_t sweepStep(DisplaylinkOutState* s,
     s->fullRepaint = !s->inst->isDirtyTrackingActive();
     s->sweepY = 0;
   }
-  return 1;
+  return fills > 0 ? fills : 1u;
 }
 
 // ---------------------------------------------------------------------------
@@ -210,10 +269,12 @@ static uint32_t sweepStep(DisplaylinkOutState* s,
 // ---------------------------------------------------------------------------
 
 static uint32_t dirtyStepRot02(DisplaylinkOutState* s,
-                               const lcdtap::OutputMapInfo& mi) {
+                               const lcdtap::OutputMapInfo& mi,
+                               uint32_t maxFills) {
   const uint16_t fbH = mi.fbHeight;
   const uint16_t fbW = mi.fbWidth;
   uint8_t* map = s->inst->dirtyMap();
+  uint32_t fills = 0;
 
   // Find the next dirty row from the cursor (bounded scan; the map is at
   // most 512 bytes so a full revolution per call is fine).
@@ -223,15 +284,15 @@ static uint32_t dirtyStepRot02(DisplaylinkOutState* s,
     uint8_t bits = map[r];
     if (bits == 0) continue;
 
-    if (!ringHasRoom(s, mi.destW)) {
+    if (fills >= maxFills || !ringHasRoom(s, mi.destW)) {
       s->dirtyRow = static_cast<uint16_t>(r);  // retry this row next call
-      return 0;
+      return fills;
     }
     map[r] = 0;  // claim before reading pixels: later writes re-mark
 
     // Rows outside the crop never reach the output.
     if (r < mi.srcY || r >= static_cast<uint32_t>(mi.srcY + mi.srcH)) {
-      return 1;
+      continue;
     }
     const uint32_t t =
         (mi.rotation == 0)
@@ -241,7 +302,7 @@ static uint32_t dirtyStepRot02(DisplaylinkOutState* s,
     uint32_t y1 = groupFirstLine(mi, t + 1u);
     y1 = (y1 > y0) ? y1 - 1u : y0;
     const uint32_t yMax = static_cast<uint32_t>(mi.destY + mi.destH) - 1u;
-    if (y0 > yMax) return 1;
+    if (y0 > yMax) continue;
     if (y1 > yMax) y1 = yMax;
 
     for (uint32_t b = 0; b < 8u; ++b) {
@@ -263,11 +324,17 @@ static uint32_t dirtyStepRot02(DisplaylinkOutState* s,
                           &x1)) {
         continue;
       }
-      sendGroup(s, y0, y1, x0, x1);
+      fills += sendGroup(s, y0, y1, x0, x1, maxFills - fills);
+      if (s->groupActive || fills >= maxFills) {
+        // Out of ring space or budget mid-row. The current group finishes
+        // via pumpPendingGroup(); un-claim the segment runs not yet sent so
+        // they are re-processed next call.
+        map[r] |= static_cast<uint8_t>(bits & ~((2u << bEnd) - 1u));
+        return fills;
+      }
     }
-    return 1;
   }
-  return 0;
+  return fills;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,12 +424,16 @@ static uint32_t dirtyStepRot13(DisplaylinkOutState* s,
       uint32_t y0 = groupFirstLine(mi, t);
       uint32_t y1 = groupFirstLine(mi, t + 1u);
       y1 = (y1 > y0) ? y1 - 1u : y0;
+      ++s->aggCol;
       if (y0 <= yMax) {
         if (y1 > yMax) y1 = yMax;
-        sendGroup(s, y0, y1, x0, x1);
-        ++fills;
+        fills += sendGroup(s, y0, y1, x0, x1, maxFills - fills);
+        if (s->groupActive) {
+          // The rest of this column's group finishes via pumpPendingGroup();
+          // the column cursor has already advanced.
+          return fills;
+        }
       }
-      ++s->aggCol;
     }
     if (s->aggCol > c1) {
       s->aggPending &= static_cast<uint8_t>(~(1u << k));
@@ -569,20 +640,25 @@ void displaylinkOutProcess(DisplaylinkOutState* s) {
   s->inst->getOutputMapInfo(&mi);
 
   uint32_t fills = 0;
-  if (s->fullRepaint) {
-    while (fills < MAX_FILLS_PER_CALL && s->fullRepaint) {
-      uint32_t n = sweepStep(s, mi);
-      if (n == 0) break;  // ring full
-      fills += n;
+  // Finish any duplicate-line group left over from the previous call first;
+  // its dirty bits are already claimed. lineBuf does not survive between
+  // calls (OSD sweeps and other groups reuse it), so schedule a re-fill.
+  if (s->groupActive) {
+    s->groupNeedFill = !s->groupPerLine;
+    fills += pumpPendingGroup(s, MAX_FILLS_PER_CALL);
+  }
+  if (!s->groupActive) {
+    if (s->fullRepaint) {
+      while (fills < MAX_FILLS_PER_CALL && s->fullRepaint && !s->groupActive) {
+        uint32_t n = sweepStep(s, mi, MAX_FILLS_PER_CALL - fills);
+        if (n == 0) break;  // ring full
+        fills += n;
+      }
+    } else if ((mi.rotation & 1u) == 0) {
+      fills += dirtyStepRot02(s, mi, MAX_FILLS_PER_CALL - fills);
+    } else {
+      fills += dirtyStepRot13(s, mi, MAX_FILLS_PER_CALL - fills);
     }
-  } else if ((mi.rotation & 1u) == 0) {
-    while (fills < MAX_FILLS_PER_CALL) {
-      uint32_t n = dirtyStepRot02(s, mi);
-      if (n == 0) break;
-      fills += n;
-    }
-  } else {
-    fills += dirtyStepRot13(s, mi, MAX_FILLS_PER_CALL - fills);
   }
 
   // Periodic OSD overlay refresh while the menu is open.
@@ -591,7 +667,7 @@ void displaylinkOutProcess(DisplaylinkOutState* s) {
     s->osdSweepActive = true;
     s->osdSweepY = s->osdY;
   }
-  if (fills < MAX_FILLS_PER_CALL) {
+  if (!s->groupActive && fills < MAX_FILLS_PER_CALL) {
     osdStep(s, MAX_FILLS_PER_CALL - fills);
   }
 

@@ -42,8 +42,19 @@ struct DisplaylinkOutState {
 
   // Pump state
   uint32_t lastEpoch;
-  bool sendFailed;     // a bulk send failed; triggers a full repaint
-  bool fullRepaint;    // resend everything incl. borders (epoch/connect)
+  bool sendFailed;   // a bulk send failed; triggers a full repaint
+  bool fullRepaint;  // resend everything incl. borders (epoch/connect)
+
+  // In-flight duplicate-line group (COPY16-free resend path). The dirty bits
+  // of the group are already claimed, so the remaining rows must eventually
+  // be sent; the pump resumes here first on every call. lineBuf is re-filled
+  // from groupFillLine when resuming across calls.
+  bool groupActive;
+  bool groupPerLine;   // OSD overlap: content differs per line, fill each
+  bool groupNeedFill;  // lineBuf must be (re)filled before the next send
+  uint32_t groupFillLine;
+  uint32_t groupNextY, groupEndY;
+  uint32_t groupX0, groupX1;
   uint32_t sweepY;     // full-repaint cursor (output line)
   uint16_t dirtyRow;   // incremental cursor (fb row, rot=0/2)
   bool aggValid;       // rot=1/3: per-segment aggregates are claimed

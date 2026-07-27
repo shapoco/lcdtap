@@ -294,6 +294,151 @@ void testSsd1306() {
   h.checkDirty(false, "ssd1306 changed byte");
 }
 
+// Deterministic RNG for the streaming tests.
+struct Lcg {
+  uint32_t s;
+  uint32_t next() {
+    s = s * 1664525u + 1013904223u;
+    return s >> 8;
+  }
+};
+
+// Emulate the DisplayLink pump's claim: read-and-clear each dirty row and
+// copy the covered framebuffer segments into a model of the device
+// framebuffer (in source coordinates; the output scaling math is exercised
+// elsewhere). Interleaved with input processing this checks the central
+// eventual-consistency property: after a settle claim, the device model must
+// equal the framebuffer exactly, i.e. no change may ever escape the map.
+void claimToDevice(Harness& h, std::vector<uint16_t>& device) {
+  uint8_t* map = h.tap.dirtyMap();
+  const uint16_t* fb = h.tap.getFramebuf();
+  for (uint32_t r = 0; r < h.fbH; ++r) {
+    uint8_t bits = map[r];
+    if (bits == 0) continue;
+    map[r] = 0;
+    for (uint32_t k = 0; k < 8u; ++k) {
+      if (!(bits & (1u << k))) continue;
+      uint32_t c0 = k << 6;
+      if (c0 >= h.fbW) continue;
+      uint32_t c1 = c0 + 63u;
+      if (c1 > (uint32_t)h.fbW - 1u) c1 = h.fbW - 1u;
+      for (uint32_t c = c0; c <= c1; ++c) {
+        device[r * h.fbW + c] = fb[r * h.fbW + c];
+      }
+    }
+  }
+}
+
+void checkDeviceMatchesFb(Harness& h, const std::vector<uint16_t>& device,
+                          const char* what) {
+  const uint16_t* fb = h.tap.getFramebuf();
+  int bad = 0;
+  uint32_t firstAt = 0;
+  for (uint32_t i = 0; i < (uint32_t)h.fbW * h.fbH; ++i) {
+    if (device[i] != fb[i]) {
+      if (bad == 0) firstAt = i;
+      ++bad;
+    }
+  }
+  CHECK(bad == 0, "%s: %d stale pixel(s), first at (%u, %u)", what, bad,
+        firstAt % h.fbW, firstAt / h.fbW);
+}
+
+// Arduboy-style workload: SSD1306 in horizontal addressing mode streaming
+// full 1KB frames back to back, with random per-frame mutations, random
+// chunk boundaries and pump claims interleaved mid-frame.
+void testSsd1306Streaming() {
+  printf("testSsd1306Streaming\n");
+  for (int remap = 0; remap < 2; ++remap) {
+    for (int comdec = 0; comdec < 2; ++comdec) {
+      LcdTapConfig cfg;
+      getDefaultConfig(ControllerFamily::SSD1306, &cfg);
+      cfg.dviWidth = 640;
+      cfg.dviHeight = 480;
+      Harness h(cfg);
+
+      h.cmd(0x20);
+      h.cmd(0x00);  // horizontal addressing mode
+      h.cmd(remap ? 0xA1 : 0xA0);
+      h.cmd(comdec ? 0xC8 : 0xC0);
+      h.cmd(0x21);  // column address window
+      h.cmd(0);
+      h.cmd((uint8_t)(h.fbW - 1));
+      h.cmd(0x22);  // page address window
+      h.cmd(0);
+      h.cmd((uint8_t)(h.fbH / 8 - 1));
+      h.clearFb();
+
+      const uint32_t frameBytes = (uint32_t)h.fbW * h.fbH / 8u;
+      std::vector<uint16_t> device((size_t)h.fbW * h.fbH, 0);
+      std::vector<uint8_t> pattern(frameBytes, 0);
+      Lcg rng{0x1234u + (uint32_t)(remap * 7 + comdec * 13)};
+
+      for (int frame = 0; frame < 100; ++frame) {
+        uint32_t muts = 1u + rng.next() % 30u;
+        for (uint32_t m = 0; m < muts; ++m) {
+          pattern[rng.next() % frameBytes] = (uint8_t)rng.next();
+        }
+        uint32_t pos = 0;
+        while (pos < frameBytes) {
+          uint32_t n = 1u + rng.next() % 97u;
+          if (pos + n > frameBytes) n = frameBytes - pos;
+          h.tap.inputData(pattern.data() + pos, n);
+          pos += n;
+          if (rng.next() % 3u == 0u) claimToDevice(h, device);
+        }
+      }
+      claimToDevice(h, device);
+      char what[64];
+      snprintf(what, sizeof(what), "ssd1306 stream remap=%d comdec=%d", remap,
+               comdec);
+      checkDeviceMatchesFb(h, device, what);
+    }
+  }
+}
+
+// ST7789 equivalent: continuous full-window RGB565 frames with random
+// mutations, random chunk boundaries and mid-frame claims, across MADCTL
+// orientations.
+void testSt7789Streaming() {
+  printf("testSt7789Streaming\n");
+  for (uint8_t madctl : {0x00u, 0x20u, 0xC0u, 0xE0u}) {
+    Harness h(st7789Config(240, 320));
+    h.cmd(0x36);
+    h.dat({madctl});
+    h.clearFb();
+
+    uint16_t lw = (madctl & 0x20u) ? 320 : 240;
+    uint16_t lh = (madctl & 0x20u) ? 240 : 320;
+    const uint32_t framePx = (uint32_t)lw * lh;
+    std::vector<uint16_t> device((size_t)h.fbW * h.fbH, 0);
+    std::vector<uint16_t> pattern(framePx, 0);
+    Lcg rng{0xBEEFu + madctl};
+
+    h.setWindow(0, (uint16_t)(lw - 1), 0, (uint16_t)(lh - 1));
+    h.cmd(0x2C);  // stream continuously with wrap-around
+    for (int frame = 0; frame < 30; ++frame) {
+      uint32_t muts = 1u + rng.next() % 200u;
+      for (uint32_t m = 0; m < muts; ++m) {
+        pattern[rng.next() % framePx] = (uint16_t)rng.next();
+      }
+      std::vector<uint8_t> bytes = pixels565(pattern);
+      uint32_t pos = 0;
+      while (pos < bytes.size()) {
+        uint32_t n = 1u + rng.next() % 331u;
+        if (pos + n > bytes.size()) n = (uint32_t)bytes.size() - pos;
+        h.tap.inputData(bytes.data() + pos, n);
+        pos += n;
+        if (rng.next() % 3u == 0u) claimToDevice(h, device);
+      }
+    }
+    claimToDevice(h, device);
+    char what[48];
+    snprintf(what, sizeof(what), "st7789 stream MADCTL %02X", madctl);
+    checkDeviceMatchesFb(h, device, what);
+  }
+}
+
 void testEpoch() {
   printf("testEpoch\n");
   Harness h(st7789Config(240, 320));
@@ -365,6 +510,8 @@ int main() {
   testMadctlOrientations();
   testInterfaceFormats();
   testSsd1306();
+  testSsd1306Streaming();
+  testSt7789Streaming();
   testEpoch();
   testOutputMapInfo();
   testTrackingGate();
