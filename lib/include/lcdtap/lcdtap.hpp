@@ -74,6 +74,11 @@ enum class DumpState : uint8_t {
 //   srcLine = ((y - destY) * stepV) >> 16
 //   rot=0: fb row = srcY + srcLine          rot=2: fb row = srcY+srcH-1-srcLine
 //   rot=1: fb col = srcX + srcLine          rot=3: fb col = srcX+srcW-1-srcLine
+// Along the line, the forward orientations (rot=0/3) sample source index
+//   idx(x) = ((x - destX) * stepH) >> 16
+// and the mirrored orientations (rot=2/1) are guaranteed to sample the exact
+// mirror, idx(destX + destW-1 - x): mirrored spans can be derived from
+// forward spans by reflection without rounding error.
 // Everything outside the active rect is black, as is the whole screen while
 // blanked is true.
 struct OutputMapInfo {

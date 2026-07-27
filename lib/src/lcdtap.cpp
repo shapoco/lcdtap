@@ -797,11 +797,15 @@ void LCDTAP_RAM_FUNC LcdTap::fillScanline(uint16_t dviLine,
     case 2: {
       // rot=0: fb[(lcdRowOut+srcY)*stride + srcX + col], forward
       // rot=2: fb[(srcB-lcdRowOut)*stride + srcX + col], reverse
+      // Reversed start = (destW-1)*stepH so the sample index at output k is
+      // exactly the forward index at destW-1-k: the mirrored image is the
+      // pixel-exact mirror of the forward one, and span consumers
+      // (DisplayLink partial updates) can map mirrored spans by reflecting
+      // forward spans without rounding error.
       const bool rev = (ctrl->outputRotation == 2);
       const uint16_t* src = rev ? fb + (srcB - lcdRowOut) * stride + srcX
                                 : fb + (lcdRowOut + srcY) * stride + srcX;
-      uint32_t hAccum =
-          rev ? ((srcW - 1) << FIXPT_PREC) + ((1 << FIXPT_PREC) - 1) : 0;
+      uint32_t hAccum = rev ? (uint32_t)(destW - 1) * stepH : 0;
       const uint32_t hStep = rev ? (uint32_t)(-(int32_t)stepH) : stepH;
       scaleLine(src, dest, destW, hAccum, hStep, 1);
       break;
@@ -810,11 +814,11 @@ void LCDTAP_RAM_FUNC LcdTap::fillScanline(uint16_t dviLine,
     case 3: {
       // rot=1: fb[srcY*stride + (lcdRowOut+srcX) + row*stride], rows srcH-1→0
       // rot=3: fb[srcY*stride + (srcR-lcdRowOut)  + row*stride], rows 0→srcH-1
+      // Reversed start: same exact-mirror form as rot=2 above.
       const bool rev = (ctrl->outputRotation == 1);
       const uint16_t* src = rev ? fb + srcY * stride + lcdRowOut + srcX
                                 : fb + srcY * stride + (srcR - lcdRowOut);
-      uint32_t hAccum =
-          rev ? ((srcH - 1) << FIXPT_PREC) + ((1 << FIXPT_PREC) - 1) : 0;
+      uint32_t hAccum = rev ? (uint32_t)(destW - 1) * stepH : 0;
       const uint32_t hStep = rev ? (uint32_t)(-(int32_t)stepH) : stepH;
       scaleLine(src, dest, destW, hAccum, hStep, stride);
       break;

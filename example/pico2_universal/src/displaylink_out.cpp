@@ -8,6 +8,8 @@
 #include "usb_disp.h"
 #include "usb_disp_udh_host.h"
 
+#include "displaylink_map.hpp"
+
 // ---------------------------------------------------------------------------
 // Tuning
 // ---------------------------------------------------------------------------
@@ -94,44 +96,8 @@ static void copySpan(DisplaylinkOutState* s, uint32_t x0, uint32_t x1,
 }
 #endif
 
-// First output line whose mapped (crop-relative) source line index is t.
-// The mapping is srcLine(y) = ((y - destY) * stepV) >> 16, monotonic, so the
-// duplicate group of t is [firstLine(t), firstLine(t+1) - 1].
-static inline uint32_t groupFirstLine(const lcdtap::OutputMapInfo& mi,
-                                      uint32_t t) {
-  if (mi.stepV == 0) return mi.destY;
-  return mi.destY +
-         static_cast<uint32_t>(
-             ((static_cast<uint64_t>(t) << 16) + mi.stepV - 1u) / mi.stepV);
-}
-
-// Map a crop-relative source index range [sc0, sc1] along the output line
-// direction to an output x span. mirrored selects the reversed-accumulator
-// orientations (rot=2 columns, rot=1 rows); the ±1 expansion absorbs the
-// fixed-point rounding difference between the forward and reversed forms.
-static bool srcRangeToSpan(const lcdtap::OutputMapInfo& mi, uint32_t sc0,
-                           uint32_t sc1, bool mirrored, uint32_t* x0,
-                           uint32_t* x1) {
-  if (mi.stepH == 0 || mi.destW == 0) return false;
-  uint32_t a = static_cast<uint32_t>(
-      ((static_cast<uint64_t>(sc0) << 16) + mi.stepH - 1u) / mi.stepH);
-  uint32_t b = static_cast<uint32_t>(
-      ((static_cast<uint64_t>(sc1 + 1u) << 16) + mi.stepH - 1u) / mi.stepH);
-  int32_t r0 = static_cast<int32_t>(a) - 1;
-  int32_t r1 = static_cast<int32_t>(b);  // (b - 1) + 1 rounding guard
-  if (r0 < 0) r0 = 0;
-  if (r1 > static_cast<int32_t>(mi.destW) - 1) r1 = mi.destW - 1;
-  if (r0 > r1) return false;
-  if (mirrored) {
-    int32_t m0 = static_cast<int32_t>(mi.destW) - 1 - r1;
-    int32_t m1 = static_cast<int32_t>(mi.destW) - 1 - r0;
-    r0 = m0;
-    r1 = m1;
-  }
-  *x0 = mi.destX + static_cast<uint32_t>(r0);
-  *x1 = mi.destX + static_cast<uint32_t>(r1);
-  return true;
-}
+// Output-mapping helpers (groupFirstLine / srcRangeToSpan) live in
+// displaylink_map.hpp so the host-side span test exercises the same code.
 
 // Continue an in-flight duplicate-line group: send remaining rows while the
 // ring and the fill budget allow. The group's dirty bits are already
