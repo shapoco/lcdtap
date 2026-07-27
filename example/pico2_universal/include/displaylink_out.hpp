@@ -42,6 +42,7 @@ struct DisplaylinkOutState {
 
   // Pump state
   uint32_t lastEpoch;
+  bool sendFailed;     // a bulk send failed; triggers a full repaint
   bool fullRepaint;    // resend everything incl. borders (epoch/connect)
   uint32_t sweepY;     // full-repaint cursor (output line)
   uint16_t dirtyRow;   // incremental cursor (fb row, rot=0/2)

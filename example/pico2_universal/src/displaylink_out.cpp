@@ -57,18 +57,27 @@ static void fillLine(DisplaylinkOutState* s, uint32_t y) {
   if (s->fillCb) s->fillCb(static_cast<uint16_t>(y), s->lineBuf, s->fillUser);
 }
 
+// A failed send means the device did not (fully) receive pixels whose dirty
+// bits were already claimed; the failure is latched and process() schedules
+// a full repaint so nothing is lost once the link works again.
 static void sendSpan(DisplaylinkOutState* s, uint32_t y, uint32_t x0,
                      uint32_t x1) {
   uint32_t w = x1 - x0 + 1u;
-  usb_disp_update_565(D(s), static_cast<uint16_t>(x0), static_cast<uint16_t>(y),
-                      static_cast<uint16_t>(w), 1u, s->lineBuf + x0, w);
+  if (!usb_disp_update_565(D(s), static_cast<uint16_t>(x0),
+                           static_cast<uint16_t>(y), static_cast<uint16_t>(w),
+                           1u, s->lineBuf + x0, w)) {
+    s->sendFailed = true;
+  }
 }
 
 static void copySpan(DisplaylinkOutState* s, uint32_t x0, uint32_t x1,
                      uint32_t ySrc, uint32_t yDst) {
-  usb_disp_copy(D(s), static_cast<uint16_t>(x0), static_cast<uint16_t>(ySrc),
-                static_cast<uint16_t>(x0), static_cast<uint16_t>(yDst),
-                static_cast<uint16_t>(x1 - x0 + 1u), 1u);
+  if (!usb_disp_copy(D(s), static_cast<uint16_t>(x0),
+                     static_cast<uint16_t>(ySrc), static_cast<uint16_t>(x0),
+                     static_cast<uint16_t>(yDst),
+                     static_cast<uint16_t>(x1 - x0 + 1u), 1u)) {
+    s->sendFailed = true;
+  }
 }
 
 // First output line whose mapped (crop-relative) source line index is t.
@@ -111,12 +120,43 @@ static bool srcRangeToSpan(const lcdtap::OutputMapInfo& mi, uint32_t sc0,
 }
 
 // Send one group of duplicate output lines: fill+send the first, COPY16 the
-// rest (no pixel re-transmission for the vertical upscale).
+// rest (no pixel re-transmission for the vertical upscale). Lines under the
+// OSD overlay are not vertical duplicates of each other (the OSD renders
+// per-line content on top), so overlapping groups are generated and sent
+// line by line instead of copied.
 static void sendGroup(DisplaylinkOutState* s, uint32_t y0, uint32_t y1,
                       uint32_t x0, uint32_t x1) {
+  const bool overlapsOsd =
+      s->osdActive && y1 > y0 && s->osdW != 0 && y1 >= s->osdY &&
+      y0 <= static_cast<uint32_t>(s->osdY + s->osdH) - 1u && x1 >= s->osdX &&
+      x0 <= static_cast<uint32_t>(s->osdX + s->osdW) - 1u;
+  if (overlapsOsd) {
+    for (uint32_t y = y0; y <= y1; ++y) {
+      fillLine(s, y);
+      sendSpan(s, y, x0, x1);
+    }
+    return;
+  }
   fillLine(s, y0);
   sendSpan(s, y0, x0, x1);
   for (uint32_t y = y0 + 1u; y <= y1; ++y) copySpan(s, x0, x1, y0, y);
+}
+
+// Start (or restart) a full repaint. The pending dirt is claimed here, at
+// the start: the sweep resends everything with current framebuffer content
+// anyway, while dirt that arrives during the multi-call sweep may cover
+// regions the sweep has already passed and therefore must survive until the
+// incremental pump picks it up. Clearing the map at sweep *completion* would
+// silently drop such updates — and because hosts rewrite identical pixel
+// values every frame, the value compare would never mark them again,
+// leaving permanently stale lines on screen.
+static void startFullRepaint(DisplaylinkOutState* s) {
+  memset(s->inst->dirtyMap(), 0, s->inst->getConfig().buffHeight);
+  s->fullRepaint = true;
+  s->sweepY = 0;
+  s->dirtyRow = 0;
+  s->aggValid = false;
+  s->aggPending = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -154,12 +194,8 @@ static uint32_t sweepStep(DisplaylinkOutState* s,
   s->sweepY = y1 + 1u;
 
   if (s->sweepY >= outH) {
-    // Everything on the device is now current; drop the accumulated dirt.
-    memset(s->inst->dirtyMap(), 0,
-           s->inst->getConfig().buffHeight * sizeof(uint8_t));
-    s->dirtyRow = 0;
-    s->aggValid = false;
-    s->aggPending = 0;
+    // The dirty map was claimed when the repaint started (startFullRepaint);
+    // dirt that accumulated during the sweep stays for the incremental pump.
     // Without dirty tracking (oversized framebuffer) fall back to a
     // continuous rolling refresh.
     s->fullRepaint = !s->inst->isDirtyTrackingActive();
@@ -208,7 +244,6 @@ static uint32_t dirtyStepRot02(DisplaylinkOutState* s,
     if (y0 > yMax) return 1;
     if (y1 > yMax) y1 = yMax;
 
-    bool filled = false;
     for (uint32_t b = 0; b < 8u; ++b) {
       if (!(bits & (1u << b))) continue;
       // Merge the run of consecutive set bits into one span.
@@ -228,12 +263,7 @@ static uint32_t dirtyStepRot02(DisplaylinkOutState* s,
                           &x1)) {
         continue;
       }
-      if (!filled) {
-        fillLine(s, y0);
-        filled = true;
-      }
-      sendSpan(s, y0, x0, x1);
-      for (uint32_t y = y0 + 1u; y <= y1; ++y) copySpan(s, x0, x1, y0, y);
+      sendGroup(s, y0, y1, x0, x1);
     }
     return 1;
   }
@@ -401,8 +431,7 @@ static void setupMode(DisplaylinkOutState* s) {
   s->outW = w;
   s->outH = h;
   s->modeSet = true;
-  s->fullRepaint = true;
-  s->sweepY = 0;
+  startFullRepaint(s);
   s->lastEpoch = s->inst->getPresentationEpoch();
 }
 
@@ -477,11 +506,18 @@ void displaylinkOutFlashAcquire(DisplaylinkOutState* s) {
 void displaylinkOutFlashRelease(DisplaylinkOutState* s) {
   s->parkReq = false;
   while (s->parked) tight_loop_contents();
-  // SOF stopped during the flash write; if the adapter dropped off the bus,
-  // the library's dead-bus detection re-enumerates it. Resend everything
-  // once the link is up again either way.
-  s->fullRepaint = true;
-  s->sweepY = 0;
+  // SOF stopped for the whole flash write (well past the 3 ms USB suspend
+  // threshold), so the adapter has entered suspend. This host has no resume
+  // signalling, restarting SOFs alone does not reliably wake DL chips, and a
+  // suspended bus idles at J so no disconnect edge is ever detected — the
+  // device would just stay dark. Recover deterministically instead: force a
+  // re-enumeration (the detect path also flushes the bulk ring, so no
+  // half-queued command reaches the fresh connection) and renegotiate the
+  // mode, which ends in a full repaint.
+  if (s->disp != nullptr) {
+    usb_disp_force_reenum(D(s));
+    s->modeSet = false;
+  }
 }
 
 void displaylinkOutSetOsdRect(DisplaylinkOutState* s, bool active, uint16_t x,
@@ -526,9 +562,7 @@ void displaylinkOutProcess(DisplaylinkOutState* s) {
   const uint32_t epoch = s->inst->getPresentationEpoch();
   if (epoch != s->lastEpoch) {
     s->lastEpoch = epoch;
-    s->fullRepaint = true;
-    s->sweepY = 0;
-    s->aggValid = false;
+    startFullRepaint(s);
   }
 
   lcdtap::OutputMapInfo mi;
@@ -540,7 +574,6 @@ void displaylinkOutProcess(DisplaylinkOutState* s) {
       uint32_t n = sweepStep(s, mi);
       if (n == 0) break;  // ring full
       fills += n;
-      if (s->sweepY == 0 && !s->fullRepaint) break;  // sweep finished
     }
   } else if ((mi.rotation & 1u) == 0) {
     while (fills < MAX_FILLS_PER_CALL) {
@@ -560,5 +593,13 @@ void displaylinkOutProcess(DisplaylinkOutState* s) {
   }
   if (fills < MAX_FILLS_PER_CALL) {
     osdStep(s, MAX_FILLS_PER_CALL - fills);
+  }
+
+  // A send failed after its dirty bits were already claimed (transient NAK
+  // stall, device suspend/drop). Repaint everything once the link recovers
+  // rather than leaving stale regions the value compare would never re-mark.
+  if (s->sendFailed) {
+    s->sendFailed = false;
+    startFullRepaint(s);
   }
 }
