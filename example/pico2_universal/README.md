@@ -9,6 +9,7 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 - Settings (including selected interface) saved to flash on Apply and restored at next boot
 - DVI output: 640×480@60Hz or 1280×720@30Hz selectable via GPIO21 at boot
 - Composite video output (NTSC/PAL) on otherwise-unused GPIOs, selectable from the OSD: a 1-pin PWM DAC or a 7-bit R-2R ladder
+- DisplayLink output: drives a USB graphics adapter (DisplayLink DL-1x0/1x5) at 1280×720 or 1920×1080@60Hz via a PIO USB Full-Speed host on GPIO10/11 (best-effort update rate)
 - USB CDC serial interface for remote configuration and framebuffer readout from a PC or smartphone
 
 > [!WARNING]
@@ -30,6 +31,7 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 | 0     | IN        | RST | v | v | LCD Hardware reset (SPI mode) |
 | 5–11  | OUT       | CVBS_D[0..6] | | | Composite R-2R ladder (SPI modes only, when selected) |
 | 10    | OUT       | CVBS_PWM | | | Composite PWM output (SPI/I2C, when selected) |
+| 10/11 | I/O       | USB_DP / USB_DM | | | DisplayLink USB host D+/D- (SPI/I2C, when selected) |
 | 12–19 | OUT       | (DVI signals) | | | RP2350 HSTX |
 | 20    | IN        | CFG_OUT_720P | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
 | 21    | IN        | KEY_DOWN | v | v | Low=pressed |
@@ -178,6 +180,32 @@ The drive strength stays at 12 mA (set in firmware).
 > works on relative levels. **Do not** retune it with `lvlWhite` / `lvlBlank`
 > in `composite_timing.cpp`: those are shared with the PWM DAC. Use 1 %
 > resistors, and keep 2R = 200 and the termination = 200 as a matched set.
+
+## DisplayLink Output (USB)
+
+Select `DispLink` as the `Output` (or `outputInterface = 3` over USB CDC) to
+drive a USB graphics display adapter instead of the HDMI connector. The
+adapter is driven by a PIO-based USB **Full-Speed** host
+([Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp)) on GPIO10 (D+)
+and GPIO11 (D−), so only the **DisplayLink DL-1x0 / DL-1x5** generation
+works — newer chips (DL-3xxx and later) require High-Speed and encrypted
+protocols. 1920×1080 needs a DL-165 or DL-195; smaller chips automatically
+fall back to 1280×720.
+
+- **Resolution** follows the CFG_OUT_720P pin: open = 1280×720@60Hz,
+  low = 1920×1080@60Hz (the DVI 480p/720p slots map to 720p/1080p).
+- The adapter scans out a stable 60 Hz signal from its own framebuffer; the
+  Pico streams **best-effort partial updates** over the ~1 MB/s bulk link.
+  Only lines whose pixel values actually changed are re-sent, so mostly
+  static screens update quickly; a full-screen change takes on the order of
+  0.3–1 s (tearing can occur — there is no vsync over USB).
+- Unavailable on the parallel bus (GPIO10/11 are D[7] and D/C# there), and
+  mutually exclusive with the composite DACs, which share GPIO10.
+
+Hardware: wire a USB-A receptacle with **5 V bus power (500 mA class)** to
+the adapter, D+/D− to GPIO10/11. The 3.3 V GPIO levels match USB FS
+signalling directly; series damping resistors up to ~47 Ω are tolerable at
+Full-Speed (22–27 Ω preferred).
 
 ## Uploading Firmware
 

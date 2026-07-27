@@ -87,7 +87,7 @@ Two host-side settings appear in the list as well. They are not `ConfigId`s, so 
     "type": "ENUM",
     "name": "Output Interface",
     "unit": null,
-    "options": {"DVI-D": 0, "NTSC": 1, "PAL": 2},
+    "options": {"DVI-D": 0, "NTSC": 1, "PAL": 2, "DispLink": 3},
     "value": 0,
     "enableKeyId": "cfg1",
     "enableKeyValueMin": 0,
@@ -108,7 +108,7 @@ Two host-side settings appear in the list as well. They are not `ConfigId`s, so 
 
 Note that `compositeDac` is gated on `outputInterface` — an `enableKeyId` can name any parameter, not just a `cfgN`.
 
-Composite output needs GPIOs that the parallel bus already uses, so `outputInterface` is only selectable when `cfg1` (bus interface) is 0-2, and is silently forced back to `DVI-D` otherwise.
+Composite output (GPIO5-11) and DisplayLink output (USB D+/D- on GPIO10/11) need GPIOs that the parallel bus already uses, so `outputInterface` is only selectable when `cfg1` (bus interface) is 0-2, and is silently forced back to `DVI-D` otherwise.
 
 ### Enable-key cascade
 
@@ -206,12 +206,12 @@ Set LcdTap configuration parameters in bulk from the host.
 
 **Some changes reset the device.** The firmware saves the new values, sends the `ok` response, and then reboots. The USB CDC connection will drop and re-enumerate; reconnect before sending further commands. A reset happens when:
 
-- `outputInterface` changes — each mode needs a different system clock (DVI-D 312 MHz, NTSC 315 MHz, PAL 301.5 MHz).
+- `outputInterface` changes — each output binds its clocks and peripherals at startup (DVI-D and DispLink share clk_sys 312 MHz, NTSC 315 MHz, PAL 301.5 MHz).
 - `cfg1` (bus interface) or `compositeDac` changes **while a composite mode is selected** — the DAC binds to its pins and peripheral at startup.
 
 Changing `compositeDac` while `outputInterface` is `DVI-D` does not reset; nothing composite is running.
 
-Reset is also the escape route if a composite mode is selected with no TV attached: USB CDC keeps working in every mode, so `setparams` with `"outputInterface": 0` restores DVI-D. Holding the LEFT key at power-on also boots with default settings.
+Reset is also the escape route if a composite or DisplayLink mode is selected with no display attached: USB CDC keeps working in every mode, so `setparams` with `"outputInterface": 0` restores DVI-D. Holding the LEFT key at power-on also boots with default settings.
 
 ### getframebuffer
 
