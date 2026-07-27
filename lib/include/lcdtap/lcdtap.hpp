@@ -63,6 +63,31 @@ enum class DumpState : uint8_t {
 };
 
 //=============================================================================
+// Output mapping info (see LcdTap::getOutputMapInfo)
+//=============================================================================
+// Snapshot of the scaling parameters used by fillScanline(), for host-side
+// partial-update pumps that need to map framebuffer regions to output
+// regions (e.g. a USB display that is updated by dirty rectangles).
+//
+// Mapping formulas (identical to fillScanline):
+//   active output rect: x in [destX, destX+destW), y in [destY, destY+destH)
+//   srcLine = ((y - destY) * stepV) >> 16
+//   rot=0: fb row = srcY + srcLine          rot=2: fb row = srcY+srcH-1-srcLine
+//   rot=1: fb col = srcX + srcLine          rot=3: fb col = srcX+srcW-1-srcLine
+// Everything outside the active rect is black, as is the whole screen while
+// blanked is true.
+struct OutputMapInfo {
+  uint16_t destX, destY;  // active rect origin (destX pre-aligned to even)
+  uint16_t destW, destH;  // active rect size
+  uint16_t srcX, srcY;    // fb crop origin (physical, pre-rotation)
+  uint16_t srcW, srcH;    // fb crop size
+  uint32_t stepH, stepV;  // 16.16 fixed-point source step per output px/line
+  uint8_t rotation;       // output rotation 0..3
+  uint16_t fbWidth, fbHeight;  // physical framebuffer size
+  bool blanked;                // true: fillScanline outputs black everywhere
+};
+
+//=============================================================================
 // Main class
 //=============================================================================
 class LcdTap {
@@ -121,6 +146,36 @@ class LcdTap {
 
   // Returns true if the R and B channels are swapped.
   bool isOutputSwapRB() const;
+
+  //--- Dirty-line tracking (for host-side partial output updates) ---
+
+  // The framebuffer is tracked in physical coordinates as one byte per row;
+  // bit k covers columns [64k, 64k+63]. A bit is set only when a write
+  // actually changed a pixel value, so hosts that rewrite the full screen
+  // every frame produce no dirty bits for unchanged content.
+  static constexpr uint16_t DIRTY_SEG_PX = 64;
+  static constexpr uint16_t MAX_DIRTY_ROWS = 512;
+
+  // Enable/disable tracking. Enabling marks everything dirty. Tracking stays
+  // inactive (isDirtyTrackingActive() == false) when the framebuffer exceeds
+  // MAX_DIRTY_ROWS in either dimension; hosts must then treat every row as
+  // permanently dirty.
+  void setDirtyTracking(bool on);
+  bool isDirtyTrackingActive() const;
+
+  // One byte per physical framebuffer row (buffHeight rows). The caller
+  // clears the bytes it has consumed; no locking is provided, so producer
+  // (input processing) and consumer must run on the same core.
+  uint8_t* dirtyMap();
+  void markAllDirty();
+
+  // Incremented whenever the output can change without a framebuffer write
+  // (inversion, sleep/display-on, trim/scale/rotation changes, resets).
+  // Hosts resend the whole screen when this value changes.
+  uint32_t getPresentationEpoch() const;
+
+  // Snapshot of the fillScanline() mapping parameters (see OutputMapInfo).
+  void getOutputMapInfo(OutputMapInfo* out) const;
 
   //--- Command dump ---
 

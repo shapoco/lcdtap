@@ -70,6 +70,22 @@ class ControllerBase {
   uint16_t cachedInverter;
   uint16_t* writePtr;
 
+  // Dirty-line tracking (see LcdTap::setDirtyTracking). One byte per physical
+  // framebuffer row; bit k covers columns [64k, 64k+63]. Bits are set only
+  // when a write actually changes a pixel value. presentEpoch counts output
+  // changes that bypass the framebuffer (inversion, sleep, scaling, resets).
+  bool dirtyTracking = false;
+  uint32_t presentEpoch = 0;
+  uint8_t dirtyMap[LcdTap::MAX_DIRTY_ROWS];
+
+  // Per-call accumulator for the RAMWR write loop. diff collects XORs of
+  // old/new pixel values within the current 64px segment; segBits collects
+  // the dirty segments (in logical x) of the current logical row.
+  struct DirtyAcc {
+    uint32_t diff;
+    uint32_t segBits;
+  };
+
   // --- Controller-specific virtual interface ---
 
   // Logical width/height taking MADCTL MV into account
@@ -120,14 +136,64 @@ class ControllerBase {
   // coordinates)
   void expandTrimY(uint16_t y0, uint16_t y1);
 
-  // Write one RGB565 pixel to the framebuffer (respects MADCTL BGR)
-  LCDTAP_INLINE void writePixelRgb565(uint_fast16_t px) {
+  // --- Dirty marking (out-of-line, cold relative to the pixel loop) ---
+
+  void bumpEpoch() { ++presentEpoch; }
+
+  // OR the segment bits covering [physCol0, physCol1] into rows
+  // [physRow0, physRow1] of dirtyMap. Coordinates are physical and clamped.
+  void markDirtyRect(uint32_t physRow0, uint32_t physRow1, uint32_t physCol0,
+                     uint32_t physCol1);
+
+  // Mark a logical-coordinate rectangle dirty (translated through
+  // physIndex(); the mapping is axis-aligned so the two corners suffice).
+  void markLogicalRectDirty(uint32_t lx0, uint32_t lx1, uint32_t ly0,
+                            uint32_t ly1);
+
+  // Mark the segments of one completed logical row. segBits are 64px segment
+  // bits in logical x; each is clipped to the CASET window and translated to
+  // physical rows/columns.
+  void markLogicalRowDirty(uint32_t ly, uint32_t segBits);
+
+  void markAllDirty();
+
+  // Fold the current segment's diff accumulation into segBits. Called at
+  // 64px boundaries and at row/chunk ends; ramwrX must point one past the
+  // last written pixel.
+  LCDTAP_INLINE void flushDirtySeg(DirtyAcc& acc) {
+    if (acc.diff != 0) {
+      acc.segBits |= 1u << ((ramwrX - 1u) >> 6);
+      acc.diff = 0;
+    }
+  }
+
+  // Fold and publish the accumulated segments of the current logical row.
+  LCDTAP_INLINE void flushDirtyRow(DirtyAcc& acc) {
+    flushDirtySeg(acc);
+    if (acc.segBits != 0) {
+      markLogicalRowDirty(ramwrY, acc.segBits);
+      acc.segBits = 0;
+    }
+  }
+
+  // Write one RGB565 pixel to the framebuffer (respects MADCTL BGR).
+  // kDirty=false compiles to the historical body with zero extra work; the
+  // dirty variant additionally XORs the old pixel into acc.
+  template <bool kDirty>
+  LCDTAP_INLINE void writePixelRgb565(uint_fast16_t px, DirtyAcc& acc) {
     if (cachedBGR) {  // BGR: swap R[15:11] and B[4:0]
       px = ((px << 11) & 0xF800u) | (px & 0x07E0u) | ((px >> 11) & 0x1Fu);
     }
-    *writePtr = px ^ cachedInverter;
+    px ^= cachedInverter;
+    if (kDirty) {
+      acc.diff |= static_cast<uint32_t>(*writePtr ^ px);
+    }
+    *writePtr = static_cast<uint16_t>(px);
     writePtr += cachedHStep;
-    if (++ramwrX > casetXE) {
+    ++ramwrX;
+    if (kDirty && (ramwrX & 63u) == 0u) flushDirtySeg(acc);
+    if (ramwrX > casetXE) {
+      if (kDirty) flushDirtyRow(acc);
       ramwrX = casetXS;
       if (++ramwrY > rasetYE) {
         ramwrY = rasetYS;
@@ -139,6 +205,12 @@ class ControllerBase {
   // loop) Override in derived classes to handle custom formats.
   virtual void processRamwrData(const uint8_t* data, uint32_t numBytes,
                                 uint32_t stride);
+
+  // Shared body of processRamwrData, compiled once per dirty-tracking state
+  // so the tracking-off path keeps its historical codegen.
+  template <bool kDirty>
+  void processRamwrDataImpl(const uint8_t* data, uint32_t numBytes,
+                            uint32_t stride);
 
   // Process a data byte stream: RAMWR data is handled in bulk, others byte by
   // byte

@@ -41,6 +41,7 @@ class Ssd1331Controller : public ControllerBase {
   void copyRegion(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t xd,
                   int16_t yd);
   void setPixelAt(int16_t x, int16_t y, uint16_t color);
+  void markAccelRectDirty(int16_t x0, int16_t y0, int16_t x1, int16_t y1);
   uint16_t makeColor(uint8_t r6, uint8_t g6, uint8_t b6) const;
 };
 

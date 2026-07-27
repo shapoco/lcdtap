@@ -82,6 +82,7 @@ void SpiDisplayBase::dispatchCommand(uint8_t cmd) {
       break;
     case CMD_SLPOUT:
       sleeping = false;
+      bumpEpoch();
       log("SLPOUT");
       break;
     case CMD_INVOFF:
@@ -94,6 +95,7 @@ void SpiDisplayBase::dispatchCommand(uint8_t cmd) {
       break;
     case CMD_DISPON:
       displayOn = true;
+      bumpEpoch();
       log("DISPON");
       break;
     case CMD_RAMWR:

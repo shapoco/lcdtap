@@ -122,10 +122,12 @@ void Ssd1306Controller::dispatchCommand(uint8_t cmd) {
   switch (cmd) {
     case CMD_DISPLAY_OFF:
       displayOn = false;
+      bumpEpoch();
       log("SSD1306: DISPLAY_OFF");
       break;
     case CMD_DISPLAY_ON:
       displayOn = true;
+      bumpEpoch();
       log("SSD1306: DISPLAY_ON");
       break;
     case CMD_NORMAL_DISPLAY:
@@ -186,6 +188,8 @@ void Ssd1306Controller::processRamwrData(const uint8_t* data, uint32_t numElems,
     uint8_t byte = data[i];
 
     // Write 8 pixels vertically from 1 byte
+    uint32_t diff = 0;
+    uint16_t physRowMin = 0xFFFFu, physRowMax = 0, physColLast = 0;
     for (uint16_t bit = 0; bit < 8u; ++bit) {
       uint16_t row = static_cast<uint16_t>(ramwrY + bit);
       if (row < lcdH) {
@@ -194,10 +198,20 @@ void Ssd1306Controller::processRamwrData(const uint8_t* data, uint32_t numElems,
         uint16_t physCol = effectiveSegmentRemap()
                                ? static_cast<uint16_t>(lcdW - 1u - ramwrX)
                                : ramwrX;
-        frameBuffer[physRow * lcdW + physCol] =
-            static_cast<uint16_t>((byte & 1u) ? 0xFFFFu : 0x0000u);
+        uint16_t px = static_cast<uint16_t>((byte & 1u) ? 0xFFFFu : 0x0000u);
+        uint16_t* dst = &frameBuffer[physRow * lcdW + physCol];
+        if (dirtyTracking) {
+          diff |= static_cast<uint32_t>(*dst ^ px);
+          if (physRow < physRowMin) physRowMin = physRow;
+          if (physRow > physRowMax) physRowMax = physRow;
+          physColLast = physCol;
+        }
+        *dst = px;
       }
       byte >>= 1;
+    }
+    if (diff != 0) {
+      markDirtyRect(physRowMin, physRowMax, physColLast, physColLast);
     }
 
     // Advance write position

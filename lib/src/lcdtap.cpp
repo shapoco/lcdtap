@@ -72,6 +72,7 @@ void ControllerBase::calcScaleParams() {
     outSrcH = 0;
     outSrcStepH = 0;
     outSrcStepV = 0;
+    bumpEpoch();
     return;
   }
 
@@ -129,6 +130,7 @@ void ControllerBase::calcScaleParams() {
   outSrcH = static_cast<uint16_t>(trimH);
   outSrcStepH = ((uint32_t)srcW << FIXPT_PREC) / outDestW;
   outSrcStepV = ((uint32_t)srcH << FIXPT_PREC) / outDestH;
+  bumpEpoch();
 }
 
 void ControllerBase::log(const char* msg) const {
@@ -136,6 +138,7 @@ void ControllerBase::log(const char* msg) const {
 }
 
 void ControllerBase::resetCommon() {
+  bumpEpoch();
   sleeping = true;
   displayOn = false;
   setInverted(false);
@@ -163,6 +166,7 @@ void ControllerBase::resetCommon() {
 void ControllerBase::setInverted(bool inv) {
   inverted = inv;
   cachedInverter = inverted ? 0xFFFFu : 0x0000u;
+  bumpEpoch();
 }
 
 // Expand the trim area to include the specified rectangle (logical coordinates)
@@ -200,11 +204,23 @@ void ControllerBase::expandTrimY(uint16_t y0, uint16_t y1) {
 }
 
 // Process all RAMWR data at once (moves switch(interfaceFormat) outside the
-// loop)
+// loop). Dispatches to the template body so the tracking-off path keeps its
+// historical codegen (no per-pixel cost when dirty tracking is disabled).
 void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
                                       uint32_t stride) {
+  if (dirtyTracking) {
+    processRamwrDataImpl<true>(data, numBytes, stride);
+  } else {
+    processRamwrDataImpl<false>(data, numBytes, stride);
+  }
+}
+
+template <bool kDirty>
+void ControllerBase::processRamwrDataImpl(const uint8_t* data,
+                                          uint32_t numBytes, uint32_t stride) {
   int32_t i = 0;
   int32_t length = numBytes * stride;
+  DirtyAcc acc = {0, 0};
 
   InterfaceFormat effectiveFmt =
       (config.interfaceFormatOverride >= 0)
@@ -224,7 +240,8 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         r5 = (r5 << 2) | (r5 >> 1);
         uint_fast16_t g6 = (g3 << 3) | g3;
         uint_fast16_t b5 = (b2 << 3) | (b2 << 1) | (b2 >> 1);
-        writePixelRgb565(static_cast<uint16_t>((r5 << 11) | (g6 << 5) | b5));
+        writePixelRgb565<kDirty>(
+            static_cast<uint16_t>((r5 << 11) | (g6 << 5) | b5), acc);
       }
       break;
     }
@@ -238,8 +255,8 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
       while (i < length) {
         uint8_t b = data[i];
         i += stride;
-        writePixelRgb565(kLut[(b >> 3) & 0x07u]);
-        writePixelRgb565(kLut[b & 0x07u]);
+        writePixelRgb565<kDirty>(kLut[(b >> 3) & 0x07u], acc);
+        writePixelRgb565<kDirty>(kLut[b & 0x07u], acc);
       }
       break;
     }
@@ -257,12 +274,12 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
           pixel0 |= (b0 << 8) & 0xF000;  // R1
           pixel0 |= (b0 << 7) & 0x0780;  // G1
           pixel0 |= (b1 >> 3) & 0x001E;  // B1
-          writePixelRgb565(pixel0);
+          writePixelRgb565<kDirty>(pixel0, acc);
           uint_fast16_t pixel1 = 0;
           pixel1 |= (b1 << 12) & 0xF000;  // R2
           pixel1 |= (b2 << 3) & 0x0780;   // G2
           pixel1 |= (b2 << 1) & 0x001E;   // B2
-          writePixelRgb565(pixel1);
+          writePixelRgb565<kDirty>(pixel1, acc);
           ramwrBufLen = 0;
         }
       }
@@ -284,9 +301,18 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         const uint16_t inv = cachedInverter;
         const int32_t hStep = cachedHStep;
         auto putPixel = [&](uint_fast16_t px) [[gnu::always_inline]] {
-          *writePtr = (uint16_t)(px ^ inv);
+          px ^= inv;
+          if constexpr (kDirty) {
+            acc.diff |= static_cast<uint32_t>(*writePtr ^ px);
+          }
+          *writePtr = (uint16_t)px;
           writePtr += hStep;
-          if (++ramwrX > casetXE) {
+          ++ramwrX;
+          if constexpr (kDirty) {
+            if ((ramwrX & 63u) == 0u) flushDirtySeg(acc);
+          }
+          if (ramwrX > casetXE) {
+            if constexpr (kDirty) flushDirtyRow(acc);
             ramwrX = casetXS;
             if (++ramwrY > rasetYE) ramwrY = rasetYS;
             writePtr = frameBuffer + physIndex(ramwrX, ramwrY);
@@ -340,12 +366,12 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         pixel0 |= (b0 << 8) & 0xF000;  // R1
         pixel0 |= (b0 << 7) & 0x0780;  // G1
         pixel0 |= (b1 >> 3) & 0x001E;  // B1
-        writePixelRgb565(pixel0);
+        writePixelRgb565<kDirty>(pixel0, acc);
         uint_fast16_t pixel1 = 0;
         pixel1 |= (b1 << 12) & 0xF000;  // R2
         pixel1 |= (b2 << 3) & 0x0780;   // G2
         pixel1 |= (b2 << 1) & 0x001E;   // B2
-        writePixelRgb565(pixel1);
+        writePixelRgb565<kDirty>(pixel1, acc);
       }
 #endif
       // Save remainder
@@ -362,7 +388,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         uint_fast16_t b1 = data[i];
         uint_fast16_t pixel =
             cachedLittleEndian ? (b0 | (b1 << 8)) : ((b0 << 8) | b1);
-        writePixelRgb565(pixel);
+        writePixelRgb565<kDirty>(pixel, acc);
         i += stride;
         ramwrBufLen = 0;
       }
@@ -374,7 +400,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         i += stride;
         uint_fast16_t pixel =
             cachedLittleEndian ? (b0 | (b1 << 8)) : ((b0 << 8) | b1);
-        writePixelRgb565(pixel);
+        writePixelRgb565<kDirty>(pixel, acc);
       }
       // Save remainder
       if (i < length) {
@@ -395,7 +421,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
           pixel |= (ramwrBuf[0] & 0xFCu) << 8;  // R5
           pixel |= (ramwrBuf[1] & 0xFCu) << 3;  // G6
           pixel |= (ramwrBuf[2] & 0xFCu) >> 3;  // B5
-          writePixelRgb565(static_cast<uint16_t>(pixel));
+          writePixelRgb565<kDirty>(static_cast<uint16_t>(pixel), acc);
           ramwrBufLen = 0;
         }
       }
@@ -408,7 +434,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         i += stride;
         pixel |= (data[i] & 0xFCu) >> 3;  // B5
         i += stride;
-        writePixelRgb565(static_cast<uint16_t>(pixel));
+        writePixelRgb565<kDirty>(static_cast<uint16_t>(pixel), acc);
       }
       // Save remainder
       while (i < length) {
@@ -432,7 +458,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
           pixel |= static_cast<uint_fast16_t>(ramwrBuf[1] & 0x3Fu) << 5;  // G6
           pixel |=
               static_cast<uint_fast16_t>((ramwrBuf[2] >> 1) & 0x1Fu);  // B5
-          writePixelRgb565(static_cast<uint16_t>(pixel));
+          writePixelRgb565<kDirty>(static_cast<uint16_t>(pixel), acc);
           ramwrBufLen = 0;
         }
       }
@@ -446,7 +472,7 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
         i += stride;
         pixel |= static_cast<uint_fast16_t>((data[i] >> 1) & 0x1Fu);  // B5
         i += stride;
-        writePixelRgb565(static_cast<uint16_t>(pixel));
+        writePixelRgb565<kDirty>(static_cast<uint16_t>(pixel), acc);
       }
       // Save remainder
       while (i < length) {
@@ -455,6 +481,62 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
       }
       break;
   }
+
+  // Chunks end at arbitrary byte boundaries, so publish the partial row now;
+  // over-marking a partially written row is safe (dirty means "may have
+  // changed"), losing the accumulation is not.
+  if (kDirty) flushDirtyRow(acc);
+}
+
+void ControllerBase::markDirtyRect(uint32_t physRow0, uint32_t physRow1,
+                                   uint32_t physCol0, uint32_t physCol1) {
+  const uint32_t lastRow = static_cast<uint32_t>(config.buffHeight) - 1u;
+  const uint32_t lastCol = static_cast<uint32_t>(config.buffWidth) - 1u;
+  if (physRow0 > lastRow || physCol0 > lastCol) return;
+  if (physRow1 > lastRow) physRow1 = lastRow;
+  if (physCol1 > lastCol) physCol1 = lastCol;
+  const uint32_t b0 = physCol0 >> 6;
+  const uint32_t b1 = physCol1 >> 6;
+  const uint8_t mask =
+      static_cast<uint8_t>(((2u << b1) - 1u) & ~((1u << b0) - 1u));
+  for (uint32_t r = physRow0; r <= physRow1; ++r) dirtyMap[r] |= mask;
+}
+
+// The logical→physical mapping is axis-aligned (physIndex is linear with
+// steps of ±1 / ±buffWidth), so mapping the two corners of a rectangle and
+// normalizing yields the covering physical rectangle.
+void ControllerBase::markLogicalRectDirty(uint32_t lx0, uint32_t lx1,
+                                          uint32_t ly0, uint32_t ly1) {
+  const uint32_t W = config.buffWidth;
+  uint32_t i0 = physIndex(lx0, ly0);
+  uint32_t i1 = physIndex(lx1, ly1);
+  uint32_t r0 = i0 / W, c0 = i0 % W;
+  uint32_t r1 = i1 / W, c1 = i1 % W;
+  if (r0 > r1) std::swap(r0, r1);
+  if (c0 > c1) std::swap(c0, c1);
+  markDirtyRect(r0, r1, c0, c1);
+}
+
+void ControllerBase::markLogicalRowDirty(uint32_t ly, uint32_t segBits) {
+  for (uint32_t k = 0; segBits != 0; ++k, segBits >>= 1) {
+    if (!(segBits & 1u)) continue;
+    // Clip the segment to the CASET window: pixels outside it were never
+    // written, and physIndex() is only valid for in-range coordinates.
+    uint32_t lx0 = k << 6;
+    uint32_t lx1 = lx0 + 63u;
+    if (lx0 < casetXS) lx0 = casetXS;
+    if (lx1 > casetXE) lx1 = casetXE;
+    if (lx0 > lx1) continue;
+    markLogicalRectDirty(lx0, lx1, ly, ly);
+  }
+}
+
+void ControllerBase::markAllDirty() {
+  const uint32_t rows = config.buffHeight;
+  const uint32_t lastSeg = (static_cast<uint32_t>(config.buffWidth) - 1u) >> 6;
+  const uint8_t mask = static_cast<uint8_t>((2u << lastSeg) - 1u);
+  if (rows > LcdTap::MAX_DIRTY_ROWS) return;
+  for (uint32_t r = 0; r < rows; ++r) dirtyMap[r] = mask;
 }
 
 // Process a data byte stream: RAMWR data is handled in bulk, others byte by
@@ -769,6 +851,11 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   // commands).
   if (cfg.controllerFamily != ctrl->config.controllerFamily) {
     HostInterface host = ctrl->host;
+    // Carry the dirty-tracking state across the controller swap: the flag is
+    // host policy, and the epoch must keep moving forward so a pump that
+    // cached the old value still sees a change.
+    const bool oldDirtyTracking = ctrl->dirtyTracking;
+    const uint32_t oldEpoch = ctrl->presentEpoch;
     if (ctrl->frameBuffer) host.free(ctrl->frameBuffer);
     delete ctrl;
     impl_ = nullptr;
@@ -794,6 +881,7 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
     ctrl->status = Status::OK;
     ctrl->hwReset = false;
     ctrl->frameBuffer = nullptr;
+    ctrl->presentEpoch = oldEpoch + 1u;
     impl_ = ctrl;
 
     size_t fbSize = (size_t)cfg.buffWidth * cfg.buffHeight * sizeof(uint16_t);
@@ -802,6 +890,10 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
 
     ctrl->config = cfg;
     ctrl->outputRotation = cfg.outputRotation & 3u;
+    ctrl->dirtyTracking = oldDirtyTracking &&
+                          cfg.buffWidth <= LcdTap::MAX_DIRTY_ROWS &&
+                          cfg.buffHeight <= LcdTap::MAX_DIRTY_ROWS;
+    if (ctrl->dirtyTracking) ctrl->markAllDirty();
     ctrl->calcScaleParams();
     ctrl->softReset();
     return Status::OK;
@@ -823,6 +915,10 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
   bool displayOn = ctrl->displayOn;
   ctrl->config = cfg;
   ctrl->outputRotation = cfg.outputRotation & 3u;
+  ctrl->dirtyTracking = ctrl->dirtyTracking &&
+                        cfg.buffWidth <= LcdTap::MAX_DIRTY_ROWS &&
+                        cfg.buffHeight <= LcdTap::MAX_DIRTY_ROWS;
+  if (ctrl->dirtyTracking) ctrl->markAllDirty();
   ctrl->calcScaleParams();
   ctrl->softReset();
   ctrl->sleeping = sleeping;
@@ -888,6 +984,62 @@ void LcdTap::setDisplayOn(bool on) {
   if (ctrl->status != Status::OK) return;
   ctrl->sleeping = !on;
   ctrl->displayOn = on;
+  ctrl->bumpEpoch();
+}
+
+void LcdTap::setDirtyTracking(bool on) {
+  if (!impl_) return;
+  ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
+  ctrl->dirtyTracking = on && ctrl->config.buffWidth <= MAX_DIRTY_ROWS &&
+                        ctrl->config.buffHeight <= MAX_DIRTY_ROWS;
+  if (ctrl->dirtyTracking) ctrl->markAllDirty();
+}
+
+bool LcdTap::isDirtyTrackingActive() const {
+  if (!impl_) return false;
+  return static_cast<const ControllerBase*>(impl_)->dirtyTracking;
+}
+
+uint8_t* LcdTap::dirtyMap() {
+  if (!impl_) return nullptr;
+  return static_cast<ControllerBase*>(impl_)->dirtyMap;
+}
+
+void LcdTap::markAllDirty() {
+  if (!impl_) return;
+  static_cast<ControllerBase*>(impl_)->markAllDirty();
+}
+
+uint32_t LcdTap::getPresentationEpoch() const {
+  if (!impl_) return 0;
+  return static_cast<const ControllerBase*>(impl_)->presentEpoch;
+}
+
+void LcdTap::getOutputMapInfo(OutputMapInfo* out) const {
+  *out = OutputMapInfo{};
+  if (!impl_) {
+    out->blanked = true;
+    return;
+  }
+  const ControllerBase* ctrl = static_cast<const ControllerBase*>(impl_);
+  out->destX = ctrl->outDestX & 0xFFFEu;  // fillScanline aligns to even
+  out->destY = ctrl->outDestY;
+  out->destW = ctrl->outDestW;
+  out->destH = ctrl->outDestH;
+  out->srcX = ctrl->outSrcX;
+  out->srcY = ctrl->outSrcY;
+  out->srcW = ctrl->outSrcW;
+  out->srcH = ctrl->outSrcH;
+  out->stepH = ctrl->outSrcStepH;
+  out->stepV = ctrl->outSrcStepV;
+  out->rotation = ctrl->outputRotation;
+  out->fbWidth = ctrl->config.buffWidth;
+  out->fbHeight = ctrl->config.buffHeight;
+  const bool powerOff =
+      !ctrl->config.forcePowerOn && (ctrl->sleeping || !ctrl->displayOn);
+  out->blanked = powerOff || ctrl->status != Status::OK ||
+                 ctrl->frameBuffer == nullptr || ctrl->outSrcW == 0 ||
+                 ctrl->outSrcH == 0;
 }
 
 void LcdTap::setOutputRotation(int rot) {
