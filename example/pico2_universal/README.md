@@ -33,7 +33,7 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 | 10    | OUT       | CVBS_PWM | | | Composite PWM output (SPI/I2C, when selected) |
 | 10/11 | I/O       | USB_DP / USB_DM | | | DisplayLink USB host D+/D- (SPI/I2C, when selected) |
 | 12–19 | OUT       | (DVI signals) | | | RP2350 HSTX |
-| 20    | IN        | CFG_OUT_720P | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
+| 20    | IN        | CFG_OUT_RESO_SEL | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
 | 21    | IN        | KEY_DOWN | v | v | Low=pressed |
 | 22    | IN        | KEY_LEFT | v | v | Low=pressed |
 | 26    | IN        | KEY_UP | v | v | Low=pressed |
@@ -192,7 +192,7 @@ works — newer chips (DL-3xxx and later) require High-Speed and encrypted
 protocols. 1920×1080 needs a DL-165 or DL-195; smaller chips automatically
 fall back to 1280×720.
 
-- **Resolution** follows the CFG_OUT_720P pin: open = 1280×720@60Hz,
+- **Resolution** follows the CFG_OUT_RESO_SEL pin: open = 1280×720@60Hz,
   low = 1920×1080@60Hz (the DVI 480p/720p slots map to 720p/1080p).
 - The adapter scans out a stable 60 Hz signal from its own framebuffer; the
   Pico streams **best-effort partial updates** over the ~1 MB/s bulk link.

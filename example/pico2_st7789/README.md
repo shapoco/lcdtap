@@ -57,7 +57,7 @@ The SPI interface operates in Mode 0 (CPOL=0, CPHA=0) with MSB first. The maximu
 | 3     | IN        | MOSI | | | SPI data from master |
 | 4     | IN        | DC | | | D/C# signal from master |
 | 12–19 | OUT       | (DVI signals) | | | RP2350 HSTX |
-| 20    | IN        | CFG_OUT_720P | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
+| 20    | IN        | CFG_OUT_RESO_SEL | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
 | 21    | IN        | CFG_LCD_SIZE_SEL | v | v | High=Size1, Low=Size2 |
 | 22    | IN        | CFG_SWAP_RB | v | v | High=Normal, Low=Swapped |
 | 26    | IN        | CFG_INVERTED | v | v | High=Normal, Low=Inverted |

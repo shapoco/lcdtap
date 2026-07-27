@@ -74,7 +74,7 @@ int main() {
   //    All config pins are active-low with internal pull-ups.
   //    Default (not connected, HIGH) = primary mode; LOW = alternate mode.
   // -------------------------------------------------------------------------
-  for (uint pin : {PIN_CFG_OUT_720P, PIN_CFG_LCD_SIZE_SEL, PIN_CFG_INVERTED,
+  for (uint pin : {PIN_CFG_OUT_RESO_SEL, PIN_CFG_LCD_SIZE_SEL, PIN_CFG_INVERTED,
                    PIN_CFG_SWAP_RB, PIN_CFG_ROT0, PIN_CFG_ROT1}) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
@@ -83,7 +83,7 @@ int main() {
   sleep_ms(1);  // allow pull-ups to settle
 
   const bool dvi720p =
-      !gpio_get(PIN_CFG_OUT_720P);  // LOW=720p, HIGH=480p (default)
+      !gpio_get(PIN_CFG_OUT_RESO_SEL);  // LOW=720p, HIGH=480p (default)
   const bool useSz2 =
       !gpio_get(PIN_CFG_LCD_SIZE_SEL);  // LOW=Size2, HIGH=Size1 (default)
   const bool inverted =

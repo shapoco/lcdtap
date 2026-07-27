@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
+
+  <meta name="keywords"
+    content="LcdTap, LcdTap-Pico2, Raspberry Pi Pico 2, PicoDVI, DVHSTX, DVI for HSTX, LCD Controller, ST7735, ST7789, ILI9341, ILI9342, ILI9488, SSD1306, SSD1309, SSD1331" />
+  <meta name="description"
+    content="LcdTap is a library and its implementation that receives LCD controller commands and outputs the framebuffer as a DVI-D signal.">
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@shapoco" />
+  <meta property="og:url" content="https://shapoco.github.io/lcdtap/" />
+  <meta property="og:title" content="LcdTap: Mirror and Capture SPI/I2C LCD" />
+  <meta property="og:description"
+    content="LcdTap is a library and its implementation that receives LCD controller commands and outputs the framebuffer as a DVI-D signal." />
+  <meta property="og:image" content="https://shapoco.github.io/lcdtap/image/card.png" />
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
+  <script>
+    var remoteHost = window.location.hostname;
+    if (remoteHost == "localhost") {
+      console.log(`Google Analytics disabled on: '${remoteHost}'`);
+    }
+    else {
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-KJ53WNQ22G');
+    }
+  </script>
+
+  <link rel="stylesheet" href="style.css">
+  <title>LcdTap-Pico2 Universal: Alternative Output Interface</title>
+  <link rel="icon" type="image/png" href="./favicon.png">
+  <link rel="shortcut icon" href="./favicon.ico">
+</head>
+
+<body>
+  <main>
+    <h1>
+      LcdTap-Pico2 Universal: Alternative Output Interface
+    </h1>
+
+    <h3>Composite Video Output</h3>
+    <p>
+      LcdTap-Pico2 Universal also supports composite video output.
+      Some external circuitry is required to use composite video output.
+      The PWM method is low quality but requires simple external circuitry.
+      The R-2R method is high quality but requires somewhat more complex external circuitry.
+    </p>
+    <p>
+      Composite output cannot be used simultaneously with parallel bus mode.
+      Also, the R-2R method cannot be used simultaneously with I2C bus mode.
+    </p>
+    <p>
+      <img src="image/composite-out-schematics.png" class="large-img" />
+    </p>
+    <p>
+      The boards sold at BOOTH have 47Ω damping resistors inserted in series on the GPIO pins,
+      so please subtract that value from the resistance values.
+    </p>
+    <p>
+      To switch to composite video output, connect the external circuitry as described above,
+      and set the Output Interface to NTSC or PAL in the Configuration menu,
+      then select the Video DAC Type (PWM or R-2R).
+    </p>
+    <p>
+      If video output does not appear and OSD control becomes unavailable,
+      please use <a href="./monitor/">LcdTap Monitor</a> to correct output interface,
+      or reset LcdTap while pressing the left key to initialize the settings.
+    </p>
+
+    <h3>DisplayLink Output</h3>
+    <p>
+      LcdTap-Pico2 Universal supports DisplayLink output
+      (powered by <a href="https://github.com/htlabnet/Pico_USB_Disp">Pico_USB_Disp</a>).
+      <strong>Only DisplayLink DL-1x0 / DL-1x5 generation adapters are supported.</strong>
+    </p>
+    <p>
+      <img src="image/displaylink-out-schematics.png" class="large-img" />
+    </p>
+    <p>
+      The output resolution can be selected using the CFG_OUT_RES_SEL switch.
+      When the switch is off, it is 1280x720@60Hz, and when on, it is 1920x1080@60Hz.
+    </p>
+    <p>
+      To switch to DisplayLink output, connect the DisplayLink adapter to
+      GPIO10 (D+) and GPIO11 (D-) of Raspberry Pi Pico 2,
+      and set the Output Interface to DisplayLink in the Configuration menu.
+    </p>
+  </main>
+
+  <footer>
+    <a href="/">LcdTap</a> by <a href="https://x.com/shapoco" target="_blank">@shapoco</a>
+  </footer>
+</body>
+
+</html>

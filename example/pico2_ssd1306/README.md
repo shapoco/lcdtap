@@ -70,7 +70,7 @@ DVI signal generation uses the RP2350's built-in HSTX peripheral (hardware TMDS 
 | 8     | IN        | SDA | | v | I2C data (I2C mode) |
 | 9     | IN        | SCL | | v | I2C clock (I2C mode) |
 | 12–19 | OUT       | (DVI signals) | | | RP2350 HSTX |
-| 20    | IN        | CFG_OUT_720P | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
+| 20    | IN        | CFG_OUT_RESO_SEL | v | v | High=640×480@60Hz,<br>Low=1280×720@30Hz |
 | 21    | IN        | CFG_LCD_SIZE_SEL | v | v | High=Size1, Low=Size2 |
 | 22    | IN        | CFG_IFACE_SEL | v | v | High=I2C, Low=SPI |
 | 27    | IN        | CFG_ROT\[0\] | v | v | Output rotation bit 0 |

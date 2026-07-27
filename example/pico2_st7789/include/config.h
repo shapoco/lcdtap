@@ -38,7 +38,7 @@ static constexpr uint PIN_SPI_DC = 4u;
 // =============================================================================
 
 // LOW=1280×720@30Hz / HIGH=640×480@60Hz (default)
-static constexpr uint PIN_CFG_OUT_720P = 20u;
+static constexpr uint PIN_CFG_OUT_RESO_SEL = 20u;
 
 // LOW=Size2 / HIGH=Size1 (default)
 static constexpr uint PIN_CFG_LCD_SIZE_SEL = 21u;
