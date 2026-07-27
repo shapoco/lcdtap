@@ -43,6 +43,7 @@ struct DisplaylinkOutState {
   // Pump state
   uint32_t lastEpoch;
   bool sendFailed;   // a bulk send failed; triggers a full repaint
+  bool needFlush;    // data was queued; request a stream flush at call end
   bool fullRepaint;  // resend everything incl. borders (epoch/connect)
 
   // In-flight duplicate-line group (COPY16-free resend path). The dirty bits

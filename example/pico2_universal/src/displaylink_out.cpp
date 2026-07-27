@@ -79,6 +79,7 @@ static void sendSpan(DisplaylinkOutState* s, uint32_t y, uint32_t x0,
                            1u, s->lineBuf + x0, w)) {
     s->sendFailed = true;
   }
+  s->needFlush = true;
 }
 
 #if DISPLAYLINK_USE_COPY16
@@ -677,5 +678,19 @@ void displaylinkOutProcess(DisplaylinkOutState* s) {
   if (s->sendFailed) {
     s->sendFailed = false;
     startFullRepaint(s);
+  }
+
+  // Flush the stream after every burst. Two layers hold back the tail of the
+  // last command otherwise: the USB host only transmits full 64-byte packets
+  // (the sub-packet residue waits in the ring for more data), and the DL
+  // chip itself defers the final command until the next data arrives (see
+  // dl_flush's 0xAF 0xA0 sync command). Without this, up to ~63 bytes — an
+  // entire small RLE line command, or the tail of a span — stay unapplied
+  // for as long as the screen is quiet, which shows up as thin stale lines
+  // at update-span edges (= 64px segment boundaries). timeout 0 makes this
+  // fire-and-forget: the flush request is latched and serviced by Core 1.
+  if (s->needFlush) {
+    s->needFlush = false;
+    usb_disp_flush(d, 0);
   }
 }
