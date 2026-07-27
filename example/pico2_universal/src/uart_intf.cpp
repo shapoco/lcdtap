@@ -414,12 +414,13 @@ static bool buildParamChunk(int slot, const lcdtap::LcdTapConfig& cfg,
 
   if (slotIsHostParam(slot)) {
     if (slot == HOST_PARAM_SLOT) {
-      // Composite output needs GPIOs the parallel bus already owns.
+      // Composite and DisplayLink need GPIOs the parallel bus already owns.
       pos += snprintf(
           buf + pos, static_cast<size_t>(cap - pos),
           "{\"id\":\"outputInterface\",\"type\":\"ENUM\","
           "\"name\":\"Output Interface\",\"unit\":null,"
-          "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2},\"value\":%d,"
+          "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2,\"DispLink\":3},"
+          "\"value\":%d,"
           "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":0,"
           "\"enableKeyValueMax\":%d%s",
           static_cast<int>(outIf),

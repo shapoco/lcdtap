@@ -69,6 +69,17 @@ static constexpr uint PIN_I2C_SCL = 9u;
 static constexpr uint I2C_SLAVE_ADDR = 0x3Cu;
 
 // =============================================================================
+// DisplayLink USB host pins (PIO USB Full-Speed, D+/D- must be adjacent)
+//
+// Shared with the parallel bus (D[7] = GPIO10, DC = GPIO11), so DisplayLink
+// output is forbidden in PARALLEL bus mode (see outputInterfaceAllowed()).
+// pio0 is dedicated to the USB host; SPI/parallel input stays on pio1.
+// =============================================================================
+static constexpr uint8_t PIN_USB_DP = 10u;
+static constexpr uint8_t PIN_USB_DM = 11u;
+static constexpr uint8_t USB_PIO_INDEX = 0u;
+
+// =============================================================================
 // Boot-time configuration GPIOs (active-low, internal pull-up)
 // Default (not connected, pull-up HIGH) = primary mode.
 // Driven LOW = alternate mode.

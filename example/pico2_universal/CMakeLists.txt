@@ -15,13 +15,25 @@ pico_sdk_init()
 # Shared pico2 peripheral drivers (SPI/I2C/DVI)
 add_subdirectory(../../example/pico2_common pico2_common)
 
+# PIO USB Full-Speed host + DisplayLink protocol (INTERFACE library)
+add_subdirectory(../../submodule/Pico_USB_Disp pico_usb_disp)
+
 add_executable(lcdtap_pico2_universal
     src/main.cpp
+    src/displaylink_out.cpp
     src/flash_config.cpp
     src/uart_trx.cpp
     src/uart_b64.cpp
     src/uart_lex.cpp
     src/uart_intf.cpp
+)
+
+# Pico_USB_Disp compiles as part of this target (INTERFACE sources), so its
+# footprint knobs are set here: one host port (16KB bulk ring instead of the
+# default 3x16KB) and 1920px line work buffers (default 2048).
+target_compile_definitions(lcdtap_pico2_universal PRIVATE
+    USB_DISP_UDH_MAX_PORTS=1
+    USB_DISP_MAX_WIDTH=1920
 )
 
 # Generate PIO headers for universal-only interface modes
@@ -46,6 +58,7 @@ endforeach()
 
 target_link_libraries(lcdtap_pico2_universal
     pico2_common      # pulls in lcdtap, hstx driver, hardware_dma/gpio/i2c/irq/pio
+    pico_usb_disp     # DisplayLink output (PIO USB FS host)
     pico_stdlib
     pico_multicore
     hardware_clocks

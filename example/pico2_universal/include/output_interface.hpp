@@ -15,9 +15,10 @@ enum class OutputInterface : uint8_t {
   DVI_D = 0,
   NTSC = 1,
   PAL = 2,
+  DISPLAY_LINK = 3,
 };
 
-static constexpr uint8_t OUTPUT_INTERFACE_COUNT = 3u;
+static constexpr uint8_t OUTPUT_INTERFACE_COUNT = 4u;
 
 // Number of host-side settings that sit alongside the library's ConfigId
 // list: outputInterface and compositeDac.
@@ -32,18 +33,20 @@ static constexpr lcdtap::ConfigId HOST_PARAM_ANCHOR =
 
 // Static storage duration is required: ConfigEntry::options holds this
 // pointer and formatConfigValue() dereferences it on every OSD render.
-static const char *OUTPUT_INTERFACE_NAMES[] = {"DVI-D", "NTSC", "PAL"};
+static const char *OUTPUT_INTERFACE_NAMES[] = {"DVI-D", "NTSC", "PAL",
+                                               "DispLink"};
 
 inline bool outputInterfaceIsComposite(OutputInterface v) {
   return v == OutputInterface::NTSC || v == OutputInterface::PAL;
 }
 
-// Composite output drives GPIO5-11, which in PARALLEL bus mode are data and
-// D/C# lines driven by the external host controller. Selecting it there would
-// be an output-vs-output conflict, so it is forbidden rather than merely
-// unsupported.
+// Everything except DVI-D conflicts with the PARALLEL bus: composite output
+// drives GPIO5-11, which in PARALLEL mode are data and D/C# lines driven by
+// the external host controller, and the DisplayLink USB host owns GPIO10/11
+// (= D[7] and D/C#). Selecting them there would be an output-vs-output
+// conflict, so it is forbidden rather than merely unsupported.
 inline bool outputInterfaceAllowed(OutputInterface v, lcdtap::BusType bus) {
-  if (!outputInterfaceIsComposite(v)) return true;
+  if (v == OutputInterface::DVI_D) return true;
   return bus != lcdtap::BusType::PARALLEL;
 }
 

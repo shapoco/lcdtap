@@ -16,6 +16,7 @@
 
 #include "composite_dac_kind.hpp"
 #include "config.h"
+#include "displaylink_out.hpp"
 #include "flash_config.hpp"
 #include "output_interface.hpp"
 #include "parallel_8bit.pio.h"
@@ -86,6 +87,7 @@ static lcdtap::pico2::SpiSlaveState gSpi;
 static lcdtap::pico2::I2cSlaveState gI2c;
 static lcdtap::pico2::HstxOutState gHstx;
 static lcdtap::pico2::CompositeOutState gCvbs;
+static DisplaylinkOutState gDl;
 
 // =============================================================================
 // Video backend selection
@@ -125,6 +127,15 @@ static const VideoBackend BACKEND_COMPOSITE = {
       lcdtap::pico2::compositeOutFlashRelease(
           (lcdtap::pico2::CompositeOutState *)s);
     },
+};
+
+static const VideoBackend BACKEND_DISPLAYLINK = {
+    [](void *s) { displaylinkOutLaunchCore1((DisplaylinkOutState *)s); },
+    [](void *s) {
+      return displaylinkOutConsumeNewFrame((DisplaylinkOutState *)s);
+    },
+    [](void *s) { displaylinkOutFlashAcquire((DisplaylinkOutState *)s); },
+    [](void *s) { displaylinkOutFlashRelease((DisplaylinkOutState *)s); },
 };
 
 static const VideoBackend *gVideo = &BACKEND_HSTX;
@@ -454,6 +465,7 @@ int main() {
   } else if (gOutputIf == OutputInterface::PAL) {
     cvbsTiming = &lcdtap::pico2::COMPOSITE_TIMING_PAL_B_288P;
   }
+  const bool displayLink = (gOutputIf == OutputInterface::DISPLAY_LINK);
 
   // -------------------------------------------------------------------------
   // 2. Clock init
@@ -462,6 +474,11 @@ int main() {
   //    PAL   : PLL_SYS → clk_sys=301.500MHz (÷17 = 4x fsc, +46 ppm)
   //    Composite ignores PIN_CFG_OUT_720P and the RIGHT-key timing override;
   //    those only select between DVI-D modes.
+  //    DisplayLink reuses the DVI-D clock setup: the PIO USB host needs
+  //    clk_sys to be a multiple of 12 MHz and 312 MHz qualifies, clk_usb
+  //    stays at 48 MHz for the CDC interface, and the (unused) HSTX clock is
+  //    harmless. PIN_CFG_OUT_720P selects the adapter mode instead:
+  //    HIGH = 1280x720, LOW = 1920x1080.
   // -------------------------------------------------------------------------
   if (cvbsTiming != nullptr) {
     lcdtap::pico2::compositeOutClockInit(cvbsTiming);
@@ -469,6 +486,10 @@ int main() {
     gVideoState = &gCvbs;
   } else {
     lcdtap::pico2::hstxOutClockInit(timing);
+    if (displayLink) {
+      gVideo = &BACKEND_DISPLAYLINK;
+      gVideoState = &gDl;
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -487,11 +508,17 @@ int main() {
 
   // Output raster size. The saved dviWidth/dviHeight are always overridden
   // below, so this must follow the selected backend or composite would run
-  // with DVI geometry.
-  const uint32_t outW = cvbsTiming ? (uint32_t)cvbsTiming->hActivePixels
-                                   : (uint32_t)timing->h_active_pixels;
-  const uint32_t outH = cvbsTiming ? (uint32_t)cvbsTiming->vActiveLines
-                                   : (uint32_t)timing->v_active_lines;
+  // with DVI geometry. DisplayLink maps the DVI mode pin to the adapter
+  // modes (480p slot -> 720p, 720p slot -> 1080p; 1080p needs DL-165/195
+  // and falls back to 720p at connect time otherwise).
+  uint32_t outW = cvbsTiming ? (uint32_t)cvbsTiming->hActivePixels
+                             : (uint32_t)timing->h_active_pixels;
+  uint32_t outH = cvbsTiming ? (uint32_t)cvbsTiming->vActiveLines
+                             : (uint32_t)timing->v_active_lines;
+  if (displayLink) {
+    outW = dvi720p ? 1920u : 1280u;
+    outH = dvi720p ? 1080u : 720u;
+  }
 
   // -------------------------------------------------------------------------
   // 6. LcdTap init
@@ -583,6 +610,27 @@ int main() {
       panic("composite output init failed");
     }
     lcdtap::pico2::compositeOutLaunchCore1(&gCvbs);
+  } else if (displayLink) {
+    // Hardware safety: GPIO10/11 (USB D+/D-) are parallel-bus D[7] and D/C#
+    // lines driven by the external host controller.
+    // outputInterfaceSanitize() already covers this; the check stays because
+    // the failure mode is driving against an external output.
+    if (gCurrentIface == lcdtap::BusType::PARALLEL) {
+      panic("DisplayLink output is not available on the parallel bus");
+    }
+    inst.setDirtyTracking(true);
+    DisplaylinkOutConfig dlCfg = {PIN_LED,
+                                  LED_TOGGLE_FRAMES,
+                                  USB_PIO_INDEX,
+                                  PIN_USB_DP,
+                                  PIN_USB_DM,
+                                  static_cast<uint16_t>(outW),
+                                  static_cast<uint16_t>(outH)};
+    if (!displaylinkOutInit(&gDl, &inst, universalFillScanline, nullptr,
+                            dlCfg)) {
+      panic("displaylink output init failed");
+    }
+    displaylinkOutLaunchCore1(&gDl);
   } else {
     lcdtap::pico2::HstxOutConfig hstxCfg = {
         PIN_LED, LED_TOGGLE_FRAMES, lcdtap::pico2::HSTX_PICO_SOCK_PINOUT};
@@ -606,6 +654,21 @@ int main() {
   while (true) {
     processInputBuf();
     uartIfProcess();
+
+    // DisplayLink update pump: bounded work per iteration so the SPI/I2C
+    // ring buffers stay drained. The OSD rectangle is tracked in output
+    // coordinates because the overlay never touches the framebuffer.
+    if (displayLink) {
+      uint16_t screenW, screenH;
+      gInst->getOutputScreenSize(&screenW, &screenH);
+      const bool osdOpen = gOsd.getState() != lcdtap::OsdState::HIDDEN;
+      displaylinkOutSetOsdRect(
+          &gDl, osdOpen,
+          static_cast<uint16_t>((screenW - lcdtap::OSD_WIDTH) / 2),
+          static_cast<uint16_t>((screenH - lcdtap::OSD_HEIGHT) / 2),
+          lcdtap::OSD_WIDTH, lcdtap::OSD_HEIGHT);
+      displaylinkOutProcess(&gDl);
+    }
 
     // A UART client changed the output interface; reboot once the response
     // has been flushed so the host actually sees the acknowledgement.
