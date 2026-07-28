@@ -14,7 +14,8 @@ namespace lcdtap::pico2 {
 static SpiSlaveState *sWrapIrqState = nullptr;
 
 // DMA_IRQ_1, Core 0, lowest priority: counts ring buffer wraps so that
-// spiSlaveProcess can reconstruct the total number of received words.
+// spiSlaveProcess can detect full ring laps (overruns) that the write
+// pointer alone cannot distinguish from an unchanged position.
 // (DMA_IRQ_0 is used by composite output and DMA_IRQ_2 by HSTX, both on
 // Core 1.)
 static void __not_in_flash_func(spiRingWrapIrqHandler)() {
@@ -75,6 +76,8 @@ void spiSlaveInitDma(SpiSlaveState *s) {
   // ring base. dropWords/backlogMaxWords intentionally survive re-init.
   s->readIdx = 0;
   s->wrapCount = 0;
+  s->lastWriteIdx = 0;
+  s->totalReceivedWords = 0;
   s->totalConsumedWords = 0;
 
   // TRIGGER_SELF mode: the counter reloads to ringWords and the channel
@@ -82,6 +85,9 @@ void spiSlaveInitDma(SpiSlaveState *s) {
   // per ring wrap. The hardware re-trigger has no dead time; incoming words
   // are additionally buffered by the joined PIO RX FIFO (8 entries).
   sWrapIrqState = s;
+  // Clear any pending wrap IRQ left over from a previous use of this channel
+  // so the first process call does not count a stale wrap.
+  dma_hw->ints1 = 1u << (uint)s->dmaCh;
   static bool sWrapIrqInstalled = false;
   if (!sWrapIrqInstalled) {
     irq_set_exclusive_handler(DMA_IRQ_1, spiRingWrapIrqHandler);
@@ -151,13 +157,26 @@ void __not_in_flash_func(spiSlaveProcess)(SpiSlaveState *s) {
     } while (wrap != s->wrapCount ||
              pend != ((dma_hw->ints1 & chBit) ? 1u : 0u));
 
-    const uint32_t totalReceived = (wrap + pend) * s->ringWords + writeIdxNow;
-    uint32_t backlog = totalReceived - s->totalConsumedWords;
+    // Pointer-delta accumulation: exact unless a full ring lap occurred
+    // between calls (which is precisely the overrun we want to detect).
+    s->totalReceivedWords +=
+        (writeIdxNow - s->lastWriteIdx) & (s->ringWords - 1u);
+    s->lastWriteIdx = writeIdxNow;
+
+    // Wrap-based estimate, used only to detect full laps. At a ring-wrap
+    // boundary it can transiently read LOW (write_addr wraps before INTS1
+    // becomes visible to the CPU) but never HIGH — the IRQ handler runs on
+    // this core and clears INTS1 before incrementing wrapCount — so adopting
+    // it only when ahead is safe.
+    const uint32_t wrapBased = (wrap + pend) * s->ringWords + writeIdxNow;
+    if ((int32_t)(wrapBased - s->totalReceivedWords) > 0) {
+      s->totalReceivedWords = wrapBased;
+    }
+
+    uint32_t backlog = s->totalReceivedWords - s->totalConsumedWords;
     if (backlog & 0x80000000u) {
-      // Wrap IRQ starved long enough to miss a full ring period; the
-      // received-word estimate fell behind consumption. Resync silently
-      // rather than reporting a bogus drop.
-      s->totalConsumedWords = totalReceived;
+      // Cannot happen by construction (consumption never outruns the write
+      // pointer); clamp defensively without touching any state.
       backlog = 0;
     }
     if (backlog > s->ringWords) {
@@ -167,7 +186,7 @@ void __not_in_flash_func(spiSlaveProcess)(SpiSlaveState *s) {
       // resynchronize to the write pointer.
       s->dropWords += backlog - s->ringWords;
       s->readIdx = writeIdxNow;
-      s->totalConsumedWords = totalReceived;
+      s->totalConsumedWords = s->totalReceivedWords;
       backlog = 0;
     }
     if (backlog > s->backlogMaxWords) s->backlogMaxWords = backlog;
