@@ -87,7 +87,7 @@ Two host-side settings appear in the list as well. They are not `ConfigId`s, so 
     "type": "ENUM",
     "name": "Output Interface",
     "unit": null,
-    "options": {"DVI-D": 0, "NTSC": 1, "PAL": 2, "DispLink": 3},
+    "options": {"DVI-D": 0, "NTSC": 1, "PAL": 2, "DisplayLink": 3},
     "value": 0,
     "enableKeyId": "cfg1",
     "enableKeyValueMin": 0,
@@ -206,7 +206,7 @@ Set LcdTap configuration parameters in bulk from the host.
 
 **Some changes reset the device.** The firmware saves the new values, sends the `ok` response, and then reboots. The USB CDC connection will drop and re-enumerate; reconnect before sending further commands. A reset happens when:
 
-- `outputInterface` changes — each output binds its clocks and peripherals at startup (DVI-D and DispLink share clk_sys 312 MHz, NTSC 315 MHz, PAL 301.5 MHz).
+- `outputInterface` changes — each output binds its clocks and peripherals at startup (DVI-D and DisplayLink share clk_sys 312 MHz, NTSC 315 MHz, PAL 301.5 MHz).
 - `cfg1` (bus interface) or `compositeDac` changes **while a composite mode is selected** — the DAC binds to its pins and peripheral at startup.
 
 Changing `compositeDac` while `outputInterface` is `DVI-D` does not reset; nothing composite is running.

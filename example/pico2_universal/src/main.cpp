@@ -21,6 +21,7 @@
 #include "output_interface.hpp"
 #include "parallel_8bit.pio.h"
 #include "spi_3line_mode0.pio.h"
+#include "splash.hpp"
 #include "uart_intf.hpp"
 #include "video_backend.hpp"
 
@@ -416,7 +417,8 @@ int main() {
   gpio_pull_up(PIN_CFG_OUT_RESO_SEL);
   sleep_ms(1);
 
-  const bool dvi720p = !gpio_get(PIN_CFG_OUT_RESO_SEL);  // LOW=720p (active-low)
+  const bool dvi720p =
+      !gpio_get(PIN_CFG_OUT_RESO_SEL);  // LOW=720p (active-low)
 
   const uint16_t lcdW = LCDTAP_LCD_SIZE_W;
   const uint16_t lcdH = LCDTAP_LCD_SIZE_H;
@@ -472,13 +474,12 @@ int main() {
   //    DVI-D : PLL_USB → clk_sys=312MHz; PLL_SYS → clk_hstx=bit_clk/2
   //    NTSC  : PLL_SYS → clk_sys=315.000MHz (÷22 = 4x fsc, exact)
   //    PAL   : PLL_SYS → clk_sys=301.500MHz (÷17 = 4x fsc, +46 ppm)
-  //    Composite ignores PIN_CFG_OUT_RESO_SEL and the RIGHT-key timing override;
-  //    those only select between DVI-D modes.
-  //    DisplayLink reuses the DVI-D clock setup: the PIO USB host needs
-  //    clk_sys to be a multiple of 12 MHz and 312 MHz qualifies, clk_usb
-  //    stays at 48 MHz for the CDC interface, and the (unused) HSTX clock is
-  //    harmless. PIN_CFG_OUT_RESO_SEL selects the adapter mode instead:
-  //    HIGH = 1280x720, LOW = 1920x1080.
+  //    Composite ignores PIN_CFG_OUT_RESO_SEL and the RIGHT-key timing
+  //    override; those only select between DVI-D modes. DisplayLink reuses the
+  //    DVI-D clock setup: the PIO USB host needs clk_sys to be a multiple of 12
+  //    MHz and 312 MHz qualifies, clk_usb stays at 48 MHz for the CDC
+  //    interface, and the (unused) HSTX clock is harmless. PIN_CFG_OUT_RESO_SEL
+  //    selects the adapter mode instead: HIGH = 1280x720, LOW = 1920x1080.
   // -------------------------------------------------------------------------
   if (cvbsTiming != nullptr) {
     lcdtap::pico2::compositeOutClockInit(cvbsTiming);
@@ -548,6 +549,13 @@ int main() {
   if (inst.getStatus() != lcdtap::Status::OK) panic("LcdTap init failed");
 
   gInst = &inst;
+
+  // Show the splash image immediately, before the SPI/I2C master has sent
+  // any commands. A real reset (RST) or the master's own SLPOUT/DISPON
+  // sequence will naturally take over from here.
+  lcdtap::pico2::drawSplash(gInst->getFramebuf(), cfg.buffWidth, cfg.buffHeight,
+                            cfg.outputRotation);
+  gInst->setDisplayOn(true);
 
   // -------------------------------------------------------------------------
   // 6b. OSD init

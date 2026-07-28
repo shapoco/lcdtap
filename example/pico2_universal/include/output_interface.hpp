@@ -34,7 +34,7 @@ static constexpr lcdtap::ConfigId HOST_PARAM_ANCHOR =
 // Static storage duration is required: ConfigEntry::options holds this
 // pointer and formatConfigValue() dereferences it on every OSD render.
 static const char *OUTPUT_INTERFACE_NAMES[] = {"DVI-D", "NTSC", "PAL",
-                                               "DispLink"};
+                                               "DisplayLink"};
 
 inline bool outputInterfaceIsComposite(OutputInterface v) {
   return v == OutputInterface::NTSC || v == OutputInterface::PAL;

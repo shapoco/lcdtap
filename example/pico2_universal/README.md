@@ -183,7 +183,7 @@ The drive strength stays at 12 mA (set in firmware).
 
 ## DisplayLink Output (USB)
 
-Select `DispLink` as the `Output` (or `outputInterface = 3` over USB CDC) to
+Select `DisplayLink` as the `Output` (or `outputInterface = 3` over USB CDC) to
 drive a USB graphics display adapter instead of the HDMI connector. The
 adapter is driven by a PIO-based USB **Full-Speed** host
 ([Pico_USB_Disp](https://github.com/htlabnet/Pico_USB_Disp)) on GPIO10 (D+)

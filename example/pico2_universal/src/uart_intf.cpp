@@ -419,7 +419,7 @@ static bool buildParamChunk(int slot, const lcdtap::LcdTapConfig& cfg,
           buf + pos, static_cast<size_t>(cap - pos),
           "{\"id\":\"outputInterface\",\"type\":\"ENUM\","
           "\"name\":\"Output Interface\",\"unit\":null,"
-          "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2,\"DispLink\":3},"
+          "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2,\"DisplayLink\":3},"
           "\"value\":%d,"
           "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":0,"
           "\"enableKeyValueMax\":%d%s",
