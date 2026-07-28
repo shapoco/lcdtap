@@ -14,6 +14,8 @@ namespace lcdtap {
 void getDefaultOsdConfig(OsdConfig* cfg) {
   cfg->onMenuOpen = nullptr;
   cfg->onActionActivated = nullptr;
+  cfg->getStats = nullptr;
+  cfg->onStatsReset = nullptr;
   cfg->userData = nullptr;
 }
 
@@ -43,6 +45,8 @@ void Osd::init(const OsdConfig& cfg) {
   lastDumpState_ = DumpState::WAIT;
   lastDumpSize_ = 0;
   dumpViewDirty_ = true;
+  statsScrollOffset_ = 0;
+  lastStatsRenderMs_ = 0;
   memset(textBuf_, normalizeChar(' '), sizeof(textBuf_));
   memset(textCol_, 0, sizeof(textCol_));
 }
@@ -80,6 +84,7 @@ uint8_t Osd::update(uint64_t nowMs, LcdTap& lcdtap, uint8_t input) {
     case OsdState::PRESET: return updatePresetList(lcdtap, nowMs, activeKeys);
     case OsdState::MAIN_MENU: return updateMainMenu(lcdtap, nowMs, activeKeys);
     case OsdState::DUMP_VIEW: return updateDumpView(lcdtap, nowMs, activeKeys);
+    case OsdState::STATS_VIEW: return updateStatsView(nowMs, activeKeys);
     default: return OSD_ACTION_NONE;
   }
 }
@@ -144,6 +149,11 @@ uint8_t Osd::updateMainMenu(LcdTap& lcdtap, uint64_t nowMs,
         lastDumpState_ = lcdtap.dumpGetState();
         lastDumpSize_ = lcdtap.dumpGetSize();
         renderDumpView(lcdtap);
+      } else if (sel.id == OSD_ITEM_ID_VIEW_STATS) {
+        state_ = OsdState::STATS_VIEW;
+        statsScrollOffset_ = 0;
+        lastStatsRenderMs_ = nowMs;
+        renderStatsView();
       } else {
         bool stayOpen = false;
         if (cfg_.onActionActivated) {
@@ -283,6 +293,40 @@ uint8_t Osd::updateDumpView(LcdTap& lcdtap, uint64_t nowMs,
   return OSD_ACTION_NONE;
 }
 
+uint8_t Osd::updateStatsView(uint64_t nowMs, uint8_t activeKeys) {
+  bool needsRender = false;
+
+  if (activeKeys & OSD_KEY_LEFT) {
+    state_ = OsdState::MAIN_MENU;
+    renderAll();
+    return OSD_ACTION_NONE;
+  }
+  if (activeKeys & OSD_KEY_ENTER) {
+    if (cfg_.onStatsReset) cfg_.onStatsReset(cfg_.userData);
+    needsRender = true;
+  }
+  if (activeKeys & OSD_KEY_UP) {
+    if (statsScrollOffset_ > 0) {
+      --statsScrollOffset_;
+      needsRender = true;
+    }
+  }
+  if (activeKeys & OSD_KEY_DOWN) {
+    // Upper bound is clamped in renderStatsView() where the entry count is
+    // known.
+    ++statsScrollOffset_;
+    needsRender = true;
+  }
+
+  if (nowMs - lastStatsRenderMs_ >= STATS_REFRESH_MS) needsRender = true;
+
+  if (needsRender) {
+    renderStatsView();
+    lastStatsRenderMs_ = nowMs;
+  }
+  return OSD_ACTION_NONE;
+}
+
 //=============================================================================
 // Osd::fillScanline
 //=============================================================================
@@ -338,6 +382,13 @@ void Osd::makeItemById(uint16_t id, OsdMenuItem* item) {
       item->config.value = OSD_ACTION_NONE;
       break;
 
+    // Statistics
+    case OSD_ITEM_ID_VIEW_STATS:
+      item->isAction = true;
+      item->config.name = "Statistics";
+      item->config.value = OSD_ACTION_NONE;
+      break;
+
     // Apply
     case OSD_ITEM_ID_APPLY:
       item->isAction = true;
@@ -372,6 +423,8 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
   numItems_ = 0;
 
   for (uint16_t id = 1; id < OSD_NUM_SYSTEM_ITEMS; ++id) {
+    // Statistics only appears when the host provides a stats source.
+    if (id == OSD_ITEM_ID_VIEW_STATS && !cfg_.getStats) continue;
     OsdMenuItem& it = items_[numItems_++];
     makeItemById(id, &it);
     if (!it.isAction) {
@@ -747,6 +800,92 @@ void Osd::renderDumpView(LcdTap& lcdtap) {
   fillRowColor(ROWS - 1,
                static_cast<uint8_t>((PAL_SILVER << 4) | PAL_DARK_GRAY));
   writeStr(ROWS - 1, 0, "\x84:Back \x86:Trigger \x85:Abort \x82\x83:Scroll");
+}
+
+//=============================================================================
+// Osd::renderStatsView
+//=============================================================================
+
+// Format a stat value according to its StatFormat. Integer math only.
+static void formatStatValue(const StatEntry& e, char* buf, size_t cap) {
+  const unsigned long v = static_cast<unsigned long>(e.value);
+  switch (e.fmt) {
+    case StatFormat::HEX:
+      // Values above 0xFF mean "no byte captured yet".
+      if (e.value > 0xFFu) {
+        snprintf(buf, cap, "--     ");
+      } else {
+        snprintf(buf, cap, "0x%02lX     ", v);
+      }
+      break;
+    case StatFormat::RATE:
+      if (e.value >= 1000000u) {
+        snprintf(buf, cap, "%lu.%02lu MB/s", v / 1000000u,
+                 (v % 1000000u) / 10000u);
+      } else if (e.value >= 1000u) {
+        snprintf(buf, cap, "%lu.%02lu KB/s", v / 1000u, (v % 1000u) / 10u);
+      } else {
+        snprintf(buf, cap, "%lu B/s ", v);
+      }
+      break;
+    default:
+      if (e.unit && e.unit[0] != '\0') {
+        snprintf(buf, cap, "%lu %-4s", v, e.unit);
+      } else {
+        snprintf(buf, cap, "%lu     ", v);
+      }
+      break;
+  }
+}
+
+void Osd::renderStatsView() {
+  constexpr int HEADER_ROWS = 1;
+  constexpr int FOOTER_ROWS = 1;
+  constexpr int BODY_ROWS = ROWS - HEADER_ROWS - FOOTER_ROWS;
+
+  StatEntry entries[MAX_STAT_ENTRIES];
+  int numEntries = 0;
+  if (cfg_.getStats) {
+    numEntries = cfg_.getStats(entries, MAX_STAT_ENTRIES, cfg_.userData);
+    if (numEntries < 0) numEntries = 0;
+    if (numEntries > MAX_STAT_ENTRIES) numEntries = MAX_STAT_ENTRIES;
+  }
+
+  // Clamp scroll now that the entry count is known
+  int maxScroll = numEntries - BODY_ROWS;
+  if (maxScroll < 0) maxScroll = 0;
+  if (statsScrollOffset_ > maxScroll) statsScrollOffset_ = maxScroll;
+
+  // Clear background to avoid main-menu color bleed-through
+  memset(textCol_, static_cast<uint8_t>((PAL_WHITE << 4) | PAL_BLACK),
+         sizeof(textCol_));
+
+  drawTitleBar("Statistics");
+
+  for (int slot = 0; slot < BODY_ROWS; ++slot) {
+    const int row = slot + HEADER_ROWS;
+    const int idx = statsScrollOffset_ + slot;
+    fillRow(row, ' ');
+    if (idx < 0 || idx >= numEntries) continue;
+
+    const StatEntry& e = entries[idx];
+    writeStr(row, 1, e.name, 20);
+
+    char valBuf[20];
+    formatStatValue(e, valBuf, sizeof(valBuf));
+    int valLen = static_cast<int>(strlen(valBuf));
+    int valCol = COLS - 1 - valLen;
+    if (valCol < 22) valCol = 22;
+    writeStr(row, valCol, valBuf, COLS - 1 - valCol);
+    setColorRange(row, valCol, valLen, static_cast<uint8_t>(PAL_CYAN << 4),
+                  0xF0);
+  }
+
+  // Footer
+  fillRow(ROWS - 1, ' ');
+  fillRowColor(ROWS - 1,
+               static_cast<uint8_t>((PAL_SILVER << 4) | PAL_DARK_GRAY));
+  writeStr(ROWS - 1, 0, "\x84:Back \x86:Reset \x82\x83:Scroll");
 }
 
 //=============================================================================

@@ -63,6 +63,26 @@ enum class DumpState : uint8_t {
 };
 
 //=============================================================================
+// Debug statistics
+//=============================================================================
+// Presentation hint for a StatEntry value. All values are raw uint32 that
+// wrap around at 2^32; formatting is left to the display side.
+enum class StatFormat : uint8_t {
+  DEC,   // plain decimal, optionally followed by unit
+  HEX,   // byte value shown as 0xNN; value > 0xFF means "none yet"
+  RATE,  // bytes per second, auto-scaled to B/s, KB/s or MB/s
+};
+
+// One name/value/unit tuple produced by a host-side stats provider and
+// consumed by the OSD statistics view and the UART "getstats" command.
+struct StatEntry {
+  const char* name;
+  uint32_t value;
+  const char* unit;  // suffix for DEC values (e.g. "B", "s"); may be ""
+  StatFormat fmt;
+};
+
+//=============================================================================
 // Output mapping info (see LcdTap::getOutputMapInfo)
 //=============================================================================
 // Snapshot of the scaling parameters used by fillScanline(), for host-side
@@ -202,6 +222,20 @@ class LcdTap {
 
   const uint16_t* dumpGetBuffer() const;
 
+  //--- Debug statistics ---
+
+  // Free-running 32-bit counters (wrap around at 2^32). Byte counters count
+  // everything fed into inputCommand()/inputData(), regardless of reset or
+  // error state. Hosts implement "reset" by baseline subtraction.
+  uint32_t getRxCmdBytes() const { return rxCmdBytes_; }
+  uint32_t getRxDataBytes() const { return rxDataBytes_; }
+  uint32_t getHwResetCount() const { return hwResetCount_; }
+
+  // Opcodes that fell through to the controller's unknown-command branch.
+  // Both survive updateConfig(), including a controller-family swap.
+  uint32_t getUnknownCmdCount() const;
+  uint8_t getLastUnknownCmd() const;
+
   //--- Write protection ---
 
   // When true, RAM write commands (RAMWR) are silently discarded while all
@@ -234,6 +268,10 @@ class LcdTap {
   LcdTap& operator=(const LcdTap&) = delete;
 
   void* impl_;  // Hides internal implementation (PIMPL)
+
+  uint32_t rxCmdBytes_ = 0;
+  uint32_t rxDataBytes_ = 0;
+  uint32_t hwResetCount_ = 0;
 
   DumpConfig dumpConfig_;
   DumpState dumpState_ = DumpState::ACTIVE;

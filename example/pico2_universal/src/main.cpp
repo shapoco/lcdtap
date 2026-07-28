@@ -22,6 +22,7 @@
 #include "parallel_8bit.pio.h"
 #include "spi_3line_mode0.pio.h"
 #include "splash.hpp"
+#include "stats.hpp"
 #include "uart_intf.hpp"
 #include "video_backend.hpp"
 
@@ -564,6 +565,10 @@ int main() {
   lcdtap::getDefaultOsdConfig(&osdCfg);
   osdCfg.onMenuOpen = onOsdMenuOpen;
   osdCfg.onActionActivated = onOsdActionActivated;
+  osdCfg.getStats = [](lcdtap::StatEntry *out, int maxCount, void *) {
+    return statsCollect(out, maxCount);
+  };
+  osdCfg.onStatsReset = [](void *) { statsReset(); };
   osdCfg.userData = nullptr;
   gOsd.init(osdCfg);
 
@@ -648,6 +653,13 @@ int main() {
   }
 
   // -------------------------------------------------------------------------
+  // 10b. Debug statistics aggregator
+  // -------------------------------------------------------------------------
+  StatsSources statsSrc = {&inst,  &gCurrentIface, &gSpi, &gI2c,
+                           &gHstx, &gCvbs,         &gDl,  gOutputIf};
+  statsInit(statsSrc);
+
+  // -------------------------------------------------------------------------
   // 11. USB CDC serial interface
   // -------------------------------------------------------------------------
   uartIfInit(&inst, &gCurrentIface, &gOutputIf, &gCvbsDac, switchInterface,
@@ -689,6 +701,7 @@ int main() {
     if (gVideo->consumeNewFrame(gVideoState)) {
       uint64_t nowMs =
           static_cast<uint64_t>(to_ms_since_boot(get_absolute_time()));
+      statsTick(nowMs);
       uint8_t action = gOsd.update(nowMs, *gInst, readKeys());
       if (action == lcdtap::OSD_ACTION_APPLY) {
         const lcdtap::OsdMenuItem *ifaceItem = nullptr;

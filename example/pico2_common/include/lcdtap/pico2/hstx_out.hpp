@@ -72,6 +72,12 @@ struct HstxOutState {
   uint32_t chNum;          // index into dmaChannels[] that last completed
   uint32_t frame;
   bool led;
+
+  // Debug statistics: lines handed to the DMA whose fill request from the
+  // previous round was still pending, i.e. Core 1 missed the fill deadline
+  // and a stale line was scanned out. Written by the DMA IRQ on Core 1,
+  // read by Core 0; free-running 32-bit counter.
+  volatile uint32_t underrunCount;
 };
 
 // Configure clocks for HSTX output.

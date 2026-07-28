@@ -40,7 +40,8 @@ static constexpr uint16_t OSD_ITEM_ID_PRESET = 1;
 static constexpr uint16_t OSD_ITEM_ID_SYS_BASE = OSD_ITEM_ID_PRESET + 1;
 static constexpr uint16_t OSD_ITEM_ID_VIEW_DUMP =
     OSD_ITEM_ID_SYS_BASE + static_cast<uint16_t>(ConfigId::NUM_CONFIGS);
-static constexpr uint16_t OSD_ITEM_ID_APPLY = OSD_ITEM_ID_VIEW_DUMP + 1;
+static constexpr uint16_t OSD_ITEM_ID_VIEW_STATS = OSD_ITEM_ID_VIEW_DUMP + 1;
+static constexpr uint16_t OSD_ITEM_ID_APPLY = OSD_ITEM_ID_VIEW_STATS + 1;
 static constexpr uint16_t OSD_ITEM_ID_CANCEL = OSD_ITEM_ID_APPLY + 1;
 static constexpr uint16_t OSD_NUM_SYSTEM_ITEMS = OSD_ITEM_ID_CANCEL + 1;
 
@@ -62,10 +63,11 @@ struct OsdMenuItem {
 // OSD state
 //=============================================================================
 enum class OsdState : uint8_t {
-  HIDDEN,     // OSD not visible
-  MAIN_MENU,  // configuration menu
-  PRESET,     // reset confirmation prompt
-  DUMP_VIEW,  // command dump viewer
+  HIDDEN,      // OSD not visible
+  MAIN_MENU,   // configuration menu
+  PRESET,      // reset confirmation prompt
+  DUMP_VIEW,   // command dump viewer
+  STATS_VIEW,  // statistics viewer
 };
 
 //=============================================================================
@@ -81,6 +83,14 @@ struct OsdConfig {
   // Set to nullptr to use default behaviour for all ACTION items.
   bool (*onActionActivated)(class Osd* osd, const OsdMenuItem* item,
                             LcdTap& lcdtap, void* userData);
+
+  // Statistics provider. Fills up to maxCount entries into out and returns
+  // the number of entries written. When nullptr, the "Statistics" menu item
+  // is not shown at all.
+  int (*getStats)(StatEntry* out, int maxCount, void* userData);
+
+  // Called when Enter (reset) is pressed in the statistics view.
+  void (*onStatsReset)(void* userData);
 
   void* userData;
 };
@@ -201,6 +211,12 @@ class Osd {
   uint16_t lastDumpSize_ = 0;
   bool dumpViewDirty_ = true;
 
+  // Statistics view state
+  static constexpr int MAX_STAT_ENTRIES = 16;
+  static constexpr uint64_t STATS_REFRESH_MS = 1000;
+  int statsScrollOffset_ = 0;
+  uint64_t lastStatsRenderMs_ = 0;
+
   static void makeItemById(uint16_t id, OsdMenuItem* item);
 
   // Populate items_[] from the current LcdTap config.
@@ -213,6 +229,7 @@ class Osd {
   uint8_t updateMainMenu(LcdTap& lcdtap, uint64_t nowMs, uint8_t activeKeys);
   uint8_t updatePresetList(LcdTap& lcdtap, uint64_t nowMs, uint8_t activeKeys);
   uint8_t updateDumpView(LcdTap& lcdtap, uint64_t nowMs, uint8_t activeKeys);
+  uint8_t updateStatsView(uint64_t nowMs, uint8_t activeKeys);
 
   // Rebuild the entire text buffer from items_ and display state.
   void renderAll();
@@ -224,6 +241,9 @@ class Osd {
 
   // Render the dump viewer into textBuf_/textCol_.
   void renderDumpView(LcdTap& lcdtap);
+
+  // Render the statistics viewer into textBuf_/textCol_.
+  void renderStatsView();
 
   // Adjust scrollOffset_ so that selectedItem_ is visible.
   void updateScroll();

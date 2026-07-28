@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "stats.hpp"
 #include "uart_b64.hpp"
 #include "uart_lex.hpp"
 #include "uart_trx.hpp"
@@ -288,6 +289,7 @@ enum class RespPhase {
   IDLE,
   SHORT,        // sending a fixed response string
   PARAMS,       // getparams: stream one param object at a time
+  STATS,        // getstats: stream one stat entry at a time
   FB_HEADER,    // getframebuffer: initial JSON fragment
   FB_DATA,      // getframebuffer: base64 pixel stream
   FB_FOOTER,    // getframebuffer: closing fragment
@@ -305,6 +307,12 @@ struct RespGen {
 
   // PARAMS: which parameter index is being emitted
   int paramIdx = 0;
+
+  // STATS: snapshot taken at command time and streaming position
+  static constexpr int MAX_STATS = 16;
+  lcdtap::StatEntry statsBuf[MAX_STATS] = {};
+  int statsCount = 0;
+  int statsIdx = 0;
 
   // FB_DATA / DUMP_DATA: pixel/byte position and base64 accumulator
   uint16_t fbOutX = 0;
@@ -514,6 +522,44 @@ static bool buildParamChunk(int slot, const lcdtap::LcdTapConfig& cfg,
 }
 
 // =============================================================================
+// getstats output helpers
+// =============================================================================
+
+static const char* statFmtStr(lcdtap::StatFormat fmt) {
+  switch (fmt) {
+    case lcdtap::StatFormat::HEX: return "hex";
+    case lcdtap::StatFormat::RATE: return "rate";
+    default: return "dec";
+  }
+}
+
+// Build the JSON fragment for one stats entry into chunkBuf.
+// Returns false when idx is out of range.
+static bool buildStatChunk(int idx) {
+  if (idx < 0 || idx >= gResp.statsCount) return false;
+
+  const lcdtap::StatEntry& e = gResp.statsBuf[idx];
+  const char* tail = (idx == gResp.statsCount - 1) ? "}]}\r\n" : "},";
+
+  char* buf = gResp.chunkBuf;
+  int cap = static_cast<int>(sizeof(gResp.chunkBuf));
+  int pos = 0;
+
+  if (idx == 0) {
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "{\"stats\":[");
+  }
+  pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
+                  "{\"name\":\"%s\",\"value\":%lu,\"unit\":\"%s\","
+                  "\"fmt\":\"%s\"%s",
+                  e.name, static_cast<unsigned long>(e.value),
+                  e.unit ? e.unit : "", statFmtStr(e.fmt), tail);
+
+  gResp.chunkLen = pos < cap ? pos : cap - 1;
+  gResp.chunkPos = 0;
+  return true;
+}
+
+// =============================================================================
 // Preset config helper
 // =============================================================================
 
@@ -661,6 +707,27 @@ static void execCommand(const Parser& p) {
     respSetShort("{\"response\":\"ok\"}\r\n");
     // Reboot only after the response has been flushed, so the client sees it.
     if (needReboot) gRebootPending = true;
+    return;
+  }
+
+  // ----- getstats -----
+  if (strcmp(cmd, "getstats") == 0) {
+    gResp.statsCount = statsCollect(gResp.statsBuf, RespGen::MAX_STATS);
+    gResp.statsIdx = 0;
+    if (gResp.statsCount == 0) {
+      respSetShort("{\"stats\":[]}\r\n");
+      return;
+    }
+    gResp.chunkLen = 0;
+    gResp.chunkPos = 0;
+    gResp.phase = RespPhase::STATS;
+    return;
+  }
+
+  // ----- statsreset -----
+  if (strcmp(cmd, "statsreset") == 0) {
+    statsReset();
+    respSetShort("{\"response\":\"ok\"}\r\n");
     return;
   }
 
@@ -870,6 +937,16 @@ static void respFlush() {
       }
       gResp.paramIdx++;
       // drainChunk will be called on the next respFlush() invocation
+      break;
+    }
+
+    case RespPhase::STATS: {
+      if (!drainChunk()) break;
+      if (!buildStatChunk(gResp.statsIdx)) {
+        gResp.phase = RespPhase::IDLE;
+        break;
+      }
+      gResp.statsIdx++;
       break;
     }
 

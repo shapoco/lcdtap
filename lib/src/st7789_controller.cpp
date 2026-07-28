@@ -2,6 +2,12 @@
 
 namespace lcdtap {
 
+bool St7789Controller::onDispatchCommand(uint8_t cmd) {
+  using namespace st7789;
+  // RAMCTRL is known; its parameters are consumed by onFeedDataByte().
+  return cmd == CMD_RAMCTRL;
+}
+
 void St7789Controller::onFeedDataByte(uint8_t byte) {
   using namespace st7789;
   if (currentCmd == CMD_RAMCTRL) {

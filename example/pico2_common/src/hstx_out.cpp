@@ -81,6 +81,9 @@ static void __scratch_x("hstx") hstxIrqHandler() {
     ch->transfer_count = s->lineBufTotalLen;
     s->fillY[nextIdx] = (uint16_t)y;
     __dmb();
+    // Previous fill request still pending: Core 1 missed the deadline and
+    // the buffer just handed to the DMA carries a stale line.
+    if (s->fillPending[nextIdx]) s->underrunCount = s->underrunCount + 1u;
     s->fillPending[nextIdx] = 1;
     __sev();  // wake Core 1 main loop
   }

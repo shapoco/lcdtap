@@ -23,8 +23,14 @@ struct I2cSlaveState {
   uint32_t *ringBuf;
   uint32_t ringWords;  // must be a power of 2
   volatile uint32_t writeIdx;
-  uint32_t readIdx;
+  volatile uint32_t readIdx;  // written by Core 0, read by the IRQ handler
   volatile I2cRxState rxState;
+
+  // Debug statistics: free-running 32-bit counters that survive interface
+  // switches — display code resets them by baseline subtraction.
+  volatile uint32_t dropWords;        // bytes dropped on ring buffer full
+  volatile uint32_t hwOverflowCount;  // hardware RX FIFO overflows (RX_OVER)
+  uint32_t backlogMaxWords;           // high-water mark of the ring backlog
 };
 
 // Initialize I2C peripheral in slave mode and enable IRQ.
@@ -40,4 +46,4 @@ void i2cSlaveDeinit(I2cSlaveState *s);
 // Drain the ring buffer and dispatch commands/data to s->inst.
 void __not_in_flash_func(i2cSlaveProcess)(I2cSlaveState *s);
 
-}  // namespace pico2
+}  // namespace lcdtap::pico2

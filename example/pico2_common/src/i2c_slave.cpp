@@ -34,9 +34,21 @@ static void __not_in_flash_func(i2cIrqHandler)() {
       uint32_t word = (s->rxState == I2cRxState::STREAM_DATA)
                           ? (0x100u | byte)
                           : static_cast<uint32_t>(byte);
-      s->ringBuf[s->writeIdx] = word;
-      s->writeIdx = (s->writeIdx + 1u) & (s->ringWords - 1u);
+      uint32_t nextIdx = (s->writeIdx + 1u) & (s->ringWords - 1u);
+      if (nextIdx == s->readIdx) {
+        // Ring full: drop the newest byte so the consumer-owned readIdx is
+        // never touched from the IRQ.
+        s->dropWords = s->dropWords + 1u;
+      } else {
+        s->ringBuf[s->writeIdx] = word;
+        s->writeIdx = nextIdx;
+      }
     }
+  }
+
+  if (intr & I2C_IC_INTR_STAT_R_RX_OVER_BITS) {
+    s->hwOverflowCount = s->hwOverflowCount + 1u;
+    (void)hw->clr_rx_over;
   }
 
   if (intr & I2C_IC_INTR_STAT_R_STOP_DET_BITS) {
@@ -75,7 +87,8 @@ void i2cSlaveInit(I2cSlaveState *s, const I2cSlaveConfig &cfg,
 
   i2c_get_hw(cfg.i2c)->intr_mask =
       I2C_IC_INTR_MASK_M_RX_FULL_BITS | I2C_IC_INTR_MASK_M_STOP_DET_BITS |
-      I2C_IC_INTR_MASK_M_RD_REQ_BITS | I2C_IC_INTR_MASK_M_TX_ABRT_BITS;
+      I2C_IC_INTR_MASK_M_RD_REQ_BITS | I2C_IC_INTR_MASK_M_TX_ABRT_BITS |
+      I2C_IC_INTR_MASK_M_RX_OVER_BITS;
 
   uint irqNum = (cfg.i2c == i2c0) ? I2C0_IRQ : I2C1_IRQ;
   irq_set_exclusive_handler(irqNum, i2cIrqHandler);
@@ -98,6 +111,9 @@ void i2cSlaveDeinit(I2cSlaveState *s) {
 
 void __not_in_flash_func(i2cSlaveProcess)(I2cSlaveState *s) {
   uint32_t writeIdx = s->writeIdx;  // snapshot of volatile
+
+  uint32_t backlog = (writeIdx - s->readIdx) & (s->ringWords - 1u);
+  if (backlog > s->backlogMaxWords) s->backlogMaxWords = backlog;
 
   if (!s->inst) {
     s->readIdx = writeIdx;
@@ -134,4 +150,4 @@ void __not_in_flash_func(i2cSlaveProcess)(I2cSlaveState *s) {
   }
 }
 
-}  // namespace pico2
+}  // namespace lcdtap::pico2

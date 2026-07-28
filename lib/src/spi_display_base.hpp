@@ -38,8 +38,11 @@ class SpiDisplayBase : public ControllerBase {
   bool isRamWriteCommand() const override;
 
  protected:
-  // Called by dispatchCommand() for opcodes not handled by SpiDisplayBase
-  virtual void onDispatchCommand(uint8_t cmd) {}
+  // Called by dispatchCommand() for opcodes not handled by SpiDisplayBase.
+  // Return true when the opcode is known to the derived controller (its
+  // parameters may still be consumed via onFeedDataByte()); false lets the
+  // base count it as an unknown command.
+  virtual bool onDispatchCommand(uint8_t cmd) { return false; }
 
   // Called by feedDataByte() for data bytes of commands not handled by
   // SpiDisplayBase

@@ -431,6 +431,22 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
 /* Unknown event: red */
 .dump-cell.evt-unk { background: #ff0042; color: #000; }
 
+/* ── Statistics tab ──────────────────────────────────────── */
+.stats-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+
+.stats-table {
+  border-collapse: collapse;
+  min-width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.stats-table td { padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.stats-table tr:last-child td { border-bottom: none; }
+.stats-name { color: var(--text); }
+.stats-value { font-family: var(--font-mono); text-align: right; color: var(--accent); white-space: nowrap; }
+
 /* ── Utility ──────────────────────────────────────────────── */
 .section-title {
   font-size: 12px;
@@ -473,6 +489,7 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
   <button class="tab-btn active" data-tab="config" disabled>Config</button>
   <button class="tab-btn" data-tab="framebuffer" disabled>Frame Buffer</button>
   <button class="tab-btn" data-tab="dump" disabled>Command Dump</button>
+  <button class="tab-btn" data-tab="stats" disabled>Statistics</button>
 </div>
 
 <!-- ── Config tab ──────────────────────────────────────── -->
@@ -546,6 +563,16 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
   <div class="dump-view-wrapper">
     <div id="dump-view" style="color:var(--text-muted)">No data.</div>
   </div>
+</div>
+
+<!-- ── Statistics tab ──────────────────────────────────── -->
+<div class="tab-pane" id="tab-stats">
+  <div class="stats-controls">
+    <button id="btn-stats-reset" disabled>Reset</button>
+  </div>
+  <table class="stats-table"><tbody id="stats-body">
+    <tr><td class="stats-name" style="color:var(--text-muted)">No data.</td></tr>
+  </tbody></table>
 </div>
 
 <!-- ── Toast area ──────────────────────────────────────── -->
@@ -705,6 +732,7 @@ let params = [];           // current param descriptors
 let dumpPollTimer = null;
 let dumpLastStatus = null;
 let dumpLastBytes = -1;
+let statsPollTimer = null;
 let autoReloadTimer = null;
 let activeTab = 'config';
 
@@ -733,7 +761,7 @@ function setConnected(yes) {
   btnDisconnect.disabled = !yes;
   transportSelect.disabled = yes;
   document.querySelectorAll('.tab-btn').forEach(b => { b.disabled = !yes; });
-  document.querySelectorAll('#btn-apply,#btn-refresh-params,#btn-load-preset,#btn-capture,#btn-force-trigger,#btn-abort')
+  document.querySelectorAll('#btn-apply,#btn-refresh-params,#btn-load-preset,#btn-capture,#btn-force-trigger,#btn-abort,#btn-stats-reset')
     .forEach(b => { b.disabled = !yes; });
   // Copy/Save stay disabled until a frame is captured
   if (!yes) {
@@ -767,6 +795,7 @@ async function attemptReconnect() {
   reconnecting = true;
   reconnectCancel = false;
   stopDumpPolling();
+  stopStatsPolling();
   stopAutoReload();
   setConnected(false);
   // Keep Disconnect live so the user can abort the retry loop.
@@ -829,6 +858,7 @@ btnDisconnect.addEventListener('click', async () => {
   reconnectCancel = true;   // abort an in-progress auto-reconnect, if any
   reconnecting = false;
   stopDumpPolling();
+  stopStatsPolling();
   stopAutoReload();
   await conn.disconnect();
   setConnected(false);
@@ -845,11 +875,10 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
     const prev = activeTab;
     activeTab = tab;
-    if (tab === 'dump') {
-      startDumpPolling();
-    } else {
-      if (prev === 'dump') stopDumpPolling();
-    }
+    if (tab === 'dump') startDumpPolling();
+    else if (prev === 'dump') stopDumpPolling();
+    if (tab === 'stats') startStatsPolling();
+    else if (prev === 'stats') stopStatsPolling();
   });
 });
 
@@ -1329,6 +1358,75 @@ function renderDump(raw) {
   view.innerHTML = '';
   view.appendChild(frag);
 }
+
+// ─── Statistics Tab ──────────────────────────────────────────────────────────
+
+function startStatsPolling() {
+  if (statsPollTimer) return;
+  pollStats();
+  statsPollTimer = setInterval(pollStats, 1000);
+}
+
+function stopStatsPolling() {
+  if (statsPollTimer) { clearInterval(statsPollTimer); statsPollTimer = null; }
+}
+
+function formatStatValue(entry) {
+  const v = entry.value >>> 0;
+  if (entry.fmt === 'rate') {
+    if (v >= 1e6) return (v / 1e6).toFixed(2) + ' MB/s';
+    if (v >= 1e3) return (v / 1e3).toFixed(2) + ' KB/s';
+    return v + ' B/s';
+  }
+  if (entry.fmt === 'hex') {
+    // Values above 0xFF mean "none yet"
+    if (v > 0xFF) return '--';
+    return '0x' + v.toString(16).padStart(2, '0').toUpperCase();
+  }
+  let s = v.toLocaleString('en-US');
+  if (entry.unit) s += ' ' + entry.unit;
+  return s;
+}
+
+async function pollStats() {
+  if (!conn.connected) return;
+  try {
+    const resp = await conn.sendCommand({ command: 'getstats' }, 3000);
+    const obj = JSON.parse(resp);
+    renderStats(obj.stats || []);
+  } catch (e) {
+    // Ignore timeout during polling; might be busy sending framebuffer
+  }
+}
+
+function renderStats(stats) {
+  const body = document.getElementById('stats-body');
+  const frag = document.createDocumentFragment();
+  for (const entry of stats) {
+    const tr = document.createElement('tr');
+    const name = document.createElement('td');
+    name.className = 'stats-name';
+    name.textContent = entry.name;
+    const val = document.createElement('td');
+    val.className = 'stats-value';
+    val.textContent = formatStatValue(entry);
+    tr.appendChild(name);
+    tr.appendChild(val);
+    frag.appendChild(tr);
+  }
+  body.innerHTML = '';
+  body.appendChild(frag);
+}
+
+document.getElementById('btn-stats-reset').addEventListener('click', async () => {
+  try {
+    await conn.sendCommand({ command: 'statsreset' }, 5000);
+    showToast('Statistics reset', 'success');
+    pollStats();
+  } catch (e) {
+    showToast('Reset failed: ' + e.message, 'error');
+  }
+});
 
 // ─── Base64 decode ───────────────────────────────────────────────────────────
 

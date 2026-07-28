@@ -28,6 +28,15 @@ struct SpiSlaveState {
   uint progOffset;
   const pio_program_t *pioProgram;
   uint32_t readIdx;
+
+  // Debug statistics. wrapCount/totalConsumedWords are internal ring
+  // accounting (reset together on DMA init); dropWords/backlogMaxWords are
+  // free-running 32-bit counters that survive interface switches — display
+  // code resets them by baseline subtraction.
+  volatile uint32_t wrapCount;  // ring wraps, incremented from the DMA IRQ
+  uint32_t totalConsumedWords;  // words consumed by spiSlaveProcess
+  uint32_t dropWords;           // words lost to ring buffer overrun
+  uint32_t backlogMaxWords;     // high-water mark of the ring backlog
 };
 
 // Load spi_4line_mode0 program, configure SM, and init DMA.

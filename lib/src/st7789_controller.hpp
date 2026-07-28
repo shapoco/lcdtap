@@ -8,6 +8,7 @@ namespace lcdtap {
 
 class St7789Controller final : public SpiDisplayBase {
  protected:
+  bool onDispatchCommand(uint8_t cmd) override;
   void onFeedDataByte(uint8_t byte) override;
   InterfaceFormat colmodToFormat(uint8_t fmt) const override;
 };

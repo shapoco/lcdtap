@@ -70,6 +70,9 @@ static void __scratch_x("cvbs") compositeIrqHandler() {
 
   s->fillLine[finishedIdx] = (uint16_t)line;
   __dmb();
+  // Previous fill request still pending: Core 1 missed the deadline and the
+  // slot just re-queued to the DMA carries stale lines.
+  if (s->fillPending[finishedIdx]) s->underrunCount = s->underrunCount + 1u;
   s->fillPending[finishedIdx] = 1;
   __sev();  // wake Core 1 main loop
 }

@@ -78,6 +78,12 @@ class ControllerBase {
   uint32_t presentEpoch = 0;
   uint8_t dirtyMap[LcdTap::MAX_DIRTY_ROWS];
 
+  // Debug statistics: opcodes that fell through to a controller's
+  // unknown-command branch. lastUnknownCmd is only meaningful while
+  // unknownCmdCount != 0.
+  uint32_t unknownCmdCount = 0;
+  uint8_t lastUnknownCmd = 0;
+
   // Per-call accumulator for the RAMWR write loop. diff collects XORs of
   // old/new pixel values within the current 64px segment; segBits collects
   // the dirty segments (in logical x) of the current logical row.
@@ -139,6 +145,11 @@ class ControllerBase {
   // --- Dirty marking (out-of-line, cold relative to the pixel loop) ---
 
   void bumpEpoch() { ++presentEpoch; }
+
+  void noteUnknownCommand(uint8_t cmd) {
+    ++unknownCmdCount;
+    lastUnknownCmd = cmd;
+  }
 
   // OR the segment bits covering [physCol0, physCol1] into rows
   // [physRow0, physRow1] of dirtyMap. Coordinates are physical and clamped.

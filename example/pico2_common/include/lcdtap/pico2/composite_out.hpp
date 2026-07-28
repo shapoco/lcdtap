@@ -90,6 +90,11 @@ struct CompositeOutState {
   uint32_t slotNum;             // index of the slot that last completed
   uint32_t frame;
   bool led;
+
+  // Debug statistics: slots handed back to the DMA whose fill request from
+  // the previous round was still pending (Core 1 missed the fill deadline).
+  // Written by the DMA IRQ on Core 1, read by Core 0; free-running counter.
+  volatile uint32_t underrunCount;
 };
 
 // Byte offset of slot `i`. All three call sites must go through this: the

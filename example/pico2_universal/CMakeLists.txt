@@ -22,6 +22,7 @@ add_executable(lcdtap_pico2_universal
     src/main.cpp
     src/displaylink_out.cpp
     src/flash_config.cpp
+    src/stats.cpp
     src/uart_trx.cpp
     src/uart_b64.cpp
     src/uart_lex.cpp

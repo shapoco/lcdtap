@@ -136,7 +136,10 @@ void Ssd1331Controller::dispatchCommand(uint8_t cmd) {
       break;
     case CMD_NORMALDISPLAY: setInverted(config.inverted); break;
     case CMD_INVERTDISPLAY: setInverted(!config.inverted); break;
-    default: expectedParams = 0; break;
+    default:
+      noteUnknownCommand(cmd);
+      expectedParams = 0;
+      break;
   }
 }
 

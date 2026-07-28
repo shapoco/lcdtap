@@ -894,6 +894,9 @@ void LcdTap::inputReset(bool assert) {
   if (!impl_) return;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK) return;
+  // Count assert edges only: the GPIO IRQ path may call inputReset(true)
+  // twice for a single physical pulse (EDGE_FALL handler + level re-sample).
+  if (assert && !ctrl->hwReset) ++hwResetCount_;
   ctrl->hwReset = assert;
   if (!assert) {
     if (dumpState_ == DumpState::ACTIVE) dumpPush(DUMP_EVENT_HW_RESET);
@@ -904,6 +907,7 @@ void LcdTap::inputReset(bool assert) {
 
 void LcdTap::inputCommand(uint8_t byte) {
   if (!impl_) return;
+  ++rxCmdBytes_;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || ctrl->hwReset) return;
   ctrl->dispatchCommand(byte);
@@ -913,6 +917,7 @@ void LcdTap::inputCommand(uint8_t byte) {
 void LcdTap::inputData(const uint8_t* data, uint32_t numBytes,
                        uint32_t stride) {
   if (!impl_) return;
+  rxDataBytes_ += numBytes;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || ctrl->hwReset) return;
   ctrl->feedData(data, numBytes, stride);
@@ -921,6 +926,16 @@ void LcdTap::inputData(const uint8_t* data, uint32_t numBytes,
     for (uint32_t i = 0; i < numBytes && dumpState_ == DumpState::ACTIVE; ++i)
       dumpPush(0x100u | data[i * s]);
   }
+}
+
+uint32_t LcdTap::getUnknownCmdCount() const {
+  if (!impl_) return 0;
+  return static_cast<const ControllerBase*>(impl_)->unknownCmdCount;
+}
+
+uint8_t LcdTap::getLastUnknownCmd() const {
+  if (!impl_) return 0;
+  return static_cast<const ControllerBase*>(impl_)->lastUnknownCmd;
 }
 
 //=============================================================================
@@ -1132,6 +1147,10 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
     // cached the old value still sees a change.
     const bool oldDirtyTracking = ctrl->dirtyTracking;
     const uint32_t oldEpoch = ctrl->presentEpoch;
+    // Debug counters must survive the swap: hosts subtract a baseline
+    // snapshot from them, so a reset to zero would show as a huge value.
+    const uint32_t oldUnknownCmdCount = ctrl->unknownCmdCount;
+    const uint8_t oldLastUnknownCmd = ctrl->lastUnknownCmd;
     if (ctrl->frameBuffer) host.free(ctrl->frameBuffer);
     delete ctrl;
     impl_ = nullptr;
@@ -1158,6 +1177,8 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
     ctrl->hwReset = false;
     ctrl->frameBuffer = nullptr;
     ctrl->presentEpoch = oldEpoch + 1u;
+    ctrl->unknownCmdCount = oldUnknownCmdCount;
+    ctrl->lastUnknownCmd = oldLastUnknownCmd;
     impl_ = ctrl;
 
     size_t fbSize = (size_t)cfg.buffWidth * cfg.buffHeight * sizeof(uint16_t);

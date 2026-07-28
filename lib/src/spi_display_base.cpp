@@ -107,8 +107,13 @@ void SpiDisplayBase::dispatchCommand(uint8_t cmd) {
         writePtr = frameBuffer + physIndex(ramwrX, ramwrY);
       }
       break;
-    // CMD_MADCTL / CMD_COLMOD / CMD_CASET / CMD_RASET wait for data bytes
-    default: onDispatchCommand(cmd); break;
+    case CMD_CASET:
+    case CMD_RASET:
+    case CMD_MADCTL:
+    case CMD_COLMOD: break;  // known; parameters are consumed by feedDataByte()
+    default:
+      if (!onDispatchCommand(cmd)) noteUnknownCommand(cmd);
+      break;
   }
 }
 

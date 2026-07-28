@@ -166,8 +166,8 @@ void Ssd1306Controller::dispatchCommand(uint8_t cmd) {
     case CMD_SET_COM_PINS:
     case CMD_SET_VCOMH:
     case CMD_CHARGE_PUMP: expectedParams = 1; break;
-    case CMD_NOP:
-    default: break;
+    case CMD_NOP: break;
+    default: noteUnknownCommand(cmd); break;
   }
 }
 
