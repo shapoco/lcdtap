@@ -67,3 +67,7 @@ wrap IRQ が抑止されるケース (flash 書き込み中など) で複数 wra
 - CoreS3 / Arduboy を接続して放置し、RX Drop = 0・Peak Backlog が通常値の
   ままであることを確認する。
 - 回帰: SPI↔I2C 切替、CoreS3 ストリーミング中の設定保存 (flash 書き込み)。
+
+## 結果
+
+実機確認済み (2026-07-28)。修正後は RX Drop が発生しなくなった。解決。
