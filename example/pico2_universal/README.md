@@ -18,7 +18,7 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 ## Schematics
 
 - Keep the input bus as short as possible and ensure all cables are the same length.
-- See also: [Recommended Header Pinout](../../README.md#recommended-header-pinout)
+- See also: [Recommended Header Pinout](https://shapoco.github.io/lcdtap/#header_pinout)
 
 ![](./image/schematics.png)
 
