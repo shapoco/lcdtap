@@ -218,8 +218,6 @@ Full-Speed (22–27 Ω preferred).
 
 Press the Enter key to open the configuration menu.
 
-![](./image/osd_ss.png)
-
 | Key | Action |
 |-----|--------|
 | Up / Down | Navigate menu items |
@@ -231,8 +229,6 @@ Press the Enter key to open the configuration menu.
 ### Command Dump Viewer
 
 Selecting **Command Dump** opens a hex viewer that shows the raw LCD command/data stream captured since power-on (or since the last trigger).
-
-![](./image/cmd_dump_ss.png)
 
 | Key | Action |
 |-----|--------|
@@ -256,8 +252,6 @@ LcdTap-Pico2 Universal accepts JSON commands over the USB CDC serial interface.
 This allows remote configuration and framebuffer readout from a PC.
 
 Available here: https://shapoco.github.io/lcdtap/monitor
-
-![](./image/web_app.png)
 
 ## Building Firmware from Source
 
