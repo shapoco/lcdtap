@@ -215,6 +215,271 @@ void ControllerBase::processRamwrData(const uint8_t* data, uint32_t numBytes,
   }
 }
 
+template <bool kDirty, uint32_t kStride>
+void LCDTAP_INLINE ControllerBase::ramwrRgb565RunImpl(const uint8_t* data,
+                                                      uint32_t numPixels,
+                                                      uint32_t strideArg,
+                                                      DirtyAcc& acc) {
+  const uint32_t stride = (kStride != 0) ? kStride : strideArg;
+  const uint16_t inv = cachedInverter;
+  const uint32_t inv32 = (static_cast<uint32_t>(inv) << 16) | inv;
+  const int32_t hStep = cachedHStep;
+  const bool bgr = cachedBGR;
+  const bool le = cachedLittleEndian;
+  const uint8_t* p = data;
+  uint32_t x = ramwrX;
+  uint16_t* ptr = writePtr;
+
+  auto fetchPx = [&]() [[gnu::always_inline]] {
+    uint_fast16_t b0 = p[0];
+    uint_fast16_t b1 = p[stride];
+    p += stride * 2u;
+    uint_fast16_t px = le ? (b0 | (b1 << 8)) : ((b0 << 8) | b1);
+    if (bgr) {
+      px = ((px << 11) & 0xF800u) | (px & 0x07E0u) | ((px >> 11) & 0x1Fu);
+    }
+    return static_cast<uint_fast16_t>(px ^ inv);
+  };
+
+  while (numPixels != 0) {
+    // casetXE < x only happens with a degenerate CASET window (XE < XS);
+    // fall back to single-pixel runs there, matching the per-pixel path.
+    int32_t rowRemain =
+        static_cast<int32_t>(casetXE) - static_cast<int32_t>(x) + 1;
+    uint32_t run = rowRemain <= 0 ? 1u : static_cast<uint32_t>(rowRemain);
+    if (run > numPixels) run = numPixels;
+    if constexpr (kDirty) {
+      // Cap runs at 64px segment boundaries so the diff accumulation keeps
+      // the per-pixel path's segment granularity.
+      uint32_t segRemain = 64u - (x & 63u);
+      if (run > segRemain) run = segRemain;
+    }
+    numPixels -= run;
+    x += run;
+
+    uint32_t n = run;
+    if (hStep == 1) {
+      if ((reinterpret_cast<uintptr_t>(ptr) & 3u) != 0) {
+        uint_fast16_t px = fetchPx();
+        if constexpr (kDirty) {
+          acc.diff |= static_cast<uint32_t>(*ptr ^ px);
+        }
+        *ptr++ = static_cast<uint16_t>(px);
+        --n;
+      }
+      uint32_t* ptr32 = reinterpret_cast<uint32_t*>(ptr);
+      for (uint32_t k = n / 2u; k != 0; --k) {
+        uint_fast32_t b0 = p[0];
+        uint_fast32_t b1 = p[stride];
+        uint_fast32_t b2 = p[stride * 2u];
+        uint_fast32_t b3 = p[stride * 3u];
+        p += stride * 4u;
+        uint32_t w = le ? (b0 | (b1 << 8) | (b2 << 16) | (b3 << 24))
+                        : ((b0 << 8) | b1 | (b2 << 24) | (b3 << 16));
+        if (bgr) {
+          w = ((w << 11) & 0xF800F800u) | (w & 0x07E007E0u) |
+              ((w >> 11) & 0x001F001Fu);
+        }
+        w ^= inv32;
+        if constexpr (kDirty) {
+          acc.diff |= *ptr32 ^ w;
+        }
+        *ptr32++ = w;
+      }
+      ptr = reinterpret_cast<uint16_t*>(ptr32);
+      if (n & 1u) {
+        uint_fast16_t px = fetchPx();
+        if constexpr (kDirty) {
+          acc.diff |= static_cast<uint32_t>(*ptr ^ px);
+        }
+        *ptr++ = static_cast<uint16_t>(px);
+      }
+    } else {
+      for (uint32_t k = n; k != 0; --k) {
+        uint_fast16_t px = fetchPx();
+        if constexpr (kDirty) {
+          acc.diff |= static_cast<uint32_t>(*ptr ^ px);
+        }
+        *ptr = static_cast<uint16_t>(px);
+        ptr += hStep;
+      }
+    }
+
+    if constexpr (kDirty) {
+      if (acc.diff != 0) {
+        acc.segBits |= 1u << ((x - 1u) >> 6);
+        acc.diff = 0;
+      }
+    }
+    if (x > casetXE) {
+      if constexpr (kDirty) {
+        if (acc.segBits != 0) {
+          markLogicalRowDirty(ramwrY, acc.segBits);
+          acc.segBits = 0;
+        }
+      }
+      x = casetXS;
+      if (++ramwrY > rasetYE) ramwrY = rasetYS;
+      ptr = frameBuffer + physIndex(x, ramwrY);
+    }
+  }
+  ramwrX = static_cast<uint16_t>(x);
+  writePtr = ptr;
+}
+
+template <bool kDirty, uint32_t kStride>
+void LCDTAP_INLINE ControllerBase::ramwrRgb444RunImpl(const uint8_t* data,
+                                                      uint32_t numGroups,
+                                                      uint32_t strideArg,
+                                                      DirtyAcc& acc) {
+  const uint32_t stride = (kStride != 0) ? kStride : strideArg;
+  const uint16_t inv = cachedInverter;
+  const uint32_t inv32 = (static_cast<uint32_t>(inv) << 16) | inv;
+  const int32_t hStep = cachedHStep;
+  const bool bgr = cachedBGR;
+  const uint8_t* p = data;
+  uint32_t numPixels = numGroups * 2u;
+  uint32_t x = ramwrX;
+  uint16_t* ptr = writePtr;
+  // 0x10000 | pixel when a 3-byte group is split by a run boundary (px0 ends
+  // the run, px1 opens the next one). The total pixel count is even, so the
+  // carry is always consumed before the loop exits.
+  uint32_t pending = 0;
+
+  // Decode one 3-byte group into a pixel pair: px0 in [15:0], px1 in [31:16],
+  // BGR swap and inversion already applied.
+  auto decodeGroup = [&]() [[gnu::always_inline]] {
+    uint_fast32_t b0 = p[0];
+    uint_fast32_t b1 = p[stride];
+    uint_fast32_t b2 = p[stride * 2u];
+    p += stride * 3u;
+    uint32_t w = ((b0 << 8) & 0xF000u) | ((b0 << 7) & 0x0780u) |
+                 ((b1 >> 3) & 0x001Eu) | ((b1 << 28) & 0xF0000000u) |
+                 ((b2 << 19) & 0x07800000u) | ((b2 << 17) & 0x001E0000u);
+    if (bgr) {
+      w = ((w << 11) & 0xF800F800u) | (w & 0x07E007E0u) |
+          ((w >> 11) & 0x001F001Fu);
+    }
+    return w ^ inv32;
+  };
+
+  while (numPixels != 0) {
+    int32_t rowRemain =
+        static_cast<int32_t>(casetXE) - static_cast<int32_t>(x) + 1;
+    uint32_t run = rowRemain <= 0 ? 1u : static_cast<uint32_t>(rowRemain);
+    if (run > numPixels) run = numPixels;
+    if constexpr (kDirty) {
+      uint32_t segRemain = 64u - (x & 63u);
+      if (run > segRemain) run = segRemain;
+    }
+    numPixels -= run;
+    x += run;
+
+    uint32_t n = run;
+    if (pending != 0) {
+      uint_fast16_t px = static_cast<uint16_t>(pending);
+      if constexpr (kDirty) {
+        acc.diff |= static_cast<uint32_t>(*ptr ^ px);
+      }
+      *ptr = static_cast<uint16_t>(px);
+      ptr += hStep;
+      pending = 0;
+      --n;
+    }
+    // Unlike RGB565, the pair grouping is fixed by the stream, so a
+    // misaligned destination cannot be re-aligned by peeling one pixel;
+    // fall back to the scalar loop instead (unaligned 32-bit stores are not
+    // portable across every target this builds for).
+    if (hStep == 1 && (reinterpret_cast<uintptr_t>(ptr) & 3u) == 0) {
+      uint32_t* ptr32 = reinterpret_cast<uint32_t*>(ptr);
+      for (uint32_t k = n / 2u; k != 0; --k) {
+        uint32_t w = decodeGroup();
+        if constexpr (kDirty) {
+          acc.diff |= *ptr32 ^ w;
+        }
+        *ptr32++ = w;
+      }
+      ptr = reinterpret_cast<uint16_t*>(ptr32);
+    } else {
+      for (uint32_t k = n / 2u; k != 0; --k) {
+        uint32_t w = decodeGroup();
+        uint_fast16_t px0 = static_cast<uint16_t>(w);
+        uint_fast16_t px1 = w >> 16;
+        if constexpr (kDirty) {
+          acc.diff |= static_cast<uint32_t>(*ptr ^ px0);
+        }
+        *ptr = static_cast<uint16_t>(px0);
+        ptr += hStep;
+        if constexpr (kDirty) {
+          acc.diff |= static_cast<uint32_t>(*ptr ^ px1);
+        }
+        *ptr = static_cast<uint16_t>(px1);
+        ptr += hStep;
+      }
+    }
+    if (n & 1u) {
+      uint32_t w = decodeGroup();
+      uint_fast16_t px0 = static_cast<uint16_t>(w);
+      if constexpr (kDirty) {
+        acc.diff |= static_cast<uint32_t>(*ptr ^ px0);
+      }
+      *ptr = static_cast<uint16_t>(px0);
+      ptr += hStep;
+      pending = 0x10000u | (w >> 16);
+    }
+
+    if constexpr (kDirty) {
+      if (acc.diff != 0) {
+        acc.segBits |= 1u << ((x - 1u) >> 6);
+        acc.diff = 0;
+      }
+    }
+    if (x > casetXE) {
+      if constexpr (kDirty) {
+        if (acc.segBits != 0) {
+          markLogicalRowDirty(ramwrY, acc.segBits);
+          acc.segBits = 0;
+        }
+      }
+      x = casetXS;
+      if (++ramwrY > rasetYE) ramwrY = rasetYS;
+      ptr = frameBuffer + physIndex(x, ramwrY);
+    }
+  }
+  ramwrX = static_cast<uint16_t>(x);
+  writePtr = ptr;
+}
+
+// SRAM-resident on RP2350 (LCDTAP_RAM_FUNC): these loops are the Core 0
+// input-path bottleneck at 62.5 MHz SPI, where XIP fetch jitter eats into
+// the ring-buffer budget. The always_inline template bodies expand here so
+// the hot code actually lands in the SRAM section.
+void LCDTAP_RAM_FUNC ControllerBase::ramwrRgb565RunRing(const uint8_t* data,
+                                                        uint32_t numPixels,
+                                                        DirtyAcc& acc) {
+  ramwrRgb565RunImpl<false, sizeof(uint32_t)>(data, numPixels, sizeof(uint32_t),
+                                              acc);
+}
+
+void LCDTAP_RAM_FUNC ControllerBase::ramwrRgb565RunRingDirty(
+    const uint8_t* data, uint32_t numPixels, DirtyAcc& acc) {
+  ramwrRgb565RunImpl<true, sizeof(uint32_t)>(data, numPixels, sizeof(uint32_t),
+                                             acc);
+}
+
+void LCDTAP_RAM_FUNC ControllerBase::ramwrRgb444RunRing(const uint8_t* data,
+                                                        uint32_t numGroups,
+                                                        DirtyAcc& acc) {
+  ramwrRgb444RunImpl<false, sizeof(uint32_t)>(data, numGroups, sizeof(uint32_t),
+                                              acc);
+}
+
+void LCDTAP_RAM_FUNC ControllerBase::ramwrRgb444RunRingDirty(
+    const uint8_t* data, uint32_t numGroups, DirtyAcc& acc) {
+  ramwrRgb444RunImpl<true, sizeof(uint32_t)>(data, numGroups, sizeof(uint32_t),
+                                             acc);
+}
+
 template <bool kDirty>
 void ControllerBase::processRamwrDataImpl(const uint8_t* data,
                                           uint32_t numBytes, uint32_t stride) {
@@ -355,23 +620,22 @@ void ControllerBase::processRamwrDataImpl(const uint8_t* data,
         }
       }
 #else
-      while (i + stride * 3 <= length) {
-        uint_fast16_t b0 = data[i];
-        i += stride;
-        uint_fast16_t b1 = data[i];
-        i += stride;
-        uint_fast16_t b2 = data[i];
-        i += stride;
-        uint_fast16_t pixel0 = 0;
-        pixel0 |= (b0 << 8) & 0xF000;  // R1
-        pixel0 |= (b0 << 7) & 0x0780;  // G1
-        pixel0 |= (b1 >> 3) & 0x001E;  // B1
-        writePixelRgb565<kDirty>(pixel0, acc);
-        uint_fast16_t pixel1 = 0;
-        pixel1 |= (b1 << 12) & 0xF000;  // R2
-        pixel1 |= (b2 << 3) & 0x0780;   // G2
-        pixel1 |= (b2 << 1) & 0x001E;   // B2
-        writePixelRgb565<kDirty>(pixel1, acc);
+      {
+        uint32_t groups = static_cast<uint32_t>(length - i) / (stride * 3u);
+        if (groups != 0) {
+          if (stride == sizeof(uint32_t)) {
+            if constexpr (kDirty) {
+              ramwrRgb444RunRingDirty(data + i, groups, acc);
+            } else {
+              ramwrRgb444RunRing(data + i, groups, acc);
+            }
+          } else if (stride == 1) {
+            ramwrRgb444RunImpl<kDirty, 1>(data + i, groups, stride, acc);
+          } else {
+            ramwrRgb444RunImpl<kDirty, 0>(data + i, groups, stride, acc);
+          }
+          i += static_cast<int32_t>(groups * 3u * stride);
+        }
       }
 #endif
       // Save remainder
@@ -393,14 +657,22 @@ void ControllerBase::processRamwrDataImpl(const uint8_t* data,
         ramwrBufLen = 0;
       }
       // Tight loop: 2 bytes → 1 pixel
-      while (i + stride * 2 <= length) {
-        uint_fast16_t b0 = data[i];
-        i += stride;
-        uint_fast16_t b1 = data[i];
-        i += stride;
-        uint_fast16_t pixel =
-            cachedLittleEndian ? (b0 | (b1 << 8)) : ((b0 << 8) | b1);
-        writePixelRgb565<kDirty>(pixel, acc);
+      {
+        uint32_t pixels = static_cast<uint32_t>(length - i) / (stride * 2u);
+        if (pixels != 0) {
+          if (stride == sizeof(uint32_t)) {
+            if constexpr (kDirty) {
+              ramwrRgb565RunRingDirty(data + i, pixels, acc);
+            } else {
+              ramwrRgb565RunRing(data + i, pixels, acc);
+            }
+          } else if (stride == 1) {
+            ramwrRgb565RunImpl<kDirty, 1>(data + i, pixels, stride, acc);
+          } else {
+            ramwrRgb565RunImpl<kDirty, 0>(data + i, pixels, stride, acc);
+          }
+          i += static_cast<int32_t>(pixels * 2u * stride);
+        }
       }
       // Save remainder
       if (i < length) {

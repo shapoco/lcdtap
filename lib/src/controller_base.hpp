@@ -212,6 +212,39 @@ class ControllerBase {
   void processRamwrDataImpl(const uint8_t* data, uint32_t numBytes,
                             uint32_t stride);
 
+  // Run-length fast paths for the two hot RAMWR formats. The per-pixel
+  // writePixelRgb565() path cannot keep the write state in registers: the
+  // framebuffer store aliases the uint16_t members of this class, so the
+  // compiler reloads writePtr/ramwrX/cachedInverter every pixel. These
+  // helpers split the pixel stream into row-bounded runs (64px
+  // segment-bounded when kDirty) so the wrap checks and the member traffic
+  // leave the inner loop. kStride is the compile-time input byte step
+  // (0 = use strideArg at runtime). always_inline: the bodies must land in
+  // whichever function calls them — see the *RunRing stamps below.
+  template <bool kDirty, uint32_t kStride>
+  LCDTAP_INLINE void ramwrRgb565RunImpl(const uint8_t* data, uint32_t numPixels,
+                                        uint32_t strideArg, DirtyAcc& acc);
+
+  // numGroups counts complete 3-byte groups (2 pixels each); leftover bytes
+  // stay in ramwrBuf and are handled by the caller.
+  template <bool kDirty, uint32_t kStride>
+  LCDTAP_INLINE void ramwrRgb444RunImpl(const uint8_t* data, uint32_t numGroups,
+                                        uint32_t strideArg, DirtyAcc& acc);
+
+  // Non-template stamps of the ring-word input stride (sizeof(uint32_t)) --
+  // the combination every RP2350 input driver uses. Stamped as plain
+  // functions because they must be SRAM-resident (LCDTAP_RAM_FUNC) and GCC
+  // silently drops section attributes on template instantiations
+  // (GCC PR 70435).
+  void ramwrRgb565RunRing(const uint8_t* data, uint32_t numPixels,
+                          DirtyAcc& acc);
+  void ramwrRgb565RunRingDirty(const uint8_t* data, uint32_t numPixels,
+                               DirtyAcc& acc);
+  void ramwrRgb444RunRing(const uint8_t* data, uint32_t numGroups,
+                          DirtyAcc& acc);
+  void ramwrRgb444RunRingDirty(const uint8_t* data, uint32_t numGroups,
+                               DirtyAcc& acc);
+
   // Process a data byte stream: RAMWR data is handled in bulk, others byte by
   // byte
   void feedData(const uint8_t* data, uint32_t numBytes, uint32_t stride = 1);
