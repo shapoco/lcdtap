@@ -88,13 +88,20 @@
       <img src="image/displaylink-out-schematics.png" class="large-img" />
     </p>
     <p>
-      The output resolution can be selected using the CFG_OUT_RES_SEL switch.
-      When the switch is off, it is 1280x720@60Hz, and when on, it is 1920x1080@60Hz.
+      As shown in the diagram above, connect the USB connector of the DisplayLink adapter
+      to GPIO10 (D+) and GPIO11 (D-).
+      The boards sold at BOOTH have 47Ω damping resistors inserted in series on each GPIO pin,
+      so 22Ω is not required.
     </p>
     <p>
       To switch to DisplayLink output, connect the DisplayLink adapter to
       GPIO10 (D+) and GPIO11 (D-) of Raspberry Pi Pico 2,
       and set the Output Interface to DisplayLink in the Configuration menu.
+    </p>
+    <p>
+      The output resolution can be selected using the CFG_OUT_RES_SEL switch.
+      When the switch is off, it is 1280x720@60Hz, and when on, it is 1920x1080@60Hz.
+      A reset is required after switching.
     </p>
   </main>
 
