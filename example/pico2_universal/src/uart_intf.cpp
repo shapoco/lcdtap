@@ -25,6 +25,43 @@ struct JsonIntfTransport {
 };
 
 // =============================================================================
+// Application callbacks
+// Host-side parameters (settings that are not lcdtap ConfigIds) and
+// persistence are application policy, injected here so the engine has no
+// dependency on any particular example.
+// =============================================================================
+
+struct JsonIntfCallbacks {
+  void* ctx = nullptr;
+
+  // Host params are interleaved into the getparams slot list immediately
+  // before hostParamAnchorSlot, mirroring the OSD menu order.
+  int numHostParams = 0;
+  int hostParamAnchorSlot = 0;
+
+  // Emit the JSON object body for host param hostIdx, starting with '{'. The
+  // engine appends the "," / "]}" tail itself so the framing stays identical
+  // across applications. Returns the would-be length, snprintf-style.
+  int (*buildHostParamChunk)(int hostIdx, char* buf, int cap,
+                             void* ctx) = nullptr;
+
+  // setparams: called once before key staging begins.
+  void (*beginSetParams)(void* ctx) = nullptr;
+  // setparams: return true when the key was consumed as a host param.
+  bool (*stageHostParam)(const char* key, int32_t value, void* ctx) = nullptr;
+  // setparams: apply staged host params, switch the bus if needed and persist
+  // everything, after the lcdtap config has been updated. Returns true when
+  // the device must reboot for the change to take effect.
+  bool (*commitParams)(const lcdtap::LcdTapConfig& cfg, lcdtap::BusType oldBus,
+                       void* ctx) = nullptr;
+
+  // Debug statistics providers.
+  int (*statsCollect)(lcdtap::StatEntry* out, int maxCount,
+                      void* ctx) = nullptr;
+  void (*statsReset)(void* ctx) = nullptr;
+};
+
+// =============================================================================
 // Parser
 // =============================================================================
 
@@ -48,15 +85,18 @@ enum class ParseState {
   ERROR,
 };
 
+// Compile-time bound on JsonIntfCallbacks::numHostParams; sizes the parser.
+static constexpr int JSON_INTF_MAX_HOST_PARAMS = 4;
+
 // A full setparams carries every cfgN plus the host-side settings, because the
 // web UI echoes the whole set back rather than a diff. Deriving the limit from
 // ConfigId means it cannot fall behind again the way a hardcoded 16 did once
 // outputInterface and compositeDac were appended -- those two landed last on
 // the wire and were exactly the ones dropped. The spare slots are headroom for
 // clients that send extra keys.
-// NUM_HOST_PARAMS lives in output_interface.hpp, next to the ordering anchor.
 static constexpr int MAX_PARAMS =
-    static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS) + NUM_HOST_PARAMS + 6;
+    static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS) +
+    JSON_INTF_MAX_HOST_PARAMS + 6;
 
 struct Param {
   char key[TOK_MAX_LEN + 1];
@@ -374,12 +414,9 @@ struct RespGen {
 struct JsonIntf {
   lcdtap::LcdTap* inst = nullptr;
   lcdtap::BusType* currentIface = nullptr;
-  OutputInterface* currentOutIf = nullptr;
-  CompositeDacKind* currentDac = nullptr;
-  SwitchIfaceFn switchIface = nullptr;
-  SaveConfigFn saveConfig = nullptr;
   bool rebootPending = false;
   JsonIntfTransport trx;
+  JsonIntfCallbacks cb;
   Lexer lex;
   Parser parser;
   RespGen resp;
@@ -416,36 +453,36 @@ static void chunkFromStr(JsonIntf& ji, const char* s) {
 // getparams output helpers
 // =============================================================================
 
-// Total entries in the getparams list, and the slot the host-side settings
-// occupy. The OSD inserts them immediately before HOST_PARAM_ANCHOR, so
-// using the same anchor here keeps the two menus in the same order.
-static constexpr int NUM_PARAM_SLOTS =
-    static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS) + NUM_HOST_PARAMS;
-static constexpr int HOST_PARAM_SLOT = static_cast<int>(HOST_PARAM_ANCHOR);
-
-// Emission slot -> ConfigId. Only meaningful for slots that are not host
-// settings. Note that slot and ConfigId diverge past HOST_PARAM_SLOT: the
-// "cfgN" number MUST come from here and never from the slot, or setparams
-// would write the value into a different setting.
-static lcdtap::ConfigId configIdForSlot(int slot) {
-  return static_cast<lcdtap::ConfigId>(
-      slot < HOST_PARAM_SLOT ? slot : slot - NUM_HOST_PARAMS);
+// Total entries in the getparams list. The host-side settings occupy the
+// slots immediately before the application's anchor slot, mirroring how the
+// OSD inserts them, so the two menus stay in the same order.
+static int numParamSlots(const JsonIntf& ji) {
+  return static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS) + ji.cb.numHostParams;
 }
 
-static bool slotIsHostParam(int slot) {
-  return slot >= HOST_PARAM_SLOT && slot < HOST_PARAM_SLOT + NUM_HOST_PARAMS;
+// Emission slot -> ConfigId. Only meaningful for slots that are not host
+// settings. Note that slot and ConfigId diverge past the anchor slot: the
+// "cfgN" number MUST come from here and never from the slot, or setparams
+// would write the value into a different setting.
+static lcdtap::ConfigId configIdForSlot(const JsonIntf& ji, int slot) {
+  return static_cast<lcdtap::ConfigId>(
+      slot < ji.cb.hostParamAnchorSlot ? slot : slot - ji.cb.numHostParams);
+}
+
+static bool slotIsHostParam(const JsonIntf& ji, int slot) {
+  return slot >= ji.cb.hostParamAnchorSlot &&
+         slot < ji.cb.hostParamAnchorSlot + ji.cb.numHostParams;
 }
 
 // Build the JSON fragment for one emission slot into chunkBuf.
 // Returns false when slot is out of range.
 static bool buildParamChunk(JsonIntf& ji, int slot,
                             const lcdtap::LcdTapConfig& cfg,
-                            lcdtap::BusType iface, OutputInterface outIf,
-                            CompositeDacKind dac) {
-  if (slot < 0 || slot >= NUM_PARAM_SLOTS) return false;
+                            lcdtap::BusType iface) {
+  if (slot < 0 || slot >= numParamSlots(ji)) return false;
 
   // Every item ends the same way; only the last one closes the array.
-  const char* tail = (slot == NUM_PARAM_SLOTS - 1) ? "}]}\r\n" : "},";
+  const char* tail = (slot == numParamSlots(ji) - 1) ? "}]}\r\n" : "},";
 
   char* buf = ji.resp.chunkBuf;
   int cap = static_cast<int>(sizeof(ji.resp.chunkBuf));
@@ -455,42 +492,17 @@ static bool buildParamChunk(JsonIntf& ji, int slot,
     pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "{\"params\":[");
   }
 
-  if (slotIsHostParam(slot)) {
-    if (slot == HOST_PARAM_SLOT) {
-      // Composite and DisplayLink need GPIOs the parallel bus already owns.
-      pos += snprintf(
-          buf + pos, static_cast<size_t>(cap - pos),
-          "{\"id\":\"outputInterface\",\"type\":\"ENUM\","
-          "\"name\":\"Output Interface\",\"unit\":null,"
-          "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2,\"DisplayLink\":3},"
-          "\"value\":%d,"
-          "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":0,"
-          "\"enableKeyValueMax\":%d%s",
-          static_cast<int>(outIf),
-          static_cast<int>(lcdtap::ConfigId::BUS_INTERFACE),
-          static_cast<int>(lcdtap::BusType::PARALLEL) - 1, tail);
-    } else {
-      // Gated on the output interface, mirroring the OSD: the DAC only means
-      // anything once a composite mode is selected. A client that honours the
-      // enable-key cascade also greys this out when outputInterface itself is
-      // disabled, which is how the parallel bus rules it out.
-      pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
-                      "{\"id\":\"compositeDac\",\"type\":\"ENUM\","
-                      "\"name\":\"Video DAC Type\",\"unit\":null,"
-                      "\"options\":{\"PWM\":0,\"R-2R\":1},\"value\":%d,"
-                      "\"enableKeyId\":\"outputInterface\","
-                      "\"enableKeyValueMin\":%d,\"enableKeyValueMax\":%d%s",
-                      static_cast<int>(dac),
-                      static_cast<int>(OutputInterface::NTSC),
-                      static_cast<int>(OutputInterface::PAL), tail);
-    }
+  if (slotIsHostParam(ji, slot)) {
+    pos += ji.cb.buildHostParamChunk(slot - ji.cb.hostParamAnchorSlot,
+                                     buf + pos, cap - pos, ji.cb.ctx);
+    pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "%s", tail);
     ji.resp.chunkLen = pos < cap ? pos : cap - 1;
     ji.resp.chunkPos = 0;
     return true;
   }
 
   lcdtap::ConfigEntry e;
-  lcdtap::ConfigId cfgId = configIdForSlot(slot);
+  lcdtap::ConfigId cfgId = configIdForSlot(ji, slot);
   lcdtap::getConfigEntryById(cfgId, &e);
 
   int16_t value;
@@ -671,23 +683,13 @@ static void execCommand(JsonIntf& ji, const Parser& p) {
     }
     lcdtap::LcdTapConfig cfg = ji.inst->getConfig();
     lcdtap::BusType oldIface = *ji.currentIface;
-    OutputInterface newOutIf = *ji.currentOutIf;
-    CompositeDacKind newDac = *ji.currentDac;
+    if (ji.cb.beginSetParams) ji.cb.beginSetParams(ji.cb.ctx);
 
     for (int i = 0; i < p.numParams; i++) {
       const char* k = p.params[i].key;
       int32_t v = p.params[i].value;
       // Host-side settings; not ConfigIds, so they have their own keys.
-      if (strcmp(k, "outputInterface") == 0) {
-        if (v >= 0 && v < static_cast<int32_t>(OUTPUT_INTERFACE_COUNT)) {
-          newOutIf = static_cast<OutputInterface>(v);
-        }
-        continue;
-      }
-      if (strcmp(k, "compositeDac") == 0) {
-        if (v >= 0 && v < static_cast<int32_t>(COMPOSITE_DAC_KIND_COUNT)) {
-          newDac = static_cast<CompositeDacKind>(v);
-        }
+      if (ji.cb.stageHostParam && ji.cb.stageHostParam(k, v, ji.cb.ctx)) {
         continue;
       }
       // Accept "cfgN" keys and map to ConfigId by index.
@@ -707,38 +709,11 @@ static void execCommand(JsonIntf& ji, const Parser& p) {
       return;
     }
 
-    // Composite is unavailable on the parallel bus and the R-2R ladder is
-    // unavailable on I2C, so a combined change must not persist an illegal
-    // pair. Order matters: the DAC is clamped against the clamped bus.
-    newOutIf = outputInterfaceSanitize(newOutIf, cfg.busInterface);
-    newDac = compositeDacSanitize(newDac, cfg.busInterface);
-
-    const bool busChanged = (cfg.busInterface != oldIface);
-    const bool outIfChanged = (newOutIf != *ji.currentOutIf);
-    const bool dacChanged = (newDac != *ji.currentDac);
-    // A bus or DAC change while composite is running also needs a reboot: the
-    // DAC binds to its pins and peripheral at init, and the R-2R ladder
-    // occupies GPIO5-11, overlapping the I2C pins. Switching in place would
-    // hand GPIO8/9 to the I2C driver while the PIO still drives them.
-    const bool needReboot =
-        outIfChanged ||
-        (outputInterfaceIsComposite(newOutIf) && (busChanged || dacChanged));
-
-    if (busChanged && !needReboot) {
-      ji.switchIface(cfg.busInterface);
-    }
-    // Keep the live values in step when no reboot will do it for us, so a
-    // getparams straight after Apply reports what was actually applied.
-    if (!needReboot) {
-      *ji.currentOutIf = newOutIf;
-      *ji.currentDac = newDac;
-    }
-
-    ConfigFile toSave = {};
-    toSave.libConfig = ji.inst->getConfig();
-    toSave.outputInterface = static_cast<uint8_t>(newOutIf);
-    toSave.compositeDac = static_cast<uint8_t>(newDac);
-    ji.saveConfig(toSave);
+    // Sanitizing staged host params, switching the bus and persisting are
+    // application policy.
+    const bool needReboot = ji.cb.commitParams
+                                ? ji.cb.commitParams(cfg, oldIface, ji.cb.ctx)
+                                : false;
 
     respSetShort(ji, "{\"response\":\"ok\"}\r\n");
     // Reboot only after the response has been flushed, so the client sees it.
@@ -748,7 +723,10 @@ static void execCommand(JsonIntf& ji, const Parser& p) {
 
   // ----- getstats -----
   if (strcmp(cmd, "getstats") == 0) {
-    r.statsCount = statsCollect(r.statsBuf, RespGen::MAX_STATS);
+    r.statsCount =
+        ji.cb.statsCollect
+            ? ji.cb.statsCollect(r.statsBuf, RespGen::MAX_STATS, ji.cb.ctx)
+            : 0;
     r.statsIdx = 0;
     if (r.statsCount == 0) {
       respSetShort(ji, "{\"stats\":[]}\r\n");
@@ -762,7 +740,7 @@ static void execCommand(JsonIntf& ji, const Parser& p) {
 
   // ----- statsreset -----
   if (strcmp(cmd, "statsreset") == 0) {
-    statsReset();
+    if (ji.cb.statsReset) ji.cb.statsReset(ji.cb.ctx);
     respSetShort(ji, "{\"response\":\"ok\"}\r\n");
     return;
   }
@@ -974,8 +952,7 @@ static void respFlush(JsonIntf& ji) {
       }
       // outputInterface is a host setting, so presets never carry one; always
       // report the live value.
-      if (!buildParamChunk(ji, r.paramIdx, cfg, iface, *ji.currentOutIf,
-                           *ji.currentDac)) {
+      if (!buildParamChunk(ji, r.paramIdx, cfg, iface)) {
         r.phase = RespPhase::IDLE;
         break;
       }
@@ -1165,20 +1142,156 @@ static int cdcWrite(void* /*ctx*/, const char* data, int len) {
 }
 
 // =============================================================================
+// Universal-specific host params (outputInterface, compositeDac), bus
+// switching and flash persistence, injected via JsonIntfCallbacks.
+// =============================================================================
+
+struct UniversalHostCtx {
+  lcdtap::LcdTap* inst = nullptr;
+  OutputInterface* currentOutIf = nullptr;
+  CompositeDacKind* currentDac = nullptr;
+  SwitchIfaceFn switchIface = nullptr;
+  SaveConfigFn saveConfig = nullptr;
+  // setparams staging, seeded from the live values by beginSetParams.
+  OutputInterface stagedOutIf = OutputInterface::DVI_D;
+  CompositeDacKind stagedDac = CompositeDacKind::PWM;
+};
+
+static UniversalHostCtx gHostCtx;
+
+static_assert(NUM_HOST_PARAMS <= JSON_INTF_MAX_HOST_PARAMS,
+              "grow JSON_INTF_MAX_HOST_PARAMS");
+
+static int uniBuildHostParamChunk(int hostIdx, char* buf, int cap, void* ctx) {
+  UniversalHostCtx& hc = *static_cast<UniversalHostCtx*>(ctx);
+  if (hostIdx == 0) {
+    // Composite and DisplayLink need GPIOs the parallel bus already owns.
+    return snprintf(
+        buf, static_cast<size_t>(cap),
+        "{\"id\":\"outputInterface\",\"type\":\"ENUM\","
+        "\"name\":\"Output Interface\",\"unit\":null,"
+        "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2,\"DisplayLink\":3},"
+        "\"value\":%d,"
+        "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":0,"
+        "\"enableKeyValueMax\":%d",
+        static_cast<int>(*hc.currentOutIf),
+        static_cast<int>(lcdtap::ConfigId::BUS_INTERFACE),
+        static_cast<int>(lcdtap::BusType::PARALLEL) - 1);
+  }
+  // Gated on the output interface, mirroring the OSD: the DAC only means
+  // anything once a composite mode is selected. A client that honours the
+  // enable-key cascade also greys this out when outputInterface itself is
+  // disabled, which is how the parallel bus rules it out.
+  return snprintf(buf, static_cast<size_t>(cap),
+                  "{\"id\":\"compositeDac\",\"type\":\"ENUM\","
+                  "\"name\":\"Video DAC Type\",\"unit\":null,"
+                  "\"options\":{\"PWM\":0,\"R-2R\":1},\"value\":%d,"
+                  "\"enableKeyId\":\"outputInterface\","
+                  "\"enableKeyValueMin\":%d,\"enableKeyValueMax\":%d",
+                  static_cast<int>(*hc.currentDac),
+                  static_cast<int>(OutputInterface::NTSC),
+                  static_cast<int>(OutputInterface::PAL));
+}
+
+static void uniBeginSetParams(void* ctx) {
+  UniversalHostCtx& hc = *static_cast<UniversalHostCtx*>(ctx);
+  hc.stagedOutIf = *hc.currentOutIf;
+  hc.stagedDac = *hc.currentDac;
+}
+
+static bool uniStageHostParam(const char* key, int32_t value, void* ctx) {
+  UniversalHostCtx& hc = *static_cast<UniversalHostCtx*>(ctx);
+  if (strcmp(key, "outputInterface") == 0) {
+    if (value >= 0 && value < static_cast<int32_t>(OUTPUT_INTERFACE_COUNT)) {
+      hc.stagedOutIf = static_cast<OutputInterface>(value);
+    }
+    return true;
+  }
+  if (strcmp(key, "compositeDac") == 0) {
+    if (value >= 0 && value < static_cast<int32_t>(COMPOSITE_DAC_KIND_COUNT)) {
+      hc.stagedDac = static_cast<CompositeDacKind>(value);
+    }
+    return true;
+  }
+  return false;
+}
+
+static bool uniCommitParams(const lcdtap::LcdTapConfig& cfg,
+                            lcdtap::BusType oldBus, void* ctx) {
+  UniversalHostCtx& hc = *static_cast<UniversalHostCtx*>(ctx);
+
+  // Composite is unavailable on the parallel bus and the R-2R ladder is
+  // unavailable on I2C, so a combined change must not persist an illegal
+  // pair. Order matters: the DAC is clamped against the clamped bus.
+  OutputInterface newOutIf =
+      outputInterfaceSanitize(hc.stagedOutIf, cfg.busInterface);
+  CompositeDacKind newDac =
+      compositeDacSanitize(hc.stagedDac, cfg.busInterface);
+
+  const bool busChanged = (cfg.busInterface != oldBus);
+  const bool outIfChanged = (newOutIf != *hc.currentOutIf);
+  const bool dacChanged = (newDac != *hc.currentDac);
+  // A bus or DAC change while composite is running also needs a reboot: the
+  // DAC binds to its pins and peripheral at init, and the R-2R ladder
+  // occupies GPIO5-11, overlapping the I2C pins. Switching in place would
+  // hand GPIO8/9 to the I2C driver while the PIO still drives them.
+  const bool needReboot =
+      outIfChanged ||
+      (outputInterfaceIsComposite(newOutIf) && (busChanged || dacChanged));
+
+  if (busChanged && !needReboot) {
+    hc.switchIface(cfg.busInterface);
+  }
+  // Keep the live values in step when no reboot will do it for us, so a
+  // getparams straight after Apply reports what was actually applied.
+  if (!needReboot) {
+    *hc.currentOutIf = newOutIf;
+    *hc.currentDac = newDac;
+  }
+
+  ConfigFile toSave = {};
+  toSave.libConfig = hc.inst->getConfig();
+  toSave.outputInterface = static_cast<uint8_t>(newOutIf);
+  toSave.compositeDac = static_cast<uint8_t>(newDac);
+  hc.saveConfig(toSave);
+
+  return needReboot;
+}
+
+static int uniStatsCollect(lcdtap::StatEntry* out, int maxCount,
+                           void* /*ctx*/) {
+  return statsCollect(out, maxCount);
+}
+
+static void uniStatsReset(void* /*ctx*/) { statsReset(); }
+
+// =============================================================================
 // Public API
 // =============================================================================
 
 void uartIfInit(lcdtap::LcdTap* lcdtap, lcdtap::BusType* currentIface,
                 OutputInterface* currentOutIf, CompositeDacKind* currentDac,
                 SwitchIfaceFn switchIface, SaveConfigFn saveConfig) {
+  gHostCtx.inst = lcdtap;
+  gHostCtx.currentOutIf = currentOutIf;
+  gHostCtx.currentDac = currentDac;
+  gHostCtx.switchIface = switchIface;
+  gHostCtx.saveConfig = saveConfig;
+
   gIf.inst = lcdtap;
   gIf.currentIface = currentIface;
-  gIf.currentOutIf = currentOutIf;
-  gIf.currentDac = currentDac;
-  gIf.switchIface = switchIface;
-  gIf.saveConfig = saveConfig;
   gIf.rebootPending = false;
   gIf.trx = {nullptr, cdcIsConnected, cdcGetChar, cdcWrite};
+  gIf.cb = {};
+  gIf.cb.ctx = &gHostCtx;
+  gIf.cb.numHostParams = NUM_HOST_PARAMS;
+  gIf.cb.hostParamAnchorSlot = static_cast<int>(HOST_PARAM_ANCHOR);
+  gIf.cb.buildHostParamChunk = uniBuildHostParamChunk;
+  gIf.cb.beginSetParams = uniBeginSetParams;
+  gIf.cb.stageHostParam = uniStageHostParam;
+  gIf.cb.commitParams = uniCommitParams;
+  gIf.cb.statsCollect = uniStatsCollect;
+  gIf.cb.statsReset = uniStatsReset;
 
   trxInit();
 
