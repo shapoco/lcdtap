@@ -1,4 +1,4 @@
-#include "uart_b64.hpp"
+#include "lcdtap/pico2/json_b64.hpp"
 
 static constexpr char kB64Table[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";

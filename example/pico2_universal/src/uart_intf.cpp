@@ -4,10 +4,10 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "lcdtap/pico2/json_b64.hpp"
+#include "lcdtap/pico2/json_lex.hpp"
+#include "lcdtap/pico2/json_rle.hpp"
 #include "stats.hpp"
-#include "uart_b64.hpp"
-#include "uart_lex.hpp"
-#include "uart_rle.hpp"
 #include "uart_trx.hpp"
 
 // =============================================================================

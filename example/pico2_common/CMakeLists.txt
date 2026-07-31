@@ -8,6 +8,9 @@ add_library(pico2_common STATIC
     src/composite_out.cpp
     src/composite_sink_r2r.cpp
     src/composite_sink_pwm.cpp
+    src/json_lex.cpp
+    src/json_b64.cpp
+    src/json_rle.cpp
 )
 
 # Core library (MCU-agnostic)

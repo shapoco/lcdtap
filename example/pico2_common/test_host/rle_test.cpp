@@ -1,5 +1,5 @@
 // Host-side unit test for the getframebuffer RGB565-RLE encoder
-// (example/pico2_universal/src/uart_rle.cpp, no MCU dependencies).
+// (../src/json_rle.cpp, no MCU dependencies).
 //
 // Encodes segments of 1..128 pixels across solid, noise, alternating and
 // mixed-run patterns, decodes them with an independent reference decoder and
@@ -8,9 +8,9 @@
 // from inflating the transfer.
 //
 // Build & run:
-//   g++ -O2 -Wall -Wextra -I../../pico2_universal/include
+//   g++ -O2 -Wall -Wextra -I../include
 //       -o /tmp/lcdtap_rle_test rle_test.cpp
-//       ../../pico2_universal/src/uart_rle.cpp
+//       ../src/json_rle.cpp
 //   /tmp/lcdtap_rle_test
 
 #include <cstdint>
@@ -19,7 +19,7 @@
 #include <cstring>
 #include <vector>
 
-#include "uart_rle.hpp"
+#include "lcdtap/pico2/json_rle.hpp"
 
 static int gFailures = 0;
 

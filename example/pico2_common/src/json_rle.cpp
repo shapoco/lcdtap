@@ -1,4 +1,4 @@
-#include "uart_rle.hpp"
+#include "lcdtap/pico2/json_rle.hpp"
 
 int rleEncodeSegment(const uint16_t* px, int n, uint8_t* out) {
   int pos = 0;
