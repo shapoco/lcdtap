@@ -11,16 +11,18 @@
 #include "uart_trx.hpp"
 
 // =============================================================================
-// Module-level state
+// Transport abstraction
+// Injected at init time so the same engine can run over USB CDC or a TCP
+// connection. write() returning 0 means the TX buffer is full; the response
+// generator retries the same data on the next flush (back-pressure).
 // =============================================================================
 
-static lcdtap::LcdTap* gLcdTap = nullptr;
-static lcdtap::BusType* gCurrentIface = nullptr;
-static OutputInterface* gCurrentOutIf = nullptr;
-static CompositeDacKind* gCurrentDac = nullptr;
-static SwitchIfaceFn gSwitchIface = nullptr;
-static SaveConfigFn gSaveConfig = nullptr;
-static bool gRebootPending = false;
+struct JsonIntfTransport {
+  void* ctx = nullptr;
+  bool (*isConnected)(void* ctx) = nullptr;
+  int (*getChar)(void* ctx) = nullptr;  // -1 = none available
+  int (*write)(void* ctx, const char* data, int len) = nullptr;
+};
 
 // =============================================================================
 // Parser
@@ -363,29 +365,51 @@ struct RespGen {
   int chunkPos = 0;
 };
 
-static RespGen gResp;
+// =============================================================================
+// Interface instance
+// All former file-scope state lives here so several instances (USB CDC, HTTP)
+// can run concurrently.
+// =============================================================================
 
-// Attempt to drain gResp.chunkBuf. Returns true when fully drained.
-static bool drainChunk() {
-  while (gResp.chunkPos < gResp.chunkLen) {
-    int rem = gResp.chunkLen - gResp.chunkPos;
-    int sent = trxWrite(gResp.chunkBuf + gResp.chunkPos, rem);
+struct JsonIntf {
+  lcdtap::LcdTap* inst = nullptr;
+  lcdtap::BusType* currentIface = nullptr;
+  OutputInterface* currentOutIf = nullptr;
+  CompositeDacKind* currentDac = nullptr;
+  SwitchIfaceFn switchIface = nullptr;
+  SaveConfigFn saveConfig = nullptr;
+  bool rebootPending = false;
+  JsonIntfTransport trx;
+  Lexer lex;
+  Parser parser;
+  RespGen resp;
+};
+
+static JsonIntf gIf;
+
+// Attempt to drain ji.resp.chunkBuf. Returns true when fully drained.
+static bool drainChunk(JsonIntf& ji) {
+  RespGen& r = ji.resp;
+  while (r.chunkPos < r.chunkLen) {
+    int rem = r.chunkLen - r.chunkPos;
+    int sent = ji.trx.write(ji.trx.ctx, r.chunkBuf + r.chunkPos, rem);
     if (sent == 0) return false;  // TX buffer full — retry next call
-    gResp.chunkPos += sent;
+    r.chunkPos += sent;
   }
-  gResp.chunkLen = 0;
-  gResp.chunkPos = 0;
+  r.chunkLen = 0;
+  r.chunkPos = 0;
   return true;
 }
 
 // Load a string into chunkBuf.
-static void chunkFromStr(const char* s) {
+static void chunkFromStr(JsonIntf& ji, const char* s) {
+  RespGen& r = ji.resp;
   int len = static_cast<int>(strlen(s));
-  if (len > static_cast<int>(sizeof(gResp.chunkBuf) - 1))
-    len = static_cast<int>(sizeof(gResp.chunkBuf) - 1);
-  memcpy(gResp.chunkBuf, s, static_cast<size_t>(len));
-  gResp.chunkLen = len;
-  gResp.chunkPos = 0;
+  if (len > static_cast<int>(sizeof(r.chunkBuf) - 1))
+    len = static_cast<int>(sizeof(r.chunkBuf) - 1);
+  memcpy(r.chunkBuf, s, static_cast<size_t>(len));
+  r.chunkLen = len;
+  r.chunkPos = 0;
 }
 
 // =============================================================================
@@ -414,7 +438,8 @@ static bool slotIsHostParam(int slot) {
 
 // Build the JSON fragment for one emission slot into chunkBuf.
 // Returns false when slot is out of range.
-static bool buildParamChunk(int slot, const lcdtap::LcdTapConfig& cfg,
+static bool buildParamChunk(JsonIntf& ji, int slot,
+                            const lcdtap::LcdTapConfig& cfg,
                             lcdtap::BusType iface, OutputInterface outIf,
                             CompositeDacKind dac) {
   if (slot < 0 || slot >= NUM_PARAM_SLOTS) return false;
@@ -422,8 +447,8 @@ static bool buildParamChunk(int slot, const lcdtap::LcdTapConfig& cfg,
   // Every item ends the same way; only the last one closes the array.
   const char* tail = (slot == NUM_PARAM_SLOTS - 1) ? "}]}\r\n" : "},";
 
-  char* buf = gResp.chunkBuf;
-  int cap = static_cast<int>(sizeof(gResp.chunkBuf));
+  char* buf = ji.resp.chunkBuf;
+  int cap = static_cast<int>(sizeof(ji.resp.chunkBuf));
   int pos = 0;
 
   if (slot == 0) {
@@ -459,8 +484,8 @@ static bool buildParamChunk(int slot, const lcdtap::LcdTapConfig& cfg,
                       static_cast<int>(OutputInterface::NTSC),
                       static_cast<int>(OutputInterface::PAL), tail);
     }
-    gResp.chunkLen = pos < cap ? pos : cap - 1;
-    gResp.chunkPos = 0;
+    ji.resp.chunkLen = pos < cap ? pos : cap - 1;
+    ji.resp.chunkPos = 0;
     return true;
   }
 
@@ -526,8 +551,8 @@ static bool buildParamChunk(int slot, const lcdtap::LcdTapConfig& cfg,
 
   pos += snprintf(buf + pos, static_cast<size_t>(cap - pos), "%s", tail);
 
-  gResp.chunkLen = pos < cap ? pos : cap - 1;
-  gResp.chunkPos = 0;
+  ji.resp.chunkLen = pos < cap ? pos : cap - 1;
+  ji.resp.chunkPos = 0;
   return true;
 }
 
@@ -545,14 +570,14 @@ static const char* statFmtStr(lcdtap::StatFormat fmt) {
 
 // Build the JSON fragment for one stats entry into chunkBuf.
 // Returns false when idx is out of range.
-static bool buildStatChunk(int idx) {
-  if (idx < 0 || idx >= gResp.statsCount) return false;
+static bool buildStatChunk(JsonIntf& ji, int idx) {
+  if (idx < 0 || idx >= ji.resp.statsCount) return false;
 
-  const lcdtap::StatEntry& e = gResp.statsBuf[idx];
-  const char* tail = (idx == gResp.statsCount - 1) ? "}]}\r\n" : "},";
+  const lcdtap::StatEntry& e = ji.resp.statsBuf[idx];
+  const char* tail = (idx == ji.resp.statsCount - 1) ? "}]}\r\n" : "},";
 
-  char* buf = gResp.chunkBuf;
-  int cap = static_cast<int>(sizeof(gResp.chunkBuf));
+  char* buf = ji.resp.chunkBuf;
+  int cap = static_cast<int>(sizeof(ji.resp.chunkBuf));
   int pos = 0;
 
   if (idx == 0) {
@@ -564,8 +589,8 @@ static bool buildStatChunk(int idx) {
                   e.name, static_cast<unsigned long>(e.value),
                   e.unit ? e.unit : "", statFmtStr(e.fmt), tail);
 
-  gResp.chunkLen = pos < cap ? pos : cap - 1;
-  gResp.chunkPos = 0;
+  ji.resp.chunkLen = pos < cap ? pos : cap - 1;
+  ji.resp.chunkPos = 0;
   return true;
 }
 
@@ -588,17 +613,18 @@ static bool makePresetConfig(const char* name, lcdtap::LcdTapConfig* cfgOut) {
 // Command execution
 // =============================================================================
 
-static void respSetShort(const char* s) {
-  gResp.phase = RespPhase::SHORT;
-  chunkFromStr(s);
+static void respSetShort(JsonIntf& ji, const char* s) {
+  ji.resp.phase = RespPhase::SHORT;
+  chunkFromStr(ji, s);
 }
 
-static void execCommand(const Parser& p) {
+static void execCommand(JsonIntf& ji, const Parser& p) {
   const char* cmd = p.command;
+  RespGen& r = ji.resp;
 
   // ----- hello -----
   if (strcmp(cmd, "hello") == 0) {
-    respSetShort("{\"response\":\"welcome lcdtap\"}\r\n");
+    respSetShort(ji, "{\"response\":\"welcome lcdtap\"}\r\n");
     return;
   }
 
@@ -617,20 +643,20 @@ static void execCommand(const Parser& p) {
     }
     snprintf(presetResp + pos, sizeof(presetResp) - static_cast<size_t>(pos),
              "]}\r\n");
-    respSetShort(presetResp);
+    respSetShort(ji, presetResp);
     return;
   }
 
   // ----- getparams -----
   if (strcmp(cmd, "getparams") == 0) {
-    gResp.phase = RespPhase::PARAMS;
-    gResp.paramIdx = 0;
-    gResp.chunkLen = 0;
-    gResp.chunkPos = 0;
+    r.phase = RespPhase::PARAMS;
+    r.paramIdx = 0;
+    r.chunkLen = 0;
+    r.chunkPos = 0;
     if (p.preset[0] != '\0') {
-      gResp.paramUsePreset = makePresetConfig(p.preset, &gResp.paramPresetCfg);
+      r.paramUsePreset = makePresetConfig(p.preset, &r.paramPresetCfg);
     } else {
-      gResp.paramUsePreset = false;
+      r.paramUsePreset = false;
     }
     return;
   }
@@ -640,13 +666,13 @@ static void execCommand(const Parser& p) {
     // Applying a truncated request would silently honour some settings and
     // drop others while still reporting success.
     if (p.paramOverflow) {
-      respSetShort("{\"error\":\"too many params\"}\r\n");
+      respSetShort(ji, "{\"error\":\"too many params\"}\r\n");
       return;
     }
-    lcdtap::LcdTapConfig cfg = gLcdTap->getConfig();
-    lcdtap::BusType oldIface = *gCurrentIface;
-    OutputInterface newOutIf = *gCurrentOutIf;
-    CompositeDacKind newDac = *gCurrentDac;
+    lcdtap::LcdTapConfig cfg = ji.inst->getConfig();
+    lcdtap::BusType oldIface = *ji.currentIface;
+    OutputInterface newOutIf = *ji.currentOutIf;
+    CompositeDacKind newDac = *ji.currentDac;
 
     for (int i = 0; i < p.numParams; i++) {
       const char* k = p.params[i].key;
@@ -675,9 +701,9 @@ static void execCommand(const Parser& p) {
       }
     }
 
-    lcdtap::Status st = gLcdTap->updateConfig(cfg);
+    lcdtap::Status st = ji.inst->updateConfig(cfg);
     if (st != lcdtap::Status::OK) {
-      respSetShort("{\"error\":\"updateConfig failed\"}\r\n");
+      respSetShort(ji, "{\"error\":\"updateConfig failed\"}\r\n");
       return;
     }
 
@@ -688,8 +714,8 @@ static void execCommand(const Parser& p) {
     newDac = compositeDacSanitize(newDac, cfg.busInterface);
 
     const bool busChanged = (cfg.busInterface != oldIface);
-    const bool outIfChanged = (newOutIf != *gCurrentOutIf);
-    const bool dacChanged = (newDac != *gCurrentDac);
+    const bool outIfChanged = (newOutIf != *ji.currentOutIf);
+    const bool dacChanged = (newDac != *ji.currentDac);
     // A bus or DAC change while composite is running also needs a reboot: the
     // DAC binds to its pins and peripheral at init, and the R-2R ladder
     // occupies GPIO5-11, overlapping the I2C pins. Switching in place would
@@ -699,59 +725,59 @@ static void execCommand(const Parser& p) {
         (outputInterfaceIsComposite(newOutIf) && (busChanged || dacChanged));
 
     if (busChanged && !needReboot) {
-      gSwitchIface(cfg.busInterface);
+      ji.switchIface(cfg.busInterface);
     }
     // Keep the live values in step when no reboot will do it for us, so a
     // getparams straight after Apply reports what was actually applied.
     if (!needReboot) {
-      *gCurrentOutIf = newOutIf;
-      *gCurrentDac = newDac;
+      *ji.currentOutIf = newOutIf;
+      *ji.currentDac = newDac;
     }
 
     ConfigFile toSave = {};
-    toSave.libConfig = gLcdTap->getConfig();
+    toSave.libConfig = ji.inst->getConfig();
     toSave.outputInterface = static_cast<uint8_t>(newOutIf);
     toSave.compositeDac = static_cast<uint8_t>(newDac);
-    gSaveConfig(toSave);
+    ji.saveConfig(toSave);
 
-    respSetShort("{\"response\":\"ok\"}\r\n");
+    respSetShort(ji, "{\"response\":\"ok\"}\r\n");
     // Reboot only after the response has been flushed, so the client sees it.
-    if (needReboot) gRebootPending = true;
+    if (needReboot) ji.rebootPending = true;
     return;
   }
 
   // ----- getstats -----
   if (strcmp(cmd, "getstats") == 0) {
-    gResp.statsCount = statsCollect(gResp.statsBuf, RespGen::MAX_STATS);
-    gResp.statsIdx = 0;
-    if (gResp.statsCount == 0) {
-      respSetShort("{\"stats\":[]}\r\n");
+    r.statsCount = statsCollect(r.statsBuf, RespGen::MAX_STATS);
+    r.statsIdx = 0;
+    if (r.statsCount == 0) {
+      respSetShort(ji, "{\"stats\":[]}\r\n");
       return;
     }
-    gResp.chunkLen = 0;
-    gResp.chunkPos = 0;
-    gResp.phase = RespPhase::STATS;
+    r.chunkLen = 0;
+    r.chunkPos = 0;
+    r.phase = RespPhase::STATS;
     return;
   }
 
   // ----- statsreset -----
   if (strcmp(cmd, "statsreset") == 0) {
     statsReset();
-    respSetShort("{\"response\":\"ok\"}\r\n");
+    respSetShort(ji, "{\"response\":\"ok\"}\r\n");
     return;
   }
 
   // ----- getframebuffer -----
   if (strcmp(cmd, "getframebuffer") == 0) {
-    gResp.fbWriteProtected = p.writeProtected;
-    if (p.writeProtected) gLcdTap->setWriteProtected(true);
+    r.fbWriteProtected = p.writeProtected;
+    if (p.writeProtected) ji.inst->setWriteProtected(true);
 
-    lcdtap::LcdTapConfig cfg = gLcdTap->getConfig();
+    lcdtap::LcdTapConfig cfg = ji.inst->getConfig();
     uint16_t physW = cfg.buffWidth;
     uint16_t physH = cfg.buffHeight;
 
     uint16_t srcX, srcY, srcW, srcH;
-    gLcdTap->getOutSrcRegion(&srcX, &srcY, &srcW, &srcH);
+    ji.inst->getOutSrcRegion(&srcX, &srcY, &srcW, &srcH);
     if (srcW == 0 || srcH == 0) {
       srcX = 0;
       srcY = 0;
@@ -761,98 +787,98 @@ static void execCommand(const Parser& p) {
 
     uint8_t rot = cfg.outputRotation & 3u;
 
-    gResp.fbPhysW = physW;
-    gResp.fbSrcX = srcX;
-    gResp.fbSrcY = srcY;
-    gResp.fbSrcW = srcW;
-    gResp.fbSrcH = srcH;
-    gResp.fbRot = rot;
-    gResp.fbInverted = gLcdTap->isOutputInverted();
-    gResp.fbPtr = gLcdTap->getFramebuf();
+    r.fbPhysW = physW;
+    r.fbSrcX = srcX;
+    r.fbSrcY = srcY;
+    r.fbSrcW = srcW;
+    r.fbSrcH = srcH;
+    r.fbRot = rot;
+    r.fbInverted = ji.inst->isOutputInverted();
+    r.fbPtr = ji.inst->getFramebuf();
     if ((rot & 1u) == 0u) {
-      gResp.fbOutW = srcW;
-      gResp.fbOutH = srcH;
+      r.fbOutW = srcW;
+      r.fbOutH = srcH;
     } else {
-      gResp.fbOutW = srcH;
-      gResp.fbOutH = srcW;
+      r.fbOutW = srcH;
+      r.fbOutH = srcW;
     }
-    gResp.fbOutX = 0;
-    gResp.fbOutY = 0;
-    gResp.rlePktLen = 0;
-    gResp.rlePktPos = 0;
-    gResp.b64Count = 0;
-    gResp.b64OutPos = 4;  // force next chunk
+    r.fbOutX = 0;
+    r.fbOutY = 0;
+    r.rlePktLen = 0;
+    r.rlePktPos = 0;
+    r.b64Count = 0;
+    r.b64OutPos = 4;  // force next chunk
 
     // Build header string into chunkBuf
     snprintf(
-        gResp.chunkBuf, sizeof(gResp.chunkBuf),
+        r.chunkBuf, sizeof(r.chunkBuf),
         "{\"width\":%d,\"height\":%d,\"format\":\"RGB565-RLE\",\"data\":\"",
-        static_cast<int>(gResp.fbOutW), static_cast<int>(gResp.fbOutH));
-    gResp.chunkLen = static_cast<int>(strlen(gResp.chunkBuf));
-    gResp.chunkPos = 0;
-    gResp.phase = RespPhase::FB_HEADER;
+        static_cast<int>(r.fbOutW), static_cast<int>(r.fbOutH));
+    r.chunkLen = static_cast<int>(strlen(r.chunkBuf));
+    r.chunkPos = 0;
+    r.phase = RespPhase::FB_HEADER;
     return;
   }
 
   // ----- cmddump_start -----
   if (strcmp(cmd, "cmddump_start") == 0) {
-    gLcdTap->dumpStart(lcdtap::getDefaultDumpConfig());
-    respSetShort("{\"response\":\"ok\"}\r\n");
+    ji.inst->dumpStart(lcdtap::getDefaultDumpConfig());
+    respSetShort(ji, "{\"response\":\"ok\"}\r\n");
     return;
   }
 
   // ----- cmddump_abort -----
   if (strcmp(cmd, "cmddump_abort") == 0) {
-    gLcdTap->dumpAbort();
-    respSetShort("{\"response\":\"ok\"}\r\n");
+    ji.inst->dumpAbort();
+    respSetShort(ji, "{\"response\":\"ok\"}\r\n");
     return;
   }
 
   // ----- cmddump_forcetrigger -----
   if (strcmp(cmd, "cmddump_forcetrigger") == 0) {
-    gLcdTap->dumpForceTrigger();
-    respSetShort("{\"response\":\"ok\"}\r\n");
+    ji.inst->dumpForceTrigger();
+    respSetShort(ji, "{\"response\":\"ok\"}\r\n");
     return;
   }
 
   // ----- cmddump_getstatus -----
   if (strcmp(cmd, "cmddump_getstatus") == 0) {
     const char* stStr = "WAIT";
-    switch (gLcdTap->dumpGetState()) {
+    switch (ji.inst->dumpGetState()) {
       case lcdtap::DumpState::WAIT: stStr = "WAIT"; break;
       case lcdtap::DumpState::ACTIVE: stStr = "ACTIVE"; break;
       case lcdtap::DumpState::COMPLETE: stStr = "COMPLETE"; break;
     }
-    uint16_t dumpSize = gLcdTap->dumpGetSize();
-    snprintf(gResp.chunkBuf, sizeof(gResp.chunkBuf),
+    uint16_t dumpSize = ji.inst->dumpGetSize();
+    snprintf(r.chunkBuf, sizeof(r.chunkBuf),
              "{\"status\":\"%s\",\"bytes\":%d}\r\n", stStr,
              static_cast<int>(dumpSize) * 2);
-    gResp.chunkLen = static_cast<int>(strlen(gResp.chunkBuf));
-    gResp.chunkPos = 0;
-    gResp.phase = RespPhase::SHORT;
+    r.chunkLen = static_cast<int>(strlen(r.chunkBuf));
+    r.chunkPos = 0;
+    r.phase = RespPhase::SHORT;
     return;
   }
 
   // ----- cmddump_read -----
   if (strcmp(cmd, "cmddump_read") == 0) {
-    uint16_t dlen = gLcdTap->dumpGetSize();
-    gResp.dumpPtr = gLcdTap->dumpGetBuffer();
-    gResp.dumpLen = dlen;
-    gResp.dumpPos = 0;
-    gResp.dumpHighByte = false;
-    gResp.b64Count = 0;
-    gResp.b64OutPos = 4;
+    uint16_t dlen = ji.inst->dumpGetSize();
+    r.dumpPtr = ji.inst->dumpGetBuffer();
+    r.dumpLen = dlen;
+    r.dumpPos = 0;
+    r.dumpHighByte = false;
+    r.b64Count = 0;
+    r.b64OutPos = 4;
 
-    snprintf(gResp.chunkBuf, sizeof(gResp.chunkBuf),
-             "{\"length\":%d,\"data\":\"", static_cast<int>(dlen));
-    gResp.chunkLen = static_cast<int>(strlen(gResp.chunkBuf));
-    gResp.chunkPos = 0;
-    gResp.phase = RespPhase::DUMP_HEADER;
+    snprintf(r.chunkBuf, sizeof(r.chunkBuf), "{\"length\":%d,\"data\":\"",
+             static_cast<int>(dlen));
+    r.chunkLen = static_cast<int>(strlen(r.chunkBuf));
+    r.chunkPos = 0;
+    r.phase = RespPhase::DUMP_HEADER;
     return;
   }
 
   // ----- unknown -----
-  respSetShort("{\"error\":\"unknown command\"}\r\n");
+  respSetShort(ji, "{\"error\":\"unknown command\"}\r\n");
 }
 
 // =============================================================================
@@ -890,12 +916,13 @@ static inline uint32_t fbIndexTrimmed(uint16_t dx, uint16_t dy, uint16_t srcX,
 
 // Feed one byte into the base64 accumulator; if a full 3-byte block is ready
 // encode it and store 4 chars into b64Out.
-static bool b64Feed(uint8_t byte) {
-  gResp.b64Acc[gResp.b64Count++] = byte;
-  if (gResp.b64Count == 3) {
-    b64Encode3(gResp.b64Acc, gResp.b64Out);
-    gResp.b64Count = 0;
-    gResp.b64OutPos = 0;
+static bool b64Feed(JsonIntf& ji, uint8_t byte) {
+  RespGen& r = ji.resp;
+  r.b64Acc[r.b64Count++] = byte;
+  if (r.b64Count == 3) {
+    b64Encode3(r.b64Acc, r.b64Out);
+    r.b64Count = 0;
+    r.b64OutPos = 0;
     return true;
   }
   return false;
@@ -903,131 +930,134 @@ static bool b64Feed(uint8_t byte) {
 
 // Flush pending base64 output chars. Returns true when flushed (or nothing
 // pending).
-static bool b64DrainOut() {
-  while (gResp.b64OutPos < 4) {
-    int sent = trxWrite(gResp.b64Out + gResp.b64OutPos, 4 - gResp.b64OutPos);
+static bool b64DrainOut(JsonIntf& ji) {
+  RespGen& r = ji.resp;
+  while (r.b64OutPos < 4) {
+    int sent =
+        ji.trx.write(ji.trx.ctx, r.b64Out + r.b64OutPos, 4 - r.b64OutPos);
     if (sent == 0) return false;
-    gResp.b64OutPos += sent;
+    r.b64OutPos += sent;
   }
   return true;
 }
 
 // Flush the base64 padding at stream end. Returns true when done.
-static bool b64FlushPad() {
-  if (gResp.b64Count == 0) return true;
-  b64EncodePad(gResp.b64Acc, gResp.b64Count, gResp.b64Out);
-  gResp.b64Count = 0;
-  gResp.b64OutPos = 0;
-  return b64DrainOut();
+static bool b64FlushPad(JsonIntf& ji) {
+  RespGen& r = ji.resp;
+  if (r.b64Count == 0) return true;
+  b64EncodePad(r.b64Acc, r.b64Count, r.b64Out);
+  r.b64Count = 0;
+  r.b64OutPos = 0;
+  return b64DrainOut(ji);
 }
 
 // Advance the response generator state machine; call repeatedly until IDLE.
-static void respFlush() {
-  switch (gResp.phase) {
+static void respFlush(JsonIntf& ji) {
+  RespGen& r = ji.resp;
+  switch (r.phase) {
     case RespPhase::IDLE: break;
 
     case RespPhase::SHORT:
-      if (drainChunk()) gResp.phase = RespPhase::IDLE;
+      if (drainChunk(ji)) r.phase = RespPhase::IDLE;
       break;
 
     case RespPhase::PARAMS: {
-      if (!drainChunk()) break;
+      if (!drainChunk(ji)) break;
       lcdtap::LcdTapConfig cfg;
       lcdtap::BusType iface;
-      if (gResp.paramUsePreset) {
-        cfg = gResp.paramPresetCfg;
-        iface = gResp.paramPresetCfg.busInterface;
+      if (r.paramUsePreset) {
+        cfg = r.paramPresetCfg;
+        iface = r.paramPresetCfg.busInterface;
       } else {
-        cfg = gLcdTap->getConfig();
-        iface = *gCurrentIface;
+        cfg = ji.inst->getConfig();
+        iface = *ji.currentIface;
       }
       // outputInterface is a host setting, so presets never carry one; always
       // report the live value.
-      if (!buildParamChunk(gResp.paramIdx, cfg, iface, *gCurrentOutIf,
-                           *gCurrentDac)) {
-        gResp.phase = RespPhase::IDLE;
+      if (!buildParamChunk(ji, r.paramIdx, cfg, iface, *ji.currentOutIf,
+                           *ji.currentDac)) {
+        r.phase = RespPhase::IDLE;
         break;
       }
-      gResp.paramIdx++;
+      r.paramIdx++;
       // drainChunk will be called on the next respFlush() invocation
       break;
     }
 
     case RespPhase::STATS: {
-      if (!drainChunk()) break;
-      if (!buildStatChunk(gResp.statsIdx)) {
-        gResp.phase = RespPhase::IDLE;
+      if (!drainChunk(ji)) break;
+      if (!buildStatChunk(ji, r.statsIdx)) {
+        r.phase = RespPhase::IDLE;
         break;
       }
-      gResp.statsIdx++;
+      r.statsIdx++;
       break;
     }
 
     case RespPhase::FB_HEADER:
-      if (drainChunk()) gResp.phase = RespPhase::FB_DATA;
+      if (drainChunk(ji)) r.phase = RespPhase::FB_DATA;
       break;
 
     case RespPhase::FB_DATA: {
       // First drain any pending base64 output chars
-      if (!b64DrainOut()) break;
+      if (!b64DrainOut(ji)) break;
 
       // Drain the encoded packet bytes of the current segment. Advance
       // rlePktPos BEFORE checking the drain result so a CDC-full retry does
       // not re-feed the same byte (it already sits in b64Out).
-      while (gResp.rlePktPos < gResp.rlePktLen) {
-        if (b64Feed(gResp.rlePkt[gResp.rlePktPos++]) && !b64DrainOut()) break;
+      while (r.rlePktPos < r.rlePktLen) {
+        if (b64Feed(ji, r.rlePkt[r.rlePktPos++]) && !b64DrainOut(ji)) break;
       }
-      if (gResp.rlePktPos < gResp.rlePktLen || !b64DrainOut()) break;
+      if (r.rlePktPos < r.rlePktLen || !b64DrainOut(ji)) break;
 
-      if (gResp.fbPtr == nullptr || gResp.fbOutY >= gResp.fbOutH) {
+      if (r.fbPtr == nullptr || r.fbOutY >= r.fbOutH) {
         // All pixels done — flush padding
-        if (!b64FlushPad()) break;
-        chunkFromStr("\"}\r\n");
-        gResp.phase = RespPhase::FB_FOOTER;
-        if (gResp.fbWriteProtected) gLcdTap->setWriteProtected(false);
+        if (!b64FlushPad(ji)) break;
+        chunkFromStr(ji, "\"}\r\n");
+        r.phase = RespPhase::FB_FOOTER;
+        if (r.fbWriteProtected) ji.inst->setWriteProtected(false);
         break;
       }
 
       // Gather the next segment (bounded by the row end so runs never cross
       // rows), then encode it. Each pixel is read exactly once, so a live
       // framebuffer can tear the image but never desync the packet stream.
-      int n = gResp.fbOutW - gResp.fbOutX;
+      int n = r.fbOutW - r.fbOutX;
       if (n > RLE_SEG_MAX_PIXELS) n = RLE_SEG_MAX_PIXELS;
       for (int i = 0; i < n; i++) {
-        uint32_t idx = fbIndexTrimmed(static_cast<uint16_t>(gResp.fbOutX + i),
-                                      gResp.fbOutY, gResp.fbSrcX, gResp.fbSrcY,
-                                      gResp.fbSrcW, gResp.fbSrcH, gResp.fbPhysW,
-                                      gResp.fbRot);
-        uint16_t px = gResp.fbPtr[idx];
-        if (gResp.fbInverted) px ^= 0xFFFFu;
-        gResp.rleSeg[i] = px;
+        uint32_t idx = fbIndexTrimmed(static_cast<uint16_t>(r.fbOutX + i),
+                                      r.fbOutY, r.fbSrcX, r.fbSrcY, r.fbSrcW,
+                                      r.fbSrcH, r.fbPhysW, r.fbRot);
+        uint16_t px = r.fbPtr[idx];
+        if (r.fbInverted) px ^= 0xFFFFu;
+        r.rleSeg[i] = px;
       }
-      gResp.fbOutX = static_cast<uint16_t>(gResp.fbOutX + n);
-      if (gResp.fbOutX >= gResp.fbOutW) {
-        gResp.fbOutX = 0;
-        gResp.fbOutY++;
+      r.fbOutX = static_cast<uint16_t>(r.fbOutX + n);
+      if (r.fbOutX >= r.fbOutW) {
+        r.fbOutX = 0;
+        r.fbOutY++;
       }
-      gResp.rlePktLen = rleEncodeSegment(gResp.rleSeg, n, gResp.rlePkt);
-      gResp.rlePktPos = 0;
+      r.rlePktLen = rleEncodeSegment(r.rleSeg, n, r.rlePkt);
+      r.rlePktPos = 0;
       // Yield once per segment (<= 128 px) to keep IRQ latency low.
       break;
     }
 
     case RespPhase::FB_FOOTER:
-      if (drainChunk()) gResp.phase = RespPhase::IDLE;
+      if (drainChunk(ji)) r.phase = RespPhase::IDLE;
       break;
 
     case RespPhase::DUMP_HEADER:
-      if (drainChunk()) gResp.phase = RespPhase::DUMP_DATA;
+      if (drainChunk(ji)) r.phase = RespPhase::DUMP_DATA;
       break;
 
     case RespPhase::DUMP_DATA: {
-      if (!b64DrainOut()) break;
+      if (!b64DrainOut(ji)) break;
 
-      if (gResp.dumpPos >= gResp.dumpLen) {
-        if (!b64FlushPad()) break;
-        chunkFromStr("\"}\r\n");
-        gResp.phase = RespPhase::DUMP_FOOTER;
+      if (r.dumpPos >= r.dumpLen) {
+        if (!b64FlushPad(ji)) break;
+        chunkFromStr(ji, "\"}\r\n");
+        r.phase = RespPhase::DUMP_FOOTER;
         break;
       }
 
@@ -1036,14 +1066,14 @@ static void respFlush() {
       // the same word.
       // Per word at most one b64Feed returns true (low XOR high, never both),
       // so draining after low is safe and we must always feed high regardless.
-      uint16_t word = gResp.dumpPtr[gResp.dumpPos++];
-      if (b64Feed(static_cast<uint8_t>(word & 0xFFu))) b64DrainOut();
-      if (b64Feed(static_cast<uint8_t>(word >> 8))) b64DrainOut();
+      uint16_t word = r.dumpPtr[r.dumpPos++];
+      if (b64Feed(ji, static_cast<uint8_t>(word & 0xFFu))) b64DrainOut(ji);
+      if (b64Feed(ji, static_cast<uint8_t>(word >> 8))) b64DrainOut(ji);
       break;
     }
 
     case RespPhase::DUMP_FOOTER:
-      if (drainChunk()) gResp.phase = RespPhase::IDLE;
+      if (drainChunk(ji)) r.phase = RespPhase::IDLE;
       break;
   }
 }
@@ -1051,9 +1081,6 @@ static void respFlush() {
 // =============================================================================
 // RX processing
 // =============================================================================
-
-static Lexer gLex;
-static Parser gParser;
 
 static const char* parseStateStr(ParseState s) {
   switch (s) {
@@ -1072,43 +1099,69 @@ static const char* parseStateStr(ParseState s) {
   }
 }
 
-static void processRxChar(char c) {
-  bool tokReady = lexPush(gLex, c);
+static void processRxChar(JsonIntf& ji, char c) {
+  bool tokReady = lexPush(ji.lex, c);
 
   if (tokReady) {
-    bool done = parserFeed(gParser, gLex.pending);
+    bool done = parserFeed(ji.parser, ji.lex.pending);
     if (done) {
-      if (gParser.state == ParseState::CMD_READY) {
-        execCommand(gParser);
+      if (ji.parser.state == ParseState::CMD_READY) {
+        execCommand(ji, ji.parser);
       } else {
-        snprintf(gResp.chunkBuf, sizeof(gResp.chunkBuf),
+        snprintf(ji.resp.chunkBuf, sizeof(ji.resp.chunkBuf),
                  "{\"error\":\"parse error\",\"state\":\"%s\"}\r\n",
-                 parseStateStr(gParser.state));
-        gResp.chunkLen = static_cast<int>(strlen(gResp.chunkBuf));
-        gResp.chunkPos = 0;
-        gResp.phase = RespPhase::SHORT;
+                 parseStateStr(ji.parser.state));
+        ji.resp.chunkLen = static_cast<int>(strlen(ji.resp.chunkBuf));
+        ji.resp.chunkPos = 0;
+        ji.resp.phase = RespPhase::SHORT;
       }
-      gParser.reset();
-      gLex.reset();
+      ji.parser.reset();
+      ji.lex.reset();
     }
   }
 
   // If CRLF arrived but no token, treat as end-of-command attempt
-  if (gLex.lineReady) {
-    gLex.lineReady = false;
-    if (gParser.state != ParseState::EXPECT_OBJ_OPEN) {
+  if (ji.lex.lineReady) {
+    ji.lex.lineReady = false;
+    if (ji.parser.state != ParseState::EXPECT_OBJ_OPEN) {
       // Incomplete command — reset quietly
-      gParser.reset();
-      gLex.reset();
+      ji.parser.reset();
+      ji.lex.reset();
     }
   }
 
   // Process delimiter deferred from end of a literal token
-  if (gLex.deferredChar) {
-    char dc = gLex.deferredChar;
-    gLex.deferredChar = 0;
-    processRxChar(dc);
+  if (ji.lex.deferredChar) {
+    char dc = ji.lex.deferredChar;
+    ji.lex.deferredChar = 0;
+    processRxChar(ji, dc);
   }
+}
+
+static void jsonIntfProcess(JsonIntf& ji) {
+  if (!ji.trx.isConnected(ji.trx.ctx)) return;
+
+  // Receive up to a small burst of characters per call to avoid starving
+  // other main-loop work.
+  for (int i = 0; i < 64; i++) {
+    int c = ji.trx.getChar(ji.trx.ctx);
+    if (c < 0) break;
+    processRxChar(ji, static_cast<char>(c));
+  }
+
+  respFlush(ji);
+}
+
+// =============================================================================
+// USB CDC transport adapter
+// =============================================================================
+
+static bool cdcIsConnected(void* /*ctx*/) { return trxIsConnected(); }
+
+static int cdcGetChar(void* /*ctx*/) { return trxGetChar(); }
+
+static int cdcWrite(void* /*ctx*/, const char* data, int len) {
+  return trxWrite(data, len);
 }
 
 // =============================================================================
@@ -1118,35 +1171,24 @@ static void processRxChar(char c) {
 void uartIfInit(lcdtap::LcdTap* lcdtap, lcdtap::BusType* currentIface,
                 OutputInterface* currentOutIf, CompositeDacKind* currentDac,
                 SwitchIfaceFn switchIface, SaveConfigFn saveConfig) {
-  gLcdTap = lcdtap;
-  gCurrentIface = currentIface;
-  gCurrentOutIf = currentOutIf;
-  gCurrentDac = currentDac;
-  gSwitchIface = switchIface;
-  gSaveConfig = saveConfig;
-  gRebootPending = false;
+  gIf.inst = lcdtap;
+  gIf.currentIface = currentIface;
+  gIf.currentOutIf = currentOutIf;
+  gIf.currentDac = currentDac;
+  gIf.switchIface = switchIface;
+  gIf.saveConfig = saveConfig;
+  gIf.rebootPending = false;
+  gIf.trx = {nullptr, cdcIsConnected, cdcGetChar, cdcWrite};
 
   trxInit();
 
-  gLex.reset();
-  gParser.reset();
-  gResp = {};
+  gIf.lex.reset();
+  gIf.parser.reset();
+  gIf.resp = {};
 }
 
-bool uartIfRebootPending() { return gRebootPending; }
+bool uartIfRebootPending() { return gIf.rebootPending; }
 
-bool uartIfRespIdle() { return gResp.phase == RespPhase::IDLE; }
+bool uartIfRespIdle() { return gIf.resp.phase == RespPhase::IDLE; }
 
-void uartIfProcess() {
-  if (!trxIsConnected()) return;
-
-  // Receive up to a small burst of characters per call to avoid starving
-  // other main-loop work.
-  for (int i = 0; i < 64; i++) {
-    int c = trxGetChar();
-    if (c < 0) break;
-    processRxChar(static_cast<char>(c));
-  }
-
-  respFlush();
-}
+void uartIfProcess() { jsonIntfProcess(gIf); }
