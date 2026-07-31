@@ -232,13 +232,28 @@ Get the contents of the frame buffer.
     {
         "width": output source region width (integer),
         "height": output source region height (integer),
-        "format": "RGB565",
-        "data": RGB565 image encoded as Base64 in little-endian byte order (string)
+        "format": "RGB565-RLE",
+        "data": RLE-compressed RGB565 image encoded as Base64 (string)
     }
     ```
 
     - Only the region specified by `outSrcX/Y/Width/Height` (the trim region) is sent, in pre-rotation physical buffer coordinates.
     - Brightness inversion is applied if active. Rotation is not applied.
+
+- RLE format (`RGB565-RLE`):
+
+    The pixel stream (row-major output order) is split into packets. Each
+    packet starts with a control byte `c`:
+
+    - `c & 0x80` set: run packet. The next 2 bytes are one RGB565 pixel
+      (little-endian) repeated `(c & 0x7F) + 1` times (1..128 pixels).
+    - `c & 0x80` clear: literal packet. The next `((c & 0x7F) + 1) * 2` bytes
+      are `(c & 0x7F) + 1` raw RGB565 pixels (little-endian, 1..128 pixels).
+
+    Runs never cross a row boundary. Adjacent literal packets are never
+    emitted, which bounds the worst case (incompressible noise) at one control
+    byte per 128 pixels, i.e. +0.39% over the raw size. The packet stream as a
+    whole is Base64-encoded into `data`.
 
 ### dump_start
 

@@ -7,6 +7,7 @@
 #include "stats.hpp"
 #include "uart_b64.hpp"
 #include "uart_lex.hpp"
+#include "uart_rle.hpp"
 #include "uart_trx.hpp"
 
 // =============================================================================
@@ -327,6 +328,15 @@ struct RespGen {
   uint8_t fbRot = 0;
   bool fbInverted = false;
   const uint16_t* fbPtr = nullptr;
+
+  // FB_DATA: RLE segment pipeline. Pixels are gathered in output order into
+  // rleSeg (one read per pixel, so a live framebuffer cannot desync the
+  // stream), encoded into rlePkt, then drained through base64. rlePktPos is
+  // the only resume point a CDC-full retry needs.
+  uint16_t rleSeg[RLE_SEG_MAX_PIXELS] = {};
+  uint8_t rlePkt[RLE_SEG_MAX_BYTES] = {};
+  int rlePktLen = 0;
+  int rlePktPos = 0;
 
   // Shared base64 accumulator for framebuffer and dump streams
   uint8_t b64Acc[3] = {};
@@ -768,13 +778,16 @@ static void execCommand(const Parser& p) {
     }
     gResp.fbOutX = 0;
     gResp.fbOutY = 0;
+    gResp.rlePktLen = 0;
+    gResp.rlePktPos = 0;
     gResp.b64Count = 0;
     gResp.b64OutPos = 4;  // force next chunk
 
     // Build header string into chunkBuf
-    snprintf(gResp.chunkBuf, sizeof(gResp.chunkBuf),
-             "{\"width\":%d,\"height\":%d,\"format\":\"RGB565\",\"data\":\"",
-             static_cast<int>(gResp.fbOutW), static_cast<int>(gResp.fbOutH));
+    snprintf(
+        gResp.chunkBuf, sizeof(gResp.chunkBuf),
+        "{\"width\":%d,\"height\":%d,\"format\":\"RGB565-RLE\",\"data\":\"",
+        static_cast<int>(gResp.fbOutW), static_cast<int>(gResp.fbOutH));
     gResp.chunkLen = static_cast<int>(strlen(gResp.chunkBuf));
     gResp.chunkPos = 0;
     gResp.phase = RespPhase::FB_HEADER;
@@ -958,6 +971,14 @@ static void respFlush() {
       // First drain any pending base64 output chars
       if (!b64DrainOut()) break;
 
+      // Drain the encoded packet bytes of the current segment. Advance
+      // rlePktPos BEFORE checking the drain result so a CDC-full retry does
+      // not re-feed the same byte (it already sits in b64Out).
+      while (gResp.rlePktPos < gResp.rlePktLen) {
+        if (b64Feed(gResp.rlePkt[gResp.rlePktPos++]) && !b64DrainOut()) break;
+      }
+      if (gResp.rlePktPos < gResp.rlePktLen || !b64DrainOut()) break;
+
       if (gResp.fbPtr == nullptr || gResp.fbOutY >= gResp.fbOutH) {
         // All pixels done — flush padding
         if (!b64FlushPad()) break;
@@ -967,35 +988,28 @@ static void respFlush() {
         break;
       }
 
-      // Process pixels until CDC is full or end of row.
-      // Advance fbOutX/fbOutY BEFORE b64Feed so a CDC-full retry does not
-      // re-feed the same pixel a second time.
-      while (gResp.fbOutY < gResp.fbOutH) {
-        if (!b64DrainOut()) break;  // drain before reading next pixel
-
-        uint32_t idx = fbIndexTrimmed(gResp.fbOutX, gResp.fbOutY, gResp.fbSrcX,
-                                      gResp.fbSrcY, gResp.fbSrcW, gResp.fbSrcH,
-                                      gResp.fbPhysW, gResp.fbRot);
+      // Gather the next segment (bounded by the row end so runs never cross
+      // rows), then encode it. Each pixel is read exactly once, so a live
+      // framebuffer can tear the image but never desync the packet stream.
+      int n = gResp.fbOutW - gResp.fbOutX;
+      if (n > RLE_SEG_MAX_PIXELS) n = RLE_SEG_MAX_PIXELS;
+      for (int i = 0; i < n; i++) {
+        uint32_t idx = fbIndexTrimmed(static_cast<uint16_t>(gResp.fbOutX + i),
+                                      gResp.fbOutY, gResp.fbSrcX, gResp.fbSrcY,
+                                      gResp.fbSrcW, gResp.fbSrcH, gResp.fbPhysW,
+                                      gResp.fbRot);
         uint16_t px = gResp.fbPtr[idx];
         if (gResp.fbInverted) px ^= 0xFFFFu;
-
-        // Advance position before feeding bytes
-        bool endOfRow = (++gResp.fbOutX >= gResp.fbOutW);
-        if (endOfRow) {
-          gResp.fbOutX = 0;
-          gResp.fbOutY++;
-        }
-
-        // Little-endian: low byte first.
-        // Per pixel at most one b64Feed call returns true (low XOR high, never
-        // both), so draining after low does not discard the high byte.
-        // Always feed high regardless of whether low triggered a drain —
-        // breaking after low would leave the high byte undelivered.
-        if (b64Feed(static_cast<uint8_t>(px & 0xFFu))) b64DrainOut();
-        if (b64Feed(static_cast<uint8_t>(px >> 8)) && !b64DrainOut()) break;
-
-        if (endOfRow) break;  // yield once per row to keep IRQ latency low
+        gResp.rleSeg[i] = px;
       }
+      gResp.fbOutX = static_cast<uint16_t>(gResp.fbOutX + n);
+      if (gResp.fbOutX >= gResp.fbOutW) {
+        gResp.fbOutX = 0;
+        gResp.fbOutY++;
+      }
+      gResp.rlePktLen = rleEncodeSegment(gResp.rleSeg, n, gResp.rlePkt);
+      gResp.rlePktPos = 0;
+      // Yield once per segment (<= 128 px) to keep IRQ latency low.
       break;
     }
 

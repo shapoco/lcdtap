@@ -26,6 +26,7 @@ add_executable(lcdtap_pico2_universal
     src/uart_trx.cpp
     src/uart_b64.cpp
     src/uart_lex.cpp
+    src/uart_rle.cpp
     src/uart_intf.cpp
 )
 

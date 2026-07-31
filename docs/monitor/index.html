@@ -1141,9 +1141,12 @@ async function captureFramebuffer() {
     const obj = JSON.parse(resp);
     const { width, height, data: b64 } = obj;
 
-    const raw = base64Decode(b64);
+    const decoded = base64Decode(b64);
     const expectedBytes = width * height * 2;
-    console.log(`[FB] width=${width} height=${height} expected=${expectedBytes} decoded=${raw.length} b64_prefix="${b64.slice(0,16)}..."`);
+    const raw = obj.format === 'RGB565-RLE'
+      ? rleDecodeRGB565(decoded, expectedBytes)
+      : decoded;
+    console.log(`[FB] width=${width} height=${height} format=${obj.format} expected=${expectedBytes} wire=${decoded.length} decoded=${raw.length} b64_prefix="${b64.slice(0,16)}..."`);
 
     canvas.width = width;
     canvas.height = height;
@@ -1435,6 +1438,33 @@ function base64Decode(b64) {
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
+}
+
+// ─── RGB565-RLE decode ───────────────────────────────────────────────────────
+
+// Packet stream: control byte c, then
+//   c & 0x80 set   -> run:     next 2 bytes (RGB565 LE) repeat (c & 0x7F)+1 times
+//   c & 0x80 clear -> literal: next ((c & 0x7F)+1)*2 bytes are raw pixels
+function rleDecodeRGB565(bytes, expectedLen) {
+  const out = new Uint8Array(expectedLen);
+  let i = 0, o = 0;
+  while (i < bytes.length) {
+    const c = bytes[i++];
+    const count = (c & 0x7F) + 1;
+    if (o + count * 2 > expectedLen) throw new Error('RLE overflow');
+    if (c & 0x80) {
+      if (i + 2 > bytes.length) throw new Error('RLE truncated');
+      const lo = bytes[i++], hi = bytes[i++];
+      for (let k = 0; k < count; k++) { out[o++] = lo; out[o++] = hi; }
+    } else {
+      if (i + count * 2 > bytes.length) throw new Error('RLE truncated');
+      out.set(bytes.subarray(i, i + count * 2), o);
+      i += count * 2;
+      o += count * 2;
+    }
+  }
+  if (o !== expectedLen) throw new Error(`RLE underflow (${o} of ${expectedLen} bytes)`);
+  return out;
 }
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
