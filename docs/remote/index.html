@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
+<script>
+  var remoteHost = window.location.hostname;
+  if (remoteHost == "localhost") {
+    console.log(`Google Analytics disabled on: '${remoteHost}'`);
+  }
+  else {
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-KJ53WNQ22G');
+  }
+</script>
+
+<title>LcdTap Remote Setup</title>
+<link rel="icon" type="image/png" href="../favicon.png">
+<link rel="shortcut icon" href="../favicon.ico">
+<link rel="stylesheet" href="../monitor/monitor.css">
+<style>
+/* Page-specific additions on top of the shared monitor.css */
+main { padding: 20px 16px; max-width: 560px; }
+
+.form-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.form-row.form-disabled { opacity: 0.4; pointer-events: none; }
+.form-label { flex: 1; min-width: 140px; font-weight: 500; }
+.form-row input[type=text], .form-row input[type=password] {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 6px 10px;
+  width: 220px;
+}
+.form-row input:focus { outline: none; border-color: var(--accent); }
+.form-hint { flex-basis: 100%; font-size: 11px; color: var(--text-muted); }
+
+.status-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.status-panel table td { padding: 3px 12px 3px 0; }
+.status-panel .k { color: var(--text-muted); }
+.status-panel a { color: var(--accent); }
+
+.actions { display: flex; gap: 10px; margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LcdTap Remote Setup</h1>
+  <div class="conn-status">
+    <div class="conn-dot" id="conn-dot"></div>
+    <span id="conn-label">Disconnected</span>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="conn-controls">
+    <select id="transport-select">
+      <option value="webserial">WebSerial</option>
+      <option value="webusb">WebUSB</option>
+    </select>
+    <button id="btn-connect" class="primary">Connect</button>
+    <button id="btn-disconnect" disabled>Disconnect</button>
+  </div>
+</header>
+
+<main>
+  <div class="section-title">WiFi Settings (pico2w_remote)</div>
+
+  <div class="form-row">
+    <div class="form-label">SSID</div>
+    <input type="text" id="in-ssid" maxlength="32" autocomplete="off">
+  </div>
+  <div class="form-row">
+    <div class="form-label">Passphrase</div>
+    <input type="password" id="in-psk" maxlength="63"
+           placeholder="(leave blank to keep current)" autocomplete="off">
+    <div class="form-hint">
+      <label style="cursor:pointer">
+        <input type="checkbox" id="in-open"> Open network (no passphrase)
+      </label>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-label">Use DHCP</div>
+    <label class="toggle">
+      <input type="checkbox" id="in-dhcp" checked>
+      <div class="toggle-track"></div>
+    </label>
+  </div>
+  <div class="form-row" id="row-ip">
+    <div class="form-label">IP Address</div>
+    <input type="text" id="in-ip" placeholder="192.168.1.100">
+  </div>
+  <div class="form-row" id="row-netmask">
+    <div class="form-label">Subnet Mask</div>
+    <input type="text" id="in-netmask" placeholder="255.255.255.0">
+  </div>
+  <div class="form-row" id="row-gateway">
+    <div class="form-label">Gateway</div>
+    <input type="text" id="in-gateway" placeholder="192.168.1.1">
+  </div>
+  <div class="form-row" id="row-dns">
+    <div class="form-label">DNS Server</div>
+    <input type="text" id="in-dns" placeholder="192.168.1.1">
+  </div>
+  <div class="form-row">
+    <div class="form-label">Hostname</div>
+    <input type="text" id="in-hostname" maxlength="31" placeholder="lcdtap">
+    <div class="form-hint">Also the mDNS name: http://&lt;hostname&gt;.local/</div>
+  </div>
+  <div class="form-row">
+    <div class="form-label">Country Code</div>
+    <input type="text" id="in-country" maxlength="2" placeholder="JP"
+           style="width:60px">
+    <div class="form-hint">ISO 3166-1 alpha-2; blank = worldwide</div>
+  </div>
+
+  <div class="actions">
+    <button id="btn-apply" class="primary" disabled>Apply &amp; Reboot</button>
+    <button id="btn-reload" disabled>Reload</button>
+  </div>
+
+  <div class="section-title">Device Status</div>
+  <div class="status-panel">
+    <table>
+      <tr><td class="k">WiFi</td><td id="st-state">–</td></tr>
+      <tr><td class="k">SSID</td><td id="st-ssid">–</td></tr>
+      <tr><td class="k">IP Address</td><td id="st-ip">–</td></tr>
+      <tr><td class="k">RSSI</td><td id="st-rssi">–</td></tr>
+      <tr><td class="k">MAC</td><td id="st-mac">–</td></tr>
+      <tr><td class="k">Web UI</td><td id="st-link">–</td></tr>
+    </table>
+  </div>
+</main>
+
+<div id="toast-area"></div>
+
+<script type="module">
+'use strict';
+
+import { serial as webSerialPolyfill } from "https://cdn.jsdelivr.net/npm/web-serial-polyfill@1.0.15";
+import { SerialConnection } from '../monitor/serial_conn.js';
+import { showToast } from '../monitor/monitor.js';
+
+const conn = new SerialConnection();
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// ─── Connection UI ──────────────────────────────────────────────────────────
+
+const transportSelect = $('transport-select');
+transportSelect.value = ('serial' in navigator) ? 'webserial' : 'webusb';
+
+let statusTimer = null;
+
+function setConnected(yes) {
+  $('conn-dot').className = 'conn-dot' + (yes ? ' connected' : '');
+  $('conn-label').textContent = yes ? 'Connected' : 'Disconnected';
+  $('btn-connect').disabled = yes;
+  $('btn-disconnect').disabled = !yes;
+  transportSelect.disabled = yes;
+  $('btn-apply').disabled = !yes;
+  $('btn-reload').disabled = !yes;
+  if (yes) {
+    if (!statusTimer) statusTimer = setInterval(pollStatus, 2000);
+  } else if (statusTimer) {
+    clearInterval(statusTimer);
+    statusTimer = null;
+  }
+}
+
+async function sendJson(cmdObj, timeoutMs) {
+  const resp = await conn.sendCommand(cmdObj, timeoutMs);
+  return JSON.parse(resp);
+}
+
+$('btn-connect').addEventListener('click', async () => {
+  try {
+    $('btn-connect').disabled = true;
+    const api = (transportSelect.value === 'webusb') ? webSerialPolyfill : navigator.serial;
+    await conn.connect(api);
+    const obj = await sendJson({ command: 'hello' }, 5000);
+    if (obj.response !== 'welcome lcdtap') throw new Error('Unexpected hello response');
+    setConnected(true);
+    showToast('Connected', 'success');
+    await loadConfig();
+    await pollStatus();
+  } catch (e) {
+    try { await conn.disconnect(); } catch (_) {}
+    setConnected(false);
+    showToast('Connection failed: ' + e.message, 'error');
+    $('btn-connect').disabled = false;
+  }
+});
+
+$('btn-disconnect').addEventListener('click', async () => {
+  await conn.disconnect();
+  setConnected(false);
+  showToast('Disconnected');
+});
+
+conn.onLost = () => {
+  setConnected(false);
+  showToast('Connection lost', 'error');
+};
+
+// ─── Static IP rows follow the DHCP toggle ──────────────────────────────────
+
+function updateStaticRows() {
+  const dis = $('in-dhcp').checked;
+  for (const id of ['row-ip', 'row-netmask', 'row-gateway', 'row-dns']) {
+    $(id).classList.toggle('form-disabled', dis);
+  }
+}
+$('in-dhcp').addEventListener('change', updateStaticRows);
+updateStaticRows();
+
+$('in-open').addEventListener('change', () => {
+  $('in-psk').disabled = $('in-open').checked;
+});
+
+// ─── Load / apply ───────────────────────────────────────────────────────────
+
+async function loadConfig() {
+  try {
+    const c = await sendJson({ command: 'getnetconfig' }, 5000);
+    $('in-ssid').value = c.ssid || '';
+    $('in-psk').value = '';
+    $('in-psk').placeholder = c.pskSet ? '(leave blank to keep current)' : '(not set)';
+    $('in-open').checked = false;
+    $('in-psk').disabled = false;
+    $('in-dhcp').checked = !!c.dhcp;
+    $('in-ip').value = c.ip !== '0.0.0.0' ? c.ip : '';
+    $('in-netmask').value = c.netmask !== '0.0.0.0' ? c.netmask : '';
+    $('in-gateway').value = c.gateway !== '0.0.0.0' ? c.gateway : '';
+    $('in-dns').value = c.dns !== '0.0.0.0' ? c.dns : '';
+    $('in-hostname').value = c.hostname || '';
+    $('in-country').value = c.country || '';
+    updateStaticRows();
+  } catch (e) {
+    showToast('getnetconfig failed: ' + e.message, 'error');
+  }
+}
+
+$('btn-reload').addEventListener('click', loadConfig);
+
+async function pollStatus() {
+  if (!conn.connected) return;
+  try {
+    const s = await sendJson({ command: 'netstatus' }, 3000);
+    $('st-state').textContent = s.state;
+    $('st-ssid').textContent = s.ssid || '–';
+    $('st-ip').textContent = s.ip !== '0.0.0.0' ? s.ip : '–';
+    $('st-rssi').textContent = s.state === 'CONNECTED' ? s.rssi + ' dBm' : '–';
+    $('st-mac').textContent = s.mac;
+    const link = $('st-link');
+    if (s.state === 'CONNECTED') {
+      const urls = [];
+      if (s.hostname) urls.push(`http://${s.hostname}.local/`);
+      if (s.ip && s.ip !== '0.0.0.0') urls.push(`http://${s.ip}/`);
+      link.innerHTML = urls.map(u => `<a href="${u}" target="_blank">${u}</a>`).join('<br>');
+    } else {
+      link.textContent = '–';
+    }
+  } catch (_) {
+    // Polling failure is transient (device busy); the interval retries.
+  }
+}
+
+$('btn-apply').addEventListener('click', async () => {
+  const params = {};
+  params.ssid = $('in-ssid').value;
+  if ($('in-open').checked) {
+    params.psk = '';
+  } else if ($('in-psk').value !== '') {
+    params.psk = $('in-psk').value;
+  }
+  params.dhcp = $('in-dhcp').checked ? 1 : 0;
+  if (!$('in-dhcp').checked) {
+    if ($('in-ip').value) params.ip = $('in-ip').value;
+    if ($('in-netmask').value) params.netmask = $('in-netmask').value;
+    if ($('in-gateway').value) params.gateway = $('in-gateway').value;
+    if ($('in-dns').value) params.dns = $('in-dns').value;
+  }
+  if ($('in-hostname').value) params.hostname = $('in-hostname').value;
+  params.country = $('in-country').value.toUpperCase();
+
+  try {
+    $('btn-apply').disabled = true;
+    const obj = await sendJson({ command: 'setnetconfig', params }, 8000);
+    if (obj.response !== 'ok') {
+      showToast('setnetconfig error: ' + (obj.error || JSON.stringify(obj)), 'error');
+      return;
+    }
+    showToast('Saved — device is rebooting…', 'success');
+    // The device reboots to apply the settings; re-open the same port and
+    // watch the join progress.
+    await reconnectAndWatch();
+  } catch (e) {
+    showToast('setnetconfig failed: ' + e.message, 'error');
+  } finally {
+    $('btn-apply').disabled = !conn.connected;
+  }
+});
+
+async function reconnectAndWatch() {
+  setConnected(false);
+  $('conn-dot').className = 'conn-dot reconnecting';
+  for (let i = 1; i <= 30; i++) {
+    $('conn-label').textContent = `Reconnecting… (${i}/30)`;
+    await sleep(500);
+    try {
+      await conn.reopen();
+      const obj = await sendJson({ command: 'hello' }, 3000);
+      if (obj.response !== 'welcome lcdtap') throw new Error('bad hello');
+      setConnected(true);
+      showToast('Reconnected', 'success');
+      await loadConfig();
+      await pollStatus();
+      return;
+    } catch (_) {
+      try { await conn.disconnect(); } catch (_) {}
+    }
+  }
+  setConnected(false);
+  showToast('Reconnect failed. Please reconnect manually.', 'error');
+}
+</script>
+</body>
+</html>
