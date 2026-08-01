@@ -21,6 +21,13 @@ Simplified version for 240x320 SPI LCDs with ST7789 or ILI9341 controller.
 
 Simplified version 128x64 monochrome OLEDs with SSD1306 controller.
 
+### [LcdTap-Pico2W Remote](example/pico2w_remote/)
+
+Raspberry Pi Pico 2 W version with no video output: the captured screen is
+read over WiFi through an HTTP JSON API and a built-in web UI
+(`http://lcdtap.local/`). WiFi setup via the
+[Remote Setup page](https://shapoco.github.io/lcdtap/remote/) (WebSerial).
+
 ## License
 
 MIT License — see [LICENSE](LICENSE).

@@ -338,3 +338,119 @@ Get the contents of the command dump.
     }
     ```
 
+
+### getstats
+
+Get the debug statistics shown in the Statistics tab. The set of entries
+depends on the example (pico2_universal reports TX/video counters,
+pico2w_remote reports input-path counters only).
+
+- Command:
+
+    ```json
+    {"command": "getstats"}
+    ```
+
+- Response:
+
+    ```json
+    {"stats": [
+        {"name": display name (string),
+         "value": counter value (unsigned integer),
+         "unit": unit suffix, may be "" (string),
+         "fmt": one of "dec", "hex", or "rate"},
+        ...
+    ]}
+    ```
+
+  `"hex"` values above `0xFF` mean "none yet". `"rate"` values are bytes
+  per second.
+
+### statsreset
+
+Reset the statistics baselines (counters are free-running; reset is
+implemented by baseline subtraction).
+
+- Command:
+
+    ```json
+    {"command": "statsreset"}
+    ```
+
+- Response:
+
+    ```json
+    {"response": "ok"}
+    ```
+
+## pico2w_remote extensions
+
+The pico2w_remote example speaks the same protocol over two transports:
+
+- **USB CDC serial** — identical framing to the above.
+- **HTTP** — `POST /api` with the JSON command as the request body
+  (trailing CRLF optional). The response body is the same single JSON
+  line, streamed with chunked transfer encoding. One request is served
+  at a time; concurrent requests receive `503`.
+
+String-valued parameters are accepted in `params` objects (used by
+`setnetconfig` below). The following commands exist only on
+pico2w_remote:
+
+### getnetconfig
+
+Read the stored network configuration. The passphrase is write-only:
+only its presence is reported.
+
+- Command:
+
+    ```json
+    {"command": "getnetconfig"}
+    ```
+
+- Response:
+
+    ```json
+    {"ssid": "...", "pskSet": true/false, "dhcp": true/false,
+     "ip": "0.0.0.0", "netmask": "0.0.0.0", "gateway": "0.0.0.0",
+     "dns": "0.0.0.0", "hostname": "lcdtap", "country": "JP"}
+    ```
+
+### setnetconfig
+
+Update the network configuration. Omitted keys keep their current
+values; an empty `psk` string selects an open network (omit the key to
+keep the stored passphrase). The settings are saved to flash and applied
+by an automatic reboot right after the response is flushed.
+
+- Command:
+
+    ```json
+    {"command": "setnetconfig", "params": {
+        "ssid": "MyAP", "psk": "secret", "dhcp": 1,
+        "ip": "192.168.1.100", "netmask": "255.255.255.0",
+        "gateway": "192.168.1.1", "dns": "192.168.1.1",
+        "hostname": "lcdtap", "country": "JP"
+    }}
+    ```
+
+- Response: `{"response": "ok"}` followed by a device reboot, or
+  `{"error": "..."}`.
+
+### netstatus
+
+Read the live WiFi state.
+
+- Command:
+
+    ```json
+    {"command": "netstatus"}
+    ```
+
+- Response:
+
+    ```json
+    {"state": one of "UNCONFIGURED", "CONNECTING", "CONNECTED", "FAILED",
+     "ip": "0.0.0.0", "rssi": -50, "ssid": "...",
+     "mac": "AA:BB:CC:DD:EE:FF", "hostname": "lcdtap"}
+    ```
