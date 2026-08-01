@@ -333,6 +333,8 @@ static void tryDispatch(HttpConn* c) {
     }
     if (c->reqLen < bodyStart + contentLength) return;  // body incomplete
     startApiRequest(c, bodyStart, bodyStart + contentLength);
+    // The 503 path queues a fixed response that nothing else would flush.
+    if (c->state == ConnState::SEND_FIXED) connPump(c);
     return;
   }
 
@@ -360,18 +362,23 @@ static err_t onRecv(void* arg, struct tcp_pcb* pcb, struct pbuf* p, err_t err) {
   c->quietPolls = 0;
   ledActivityPulse();
 
-  if (c->state == ConnState::RECV_REQ) {
+  const bool wasReceiving = (c->state == ConnState::RECV_REQ);
+  if (wasReceiving) {
     const int space = REQ_BUF_SIZE - 1 - c->reqLen;
     const int n = (p->tot_len > space) ? space : p->tot_len;
     pbuf_copy_partial(p, c->reqBuf + c->reqLen, static_cast<u16_t>(n), 0);
     c->reqLen += n;
-    tryDispatch(c);
   }
   // Anything received after dispatch (pipelining) is ignored: every response
   // ends with Connection: close.
 
+  // Release the window and the pbuf BEFORE dispatching: a small response
+  // completes synchronously inside tryDispatch and closes the pcb, after
+  // which it must not be touched.
   tcp_recved(pcb, p->tot_len);
   pbuf_free(p);
+
+  if (wasReceiving) tryDispatch(c);
   return ERR_OK;
 }
 
