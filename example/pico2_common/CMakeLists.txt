@@ -12,6 +12,7 @@ add_library(pico2_common STATIC
     src/json_b64.cpp
     src/json_rle.cpp
     src/json_intf.cpp
+    src/sys_clock.cpp
 )
 
 # Core library (MCU-agnostic)
