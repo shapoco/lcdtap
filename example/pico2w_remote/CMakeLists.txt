@@ -20,6 +20,29 @@ pico_sdk_init()
 # Shared pico2 peripheral drivers (SPI/I2C input, JSON engine, flash store)
 add_subdirectory(../../example/pico2_common pico2_common)
 
+# Embedded web UI: the device serves the same files the GitHub-Pages monitor
+# uses (single source, see docs/monitor/). Regenerated whenever they change.
+set(WEB_ASSETS_CPP ${CMAKE_CURRENT_BINARY_DIR}/web_assets.cpp)
+set(DOCS_DIR ${CMAKE_CURRENT_LIST_DIR}/../../docs)
+add_custom_command(
+    OUTPUT ${WEB_ASSETS_CPP}
+    COMMAND python3 ${CMAKE_CURRENT_LIST_DIR}/tools/embed_assets.py
+        --out ${WEB_ASSETS_CPP}
+        "${DOCS_DIR}/monitor/device.html;/;text/html"
+        "${DOCS_DIR}/monitor/monitor.css;/monitor.css;text/css"
+        "${DOCS_DIR}/monitor/monitor.js;/monitor.js;text/javascript"
+        "${DOCS_DIR}/monitor/http_conn.js;/http_conn.js;text/javascript"
+        "${DOCS_DIR}/favicon.png;/favicon.png;image/png"
+    DEPENDS
+        ${CMAKE_CURRENT_LIST_DIR}/tools/embed_assets.py
+        ${DOCS_DIR}/monitor/device.html
+        ${DOCS_DIR}/monitor/monitor.css
+        ${DOCS_DIR}/monitor/monitor.js
+        ${DOCS_DIR}/monitor/http_conn.js
+        ${DOCS_DIR}/favicon.png
+    VERBATIM
+)
+
 add_executable(lcdtap_pico2w_remote
     src/main.cpp
     src/net_config.cpp
@@ -28,6 +51,7 @@ add_executable(lcdtap_pico2w_remote
     src/wifi_mgr.cpp
     src/led_status.cpp
     src/http_server.cpp
+    ${WEB_ASSETS_CPP}
 )
 
 target_include_directories(lcdtap_pico2w_remote PRIVATE
