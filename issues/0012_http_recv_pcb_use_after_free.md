@@ -1,6 +1,6 @@
 # 0012: pico2w_remote の HTTP 全応答が ERR_CONNECTION_RESET になる
 
-- ステータス: 修正済み (3eacab0)、実機再検証待ち
+- ステータス: 解決済み (3eacab0、実機確認済み: ページ表示・設定変更・キャプチャ取得 OK)
 - 対象: example/pico2w_remote/src/http_server.cpp
 
 ## 症状
