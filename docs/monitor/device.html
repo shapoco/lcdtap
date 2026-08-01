@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Served by pico2w_remote as "/" (embedded at firmware build time).
+     No analytics, no CDN imports: the page must work with no internet
+     access. Shares monitor.css / monitor.js with the GitHub-Pages
+     monitor so there is a single source for the UI. -->
+
+<title>LcdTap Remote</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="stylesheet" href="monitor.css">
+</head>
+<body>
+
+<div id="app"></div>
+
+<script type="module">
+'use strict';
+
+import { HttpConnection } from './http_conn.js';
+import { initApp } from './monitor.js';
+
+initApp({
+  conn: new HttpConnection(),
+  title: 'LcdTap Remote',
+  autoConnect: true,
+});
+</script>
+</body>
+</html>
