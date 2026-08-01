@@ -23,7 +23,6 @@ add_executable(lcdtap_pico2_universal
     src/displaylink_out.cpp
     src/flash_config.cpp
     src/stats.cpp
-    src/uart_trx.cpp
     src/uart_intf.cpp
 )
 
@@ -57,6 +56,7 @@ endforeach()
 
 target_link_libraries(lcdtap_pico2_universal
     pico2_common      # pulls in lcdtap, hstx driver, hardware_dma/gpio/i2c/irq/pio
+    pico2_json_cdc    # USB CDC transport for the JSON interface
     pico_usb_disp     # DisplayLink output (PIO USB FS host)
     pico_stdlib
     pico_multicore

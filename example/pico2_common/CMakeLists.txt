@@ -11,6 +11,7 @@ add_library(pico2_common STATIC
     src/json_lex.cpp
     src/json_b64.cpp
     src/json_rle.cpp
+    src/json_intf.cpp
 )
 
 # Core library (MCU-agnostic)
@@ -47,3 +48,12 @@ target_link_libraries(pico2_common PUBLIC
     hardware_pwm
     hardware_vreg
 )
+
+# USB CDC transport for the JSON interface. INTERFACE library: the source
+# compiles as part of each executable so it sees that target's TinyUSB/stdio
+# configuration (pico_enable_stdio_usb).
+add_library(pico2_json_cdc INTERFACE)
+target_sources(pico2_json_cdc INTERFACE
+    ${CMAKE_CURRENT_LIST_DIR}/src/cdc_trx.cpp
+)
+target_link_libraries(pico2_json_cdc INTERFACE pico2_common)
