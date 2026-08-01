@@ -1,54 +1,23 @@
 #include "flash_config.hpp"
 
-#include <cstring>
-
 #include <hardware/flash.h>
-#include <hardware/sync.h>
+
+#include "lcdtap/pico2/flash_store.hpp"
 
 static_assert(sizeof(ConfigFile) + sizeof(uint32_t) <= FLASH_PAGE_SIZE,
               "ConfigFile too large for one flash page");
 
-// Offset from the start of flash (not XIP base) to the last sector.
-static constexpr uint32_t kFlashOffset =
-    PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE;
-
-// XIP address for reading back the stored data.
-static constexpr uintptr_t kFlashXipAddr = XIP_BASE + kFlashOffset;
-
-// CRC-32/ISO-HDLC (IEEE 802.3) — table-less bitwise implementation.
-static uint32_t crc32(const uint8_t *data, size_t len) {
-  uint32_t crc = 0xFFFFFFFFu;
-  for (size_t i = 0; i < len; i++) {
-    crc ^= data[i];
-    for (int b = 0; b < 8; b++) crc = (crc >> 1) ^ (0xEDB88320u & -(crc & 1u));
-  }
-  return ~crc;
-}
+// The device config lives in the last flash sector.
+static constexpr uint32_t SECTORS_FROM_END = 1u;
 
 bool loadConfig(ConfigFile *out) {
-  const uint8_t *p = reinterpret_cast<const uint8_t *>(kFlashXipAddr);
-  uint32_t stored;
-  memcpy(&stored, p + sizeof(ConfigFile), sizeof(uint32_t));
-  if (crc32(p, sizeof(ConfigFile)) != stored) return false;
-  memcpy(out, p, sizeof(ConfigFile));
-  return true;
+  return lcdtap::pico2::flashStoreLoad(SECTORS_FROM_END, out,
+                                       sizeof(ConfigFile));
 }
 
+// Caller must have paused Core 1 via the video backend's flashAcquire()
+// before calling here, so Core 1 is spinning in SRAM and cannot access flash
+// during erase/program.
 void saveConfig(const ConfigFile &cfg) {
-  // Page buffer must be in RAM — flash is inaccessible during erase/program.
-  uint8_t buf[FLASH_PAGE_SIZE] = {};
-  memcpy(buf, &cfg, sizeof(cfg));
-  uint32_t crc = crc32(buf, sizeof(cfg));
-  memcpy(buf + sizeof(cfg), &crc, sizeof(uint32_t));
-
-  // Caller must have paused Core 1 via dviOutFlashAcquire() before calling
-  // here, so Core 1 is spinning in SRAM and cannot access flash. Disable Core
-  // 0 interrupts to block any ISR that might fetch flash-resident code during
-  // the erase/program window.
-  uint32_t ints = save_and_disable_interrupts();
-
-  flash_range_erase(kFlashOffset, FLASH_SECTOR_SIZE);
-  flash_range_program(kFlashOffset, buf, FLASH_PAGE_SIZE);
-
-  restore_interrupts(ints);
+  lcdtap::pico2::flashStoreSave(SECTORS_FROM_END, &cfg, sizeof(ConfigFile));
 }

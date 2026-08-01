@@ -9,6 +9,7 @@
 
 #include "lcdtap/lcdtap.hpp"
 #include "lcdtap/osd.hpp"
+#include "lcdtap/pico2/bus_input.hpp"
 #include "lcdtap/pico2/composite_out.hpp"
 #include "lcdtap/pico2/hstx_out.hpp"
 #include "lcdtap/pico2/i2c_slave.hpp"
@@ -223,53 +224,17 @@ static bool onOsdActionActivated(lcdtap::Osd *osd,
 }
 
 // =============================================================================
-// 3-Line SPI slave init  (PIO1 SM0)
+// Input bus switching context (shared helper in pico2_common)
 // =============================================================================
-static void spi3lineSlaveInit(uint progOffset) {
-  for (uint pin : {PIN_SPI_SCLK, PIN_SPI_MOSI}) {
-    gpio_init(pin);
-    gpio_set_dir(pin, GPIO_IN);
-  }
-  gpio_init(PIN_SPI_CS);
-  gpio_set_dir(PIN_SPI_CS, GPIO_IN);
-  gpio_pull_up(PIN_SPI_CS);
-
-  pio_sm_config c = spi_3line_mode0_program_get_default_config(progOffset);
-  sm_config_set_in_pins(&c, PIN_SPI_MOSI);  // IN_BASE=GPIO3 (MOSI only)
-  sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
-                         /*push_threshold=*/32);
-  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
-  sm_config_set_jmp_pin(&c, PIN_SPI_CS);
-
-  pio_sm_init(SPI_PIO, SPI_SM, progOffset, &c);
-  pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
-}
-
-// =============================================================================
-// Parallel slave init  (PIO1 SM0)
-// =============================================================================
-static void parSlaveInit(uint progOffset) {
-  gpio_init(PIN_PAR_CS);
-  gpio_set_dir(PIN_PAR_CS, GPIO_IN);
-  gpio_pull_up(PIN_PAR_CS);
-  gpio_init(PIN_PAR_WR);
-  gpio_set_dir(PIN_PAR_WR, GPIO_IN);
-  for (uint pin = PIN_PAR_DATA_BASE; pin < PIN_PAR_DATA_BASE + 8u; ++pin) {
-    gpio_init(pin);
-    gpio_set_dir(pin, GPIO_IN);
-  }
-  gpio_init(PIN_PAR_DC);
-  gpio_set_dir(PIN_PAR_DC, GPIO_IN);
-
-  pio_sm_config c = parallel_8bit_program_get_default_config(progOffset);
-  sm_config_set_in_pins(&c, PIN_PAR_DATA_BASE);
-  sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
-                         /*push_threshold=*/32);
-  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
-
-  pio_sm_init(SPI_PIO, SPI_SM, progOffset, &c);
-  pio_sm_set_enabled(SPI_PIO, SPI_SM, true);
-}
+static const lcdtap::pico2::BusInputContext kBusCtx = {
+    &gSpi,
+    &gI2c,
+    {i2c0, PIN_I2C_SDA, PIN_I2C_SCL, I2C_SLAVE_ADDR},
+    i2cRingBuf,
+    I2C_RING_BUF_WORDS,
+    PIN_PAR_WR,
+    PIN_PAR_DATA_BASE,
+};
 
 // =============================================================================
 // GPIO interrupt handler  (RST pin; CS pin for SPI/Parallel modes)
@@ -293,56 +258,8 @@ static void __not_in_flash_func(gpioIrqHandler)(uint gpio, uint32_t events) {
 // Also used as a callback from uartIfInit().
 // =============================================================================
 static void switchInterface(lcdtap::BusType newIface) {
-  if (gIfaceActive) {
-    if (gCurrentIface == lcdtap::BusType::I2C) {
-      lcdtap::pico2::i2cSlaveDeinit(&gI2c);
-    } else {
-      lcdtap::pico2::spiSlaveDeinit(&gSpi);
-    }
-    if (gInst) {
-      gInst->inputReset(true);
-      gInst->inputReset(false);
-    }
-  }
-  gIfaceActive = true;
-
-  switch (newIface) {
-    case lcdtap::BusType::I2C: {
-      lcdtap::pico2::I2cSlaveConfig i2cCfg = {i2c0, PIN_I2C_SDA, PIN_I2C_SCL,
-                                              I2C_SLAVE_ADDR};
-      lcdtap::pico2::i2cSlaveInit(&gI2c, i2cCfg, i2cRingBuf,
-                                  I2C_RING_BUF_WORDS);
-      gI2c.inst = gInst;
-      break;
-    }
-    case lcdtap::BusType::SPI_4LINE: {
-      lcdtap::pico2::SpiSlaveConfig spiCfg = {
-          SPI_PIO,      SPI_SM,     PIN_SPI_CS,       PIN_SPI_SCLK,
-          PIN_SPI_MOSI, PIN_SPI_DC, SPI_RING_BUF_LOG2};
-      lcdtap::pico2::spiSlaveInit(&gSpi, spiCfg, spiRingBuf,
-                                  SPI_RING_BUF_WORDS);
-      gSpi.inst = gInst;
-      lcdtap::pico2::spiSlaveRegisterIrq(&gSpi);
-      break;
-    }
-    case lcdtap::BusType::SPI_3LINE: {
-      gSpi.progOffset = pio_add_program(SPI_PIO, &spi_3line_mode0_program);
-      gSpi.pioProgram = &spi_3line_mode0_program;
-      spi3lineSlaveInit(gSpi.progOffset);
-      lcdtap::pico2::spiSlaveInitDma(&gSpi);
-      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
-      break;
-    }
-    case lcdtap::BusType::PARALLEL: {
-      gSpi.progOffset = pio_add_program(SPI_PIO, &parallel_8bit_program);
-      gSpi.pioProgram = &parallel_8bit_program;
-      parSlaveInit(gSpi.progOffset);
-      lcdtap::pico2::spiSlaveInitDma(&gSpi);
-      gpio_set_irq_enabled(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE, true);
-      break;
-    }
-  }
-  gCurrentIface = newIface;
+  lcdtap::pico2::busInputSwitch(kBusCtx, gInst, &gCurrentIface, &gIfaceActive,
+                                newIface);
 }
 
 // =============================================================================
@@ -360,10 +277,7 @@ static void saveConfigSafe(const ConfigFile &cfg) {
 // Dispatch to the active ring buffer processor
 // =============================================================================
 static void processInputBuf() {
-  if (gCurrentIface == lcdtap::BusType::I2C)
-    lcdtap::pico2::i2cSlaveProcess(&gI2c);
-  else
-    lcdtap::pico2::spiSlaveProcess(&gSpi);
+  lcdtap::pico2::busInputProcess(kBusCtx, gCurrentIface);
 }
 
 // =============================================================================

@@ -13,6 +13,8 @@ add_library(pico2_common STATIC
     src/json_rle.cpp
     src/json_intf.cpp
     src/sys_clock.cpp
+    src/bus_input.cpp
+    src/flash_store.cpp
 )
 
 # Core library (MCU-agnostic)
@@ -23,6 +25,12 @@ pico_generate_pio_header(pico2_common
 )
 pico_generate_pio_header(pico2_common
     ${CMAKE_CURRENT_LIST_DIR}/src/composite_dac.pio
+)
+pico_generate_pio_header(pico2_common
+    ${CMAKE_CURRENT_LIST_DIR}/src/spi_3line_mode0.pio
+)
+pico_generate_pio_header(pico2_common
+    ${CMAKE_CURRENT_LIST_DIR}/src/parallel_8bit.pio
 )
 
 target_include_directories(pico2_common
@@ -41,6 +49,7 @@ target_link_libraries(pico2_common PUBLIC
     pico_multicore
     hardware_clocks
     hardware_dma
+    hardware_flash
     hardware_gpio
     hardware_i2c
     hardware_irq

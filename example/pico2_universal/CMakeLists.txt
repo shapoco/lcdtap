@@ -34,14 +34,6 @@ target_compile_definitions(lcdtap_pico2_universal PRIVATE
     USB_DISP_MAX_WIDTH=1920
 )
 
-# Generate PIO headers for universal-only interface modes
-pico_generate_pio_header(lcdtap_pico2_universal
-    ${CMAKE_CURRENT_LIST_DIR}/src/spi_3line_mode0.pio
-)
-pico_generate_pio_header(lcdtap_pico2_universal
-    ${CMAKE_CURRENT_LIST_DIR}/src/parallel_8bit.pio
-)
-
 target_include_directories(lcdtap_pico2_universal PRIVATE
     include
 )

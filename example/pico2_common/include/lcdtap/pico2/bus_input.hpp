@@ -1,0 +1,35 @@
+#pragma once
+
+// Input bus management shared by the pico2 examples: switching between the
+// four capture interfaces (I2C, 4-line SPI, 3-line SPI, 8-bit parallel) and
+// draining the active ring buffer.
+
+#include "lcdtap/lcdtap.hpp"
+#include "lcdtap/pico2/i2c_slave.hpp"
+#include "lcdtap/pico2/spi_slave.hpp"
+
+namespace lcdtap::pico2 {
+
+// Everything busInputSwitch needs besides the live LcdTap/BusType state.
+// The SPI pin and PIO assignments come pre-seeded in spi->cfg (see the
+// examples' init step), the same fields spiSlaveInit reuses.
+struct BusInputContext {
+  SpiSlaveState* spi;
+  I2cSlaveState* i2c;
+  I2cSlaveConfig i2cCfg;
+  uint32_t* i2cRingBuf;
+  uint32_t i2cRingWords;
+  uint pinParWr;        // parallel write strobe (shares the SPI SCLK pin)
+  uint pinParDataBase;  // D[0]; D/C# is pinParDataBase + 8
+};
+
+// Teardown the active input interface (if any) and set up `next`.
+// The IRQ registrations bind to the calling core's NVIC, so call this on the
+// core that services the input interrupts.
+void busInputSwitch(const BusInputContext& ctx, LcdTap* inst, BusType* current,
+                    bool* active, BusType next);
+
+// Drain the active interface's ring buffer into the LcdTap instance.
+void busInputProcess(const BusInputContext& ctx, BusType current);
+
+}  // namespace lcdtap::pico2
