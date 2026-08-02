@@ -33,6 +33,7 @@
 #include "led_status.hpp"
 #include "net_cmds.hpp"
 #include "net_config.hpp"
+#include "splash.hpp"
 #include "stats.hpp"
 #include "wifi_mgr.hpp"
 
@@ -286,7 +287,9 @@ int main() {
   gInst = &inst;
 
   lcdtap::pico2::drawSplash(gInst->getFramebuf(), cfg.buffWidth, cfg.buffHeight,
-                            cfg.outputRotation);
+                            cfg.outputRotation, lcdtap::pico2::splashImage,
+                            lcdtap::pico2::SPLASH_WIDTH,
+                            lcdtap::pico2::SPLASH_HEIGHT);
   gInst->setDisplayOn(true);
 
   // -------------------------------------------------------------------------

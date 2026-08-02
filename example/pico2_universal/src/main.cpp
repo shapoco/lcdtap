@@ -23,6 +23,7 @@
 #include "output_interface.hpp"
 #include "parallel_8bit.pio.h"
 #include "spi_3line_mode0.pio.h"
+#include "splash.hpp"
 #include "stats.hpp"
 #include "uart_intf.hpp"
 #include "video_backend.hpp"
@@ -469,7 +470,9 @@ int main() {
   // any commands. A real reset (RST) or the master's own SLPOUT/DISPON
   // sequence will naturally take over from here.
   lcdtap::pico2::drawSplash(gInst->getFramebuf(), cfg.buffWidth, cfg.buffHeight,
-                            cfg.outputRotation);
+                            cfg.outputRotation, lcdtap::pico2::splashImage,
+                            lcdtap::pico2::SPLASH_WIDTH,
+                            lcdtap::pico2::SPLASH_HEIGHT);
   gInst->setDisplayOn(true);
 
   // -------------------------------------------------------------------------

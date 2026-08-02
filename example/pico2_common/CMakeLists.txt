@@ -15,6 +15,7 @@ add_library(pico2_common STATIC
     src/sys_clock.cpp
     src/bus_input.cpp
     src/flash_store.cpp
+    src/splash.cpp
 )
 
 # Core library (MCU-agnostic)
