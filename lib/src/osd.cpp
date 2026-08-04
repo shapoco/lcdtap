@@ -175,6 +175,7 @@ uint8_t Osd::updateMainMenu(LcdTap& lcdtap, uint64_t nowMs,
       changed = true;
       switch (cfg.type) {
         case ValueType::INT16:
+        case ValueType::HEX:
           if (cfg.value - cfg.step >= cfg.min)
             cfg.value = static_cast<int16_t>(cfg.value - cfg.step);
           else
@@ -193,6 +194,7 @@ uint8_t Osd::updateMainMenu(LcdTap& lcdtap, uint64_t nowMs,
       changed = true;
       switch (cfg.type) {
         case ValueType::INT16:
+        case ValueType::HEX:
           if (cfg.value + cfg.step <= cfg.max)
             cfg.value = static_cast<int16_t>(cfg.value + cfg.step);
           else
@@ -406,7 +408,7 @@ void Osd::makeItemById(uint16_t id, OsdMenuItem* item) {
     default:
       uint16_t numConfigs = static_cast<uint16_t>(ConfigId::NUM_CONFIGS);
       if (OSD_ITEM_ID_SYS_BASE <= id &&
-          id < OSD_USER_ITEM_ID_BASE + numConfigs) {
+          id < OSD_ITEM_ID_SYS_BASE + numConfigs) {
         getConfigEntryById(static_cast<ConfigId>(id - OSD_ITEM_ID_SYS_BASE),
                            &item->config);
       }

@@ -120,6 +120,10 @@ class ControllerBase {
   // Returns true if the current command is a RAM write (RAMWR equivalent)
   virtual bool isRamWriteCommand() const = 0;
 
+  // Periodic service hook driven by LcdTap::tick() (e.g. cursor blink).
+  // Default: no time-dependent behaviour.
+  virtual void tick(uint32_t nowMs) { (void)nowMs; }
+
   // --- Common implementation ---
 
   // Compute scaling parameters (call inside the constructor)

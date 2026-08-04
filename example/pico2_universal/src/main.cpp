@@ -227,7 +227,9 @@ static bool onOsdActionActivated(lcdtap::Osd *osd,
 // =============================================================================
 // Input bus switching context (shared helper in pico2_common)
 // =============================================================================
-static const lcdtap::pico2::BusInputContext kBusCtx = {
+// Mutable: switchInterface() refreshes the I2C slave address and the
+// parallel WR# inversion from the live LcdTap config before each switch.
+static lcdtap::pico2::BusInputContext gBusCtx = {
     &gSpi,
     &gI2c,
     {i2c0, PIN_I2C_SDA, PIN_I2C_SCL, I2C_SLAVE_ADDR},
@@ -235,6 +237,7 @@ static const lcdtap::pico2::BusInputContext kBusCtx = {
     I2C_RING_BUF_WORDS,
     PIN_PAR_WR,
     PIN_PAR_DATA_BASE,
+    /*parWrInvert=*/false,
 };
 
 // =============================================================================
@@ -259,7 +262,15 @@ static void __not_in_flash_func(gpioIrqHandler)(uint gpio, uint32_t events) {
 // Also used as a callback from uartIfInit().
 // =============================================================================
 static void switchInterface(lcdtap::BusType newIface) {
-  lcdtap::pico2::busInputSwitch(kBusCtx, gInst, &gCurrentIface, &gIfaceActive,
+  if (gInst) {
+    const lcdtap::LcdTapConfig cfg = gInst->getConfig();
+    gBusCtx.i2cCfg.slaveAddr = cfg.i2cSlaveAddr;
+    // The ST7032 parallel host is a 6800-style bus (E latches on the falling
+    // edge); every other supported controller writes 8080-style.
+    gBusCtx.parWrInvert =
+        (cfg.controllerFamily == lcdtap::ControllerFamily::ST7032);
+  }
+  lcdtap::pico2::busInputSwitch(gBusCtx, gInst, &gCurrentIface, &gIfaceActive,
                                 newIface);
 }
 
@@ -278,7 +289,7 @@ static void saveConfigSafe(const ConfigFile &cfg) {
 // Dispatch to the active ring buffer processor
 // =============================================================================
 static void processInputBuf() {
-  lcdtap::pico2::busInputProcess(kBusCtx, gCurrentIface);
+  lcdtap::pico2::busInputProcess(gBusCtx, gCurrentIface);
 }
 
 // =============================================================================
@@ -619,6 +630,7 @@ int main() {
       uint64_t nowMs =
           static_cast<uint64_t>(to_ms_since_boot(get_absolute_time()));
       statsTick(nowMs);
+      gInst->tick(static_cast<uint32_t>(nowMs));
       uint8_t action = gOsd.update(nowMs, *gInst, readKeys());
       if (action == lcdtap::OSD_ACTION_APPLY) {
         const lcdtap::OsdMenuItem *ifaceItem = nullptr;
@@ -667,9 +679,10 @@ int main() {
           watchdog_reboot(0, 0, 50);
           while (true) tight_loop_contents();
         }
-        if (busChanged) {
-          switchInterface(newIface);
-        }
+        // Re-init unconditionally: even with the bus type unchanged, a
+        // controller-family or I2C-address change must reach the slave
+        // peripheral (address register, WR# inversion).
+        switchInterface(newIface);
         gCvbsDac = newDac;
       }
     }

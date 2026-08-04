@@ -135,6 +135,11 @@ class LcdTap {
   // Data byte stream input (D/CX=High)
   void inputData(const uint8_t* data, uint32_t numBytes, uint32_t stride = 1);
 
+  // Periodic service hook. Drives time-dependent controller behaviour such
+  // as the ST7032 cursor blink; a no-op for other controllers. Call from the
+  // host main loop (a ~100 ms or finer cadence is sufficient).
+  void tick(uint32_t nowMs);
+
   //--- DVI output ---
 
   // Writes pixel data for the specified line number into dst.

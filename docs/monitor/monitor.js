@@ -435,6 +435,8 @@ export function initApp({
 
       if (p.type === 'INTEGER') {
         ctrlDiv.appendChild(buildIntCtrl(p));
+      } else if (p.type === 'HEX') {
+        ctrlDiv.appendChild(buildHexCtrl(p));
       } else if (p.type === 'BOOLEAN') {
         ctrlDiv.appendChild(buildBoolCtrl(p));
       } else if (p.type === 'ENUM') {
@@ -502,6 +504,48 @@ export function initApp({
     return wrap;
   }
 
+  function buildHexCtrl(p) {
+    const wrap = document.createElement('div');
+    wrap.className = 'int-ctrl';
+
+    const toHex = v => '0x' + v.toString(16).toUpperCase().padStart(2, '0');
+    const clamp = v => {
+      if (isNaN(v)) v = p.min;
+      return Math.min(p.max, Math.max(p.min, v));
+    };
+
+    const btnMinus = document.createElement('button');
+    btnMinus.textContent = '−';
+    btnMinus.title = 'Decrease';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = toHex(p.value);
+    input.dataset.paramId = p.id;
+    input.dataset.paramType = 'HEX';
+    input.addEventListener('blur', () => {
+      input.value = toHex(clamp(parseInt(input.value, 16)));
+    });
+
+    const btnPlus = document.createElement('button');
+    btnPlus.textContent = '+';
+    btnPlus.title = 'Increase';
+
+    btnMinus.addEventListener('click', () => {
+      input.value = toHex(clamp(parseInt(input.value, 16) - p.step));
+      input.dispatchEvent(new Event('change'));
+    });
+    btnPlus.addEventListener('click', () => {
+      input.value = toHex(clamp(parseInt(input.value, 16) + p.step));
+      input.dispatchEvent(new Event('change'));
+    });
+
+    wrap.appendChild(btnMinus);
+    wrap.appendChild(input);
+    wrap.appendChild(btnPlus);
+    return wrap;
+  }
+
   function buildBoolCtrl(p) {
     const label = document.createElement('label');
     label.className = 'toggle';
@@ -542,6 +586,8 @@ export function initApp({
       const type = el.dataset.paramType;
       if (type === 'BOOLEAN') {
         paramMap[id] = el.checked;
+      } else if (type === 'HEX') {
+        paramMap[id] = parseInt(el.value, 16);
       } else {
         paramMap[id] = parseInt(el.value, 10);
       }

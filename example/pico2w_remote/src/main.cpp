@@ -96,7 +96,9 @@ struct DeviceConfigFile {
   uint8_t reserved[4];
 };
 
-static const lcdtap::pico2::BusInputContext kBusCtx = {
+// Mutable: syncBusCtxFromConfig() refreshes the I2C slave address and the
+// parallel WR# inversion from the live LcdTap config before each switch.
+static lcdtap::pico2::BusInputContext gBusCtx = {
     &gSpi,
     &gI2c,
     {i2c0, PIN_I2C_SDA, PIN_I2C_SCL, I2C_SLAVE_ADDR},
@@ -104,7 +106,20 @@ static const lcdtap::pico2::BusInputContext kBusCtx = {
     I2C_RING_BUF_WORDS,
     PIN_PAR_WR,
     PIN_PAR_DATA_BASE,
+    /*parWrInvert=*/false,
 };
+
+// Called on Core 1 directly before busInputSwitch; Core 0 blocks on the
+// mailbox during a switch, so reading the config here is race-free.
+static void syncBusCtxFromConfig() {
+  if (!gInst) return;
+  const lcdtap::LcdTapConfig cfg = gInst->getConfig();
+  gBusCtx.i2cCfg.slaveAddr = cfg.i2cSlaveAddr;
+  // The ST7032 parallel host is a 6800-style bus (E latches on the falling
+  // edge); every other supported controller writes 8080-style.
+  gBusCtx.parWrInvert =
+      (cfg.controllerFamily == lcdtap::ControllerFamily::ST7032);
+}
 
 // =============================================================================
 // GPIO interrupt handler (RST pin; CS pin for SPI/Parallel modes).
@@ -152,17 +167,27 @@ static void core1Main() {
                                      /*enabled=*/true, &gpioIrqHandler);
   irq_set_priority(IO_IRQ_BANK0, 0x00);
 
-  lcdtap::pico2::busInputSwitch(kBusCtx, gInst, &gCurrentIface, &gIfaceActive,
+  syncBusCtxFromConfig();
+  lcdtap::pico2::busInputSwitch(gBusCtx, gInst, &gCurrentIface, &gIfaceActive,
                                 gCurrentIface);
   __dmb();
   gCore1Ready = true;
 
+  uint32_t lastTickMs = 0;
   while (true) {
-    lcdtap::pico2::busInputProcess(kBusCtx, gCurrentIface);
+    lcdtap::pico2::busInputProcess(gBusCtx, gCurrentIface);
+    // Periodic controller service (ST7032 cursor blink). Runs on this core
+    // because it renders into the framebuffer like the input drain does.
+    uint32_t msNow = time_us_32() >> 10;  // ~1 ms granularity is plenty
+    if (msNow != lastTickMs) {
+      lastTickMs = msNow;
+      gInst->tick(msNow);
+    }
     if (gFlashParkReq) core1FlashParkLoop();
     if (gBusSwitchReq) {
       lcdtap::BusType next = static_cast<lcdtap::BusType>(gBusSwitchReq - 1u);
-      lcdtap::pico2::busInputSwitch(kBusCtx, gInst, &gCurrentIface,
+      syncBusCtxFromConfig();
+      lcdtap::pico2::busInputSwitch(gBusCtx, gInst, &gCurrentIface,
                                     &gIfaceActive, next);
       __dmb();
       gBusSwitchReq = 0;
@@ -208,10 +233,12 @@ static void saveNetConfigParked(const NetConfig &cfg) {
 // =============================================================================
 
 static bool remoteCommitParams(const lcdtap::LcdTapConfig &cfg,
-                               lcdtap::BusType oldBus, void * /*ctx*/) {
+                               lcdtap::BusType /*oldBus*/, void * /*ctx*/) {
   // All buses run at the same clock here, so a bus change never needs a
-  // reboot — hand it to Core 1 and persist.
-  if (cfg.busInterface != oldBus) requestBusSwitch(cfg.busInterface);
+  // reboot — hand it to Core 1 and persist. The switch runs even when the
+  // bus type is unchanged: a controller-family or I2C-address change must
+  // reach the slave peripheral (address register, WR# inversion).
+  requestBusSwitch(cfg.busInterface);
   saveDeviceConfig();
   return false;
 }

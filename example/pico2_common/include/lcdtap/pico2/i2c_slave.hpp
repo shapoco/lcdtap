@@ -25,6 +25,7 @@ struct I2cSlaveState {
   volatile uint32_t writeIdx;
   volatile uint32_t readIdx;  // written by Core 0, read by the IRQ handler
   volatile I2cRxState rxState;
+  volatile bool coSingleByte;  // control byte had Co=1: one payload byte only
 
   // Debug statistics: free-running 32-bit counters that survive interface
   // switches — display code resets them by baseline subtraction.

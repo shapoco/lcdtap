@@ -27,8 +27,10 @@ static void __not_in_flash_func(i2cIrqHandler)() {
     }
 
     if (s->rxState == I2cRxState::WAIT_CTRL) {
-      // Decode SSD1306 control byte: bit6=D/C#, bit7=Co (Co=1 not supported)
+      // Decode SSD1306/ST7032 control byte: bit6 = D/C# (RS), bit7 = Co.
+      // Co=1: exactly one payload byte follows, then another control byte.
       bool dc = (byte >> 6u) & 1u;
+      s->coSingleByte = ((byte >> 7u) & 1u) != 0u;
       s->rxState = dc ? I2cRxState::STREAM_DATA : I2cRxState::STREAM_CMD;
     } else {
       uint32_t word = (s->rxState == I2cRxState::STREAM_DATA)
@@ -42,6 +44,9 @@ static void __not_in_flash_func(i2cIrqHandler)() {
       } else {
         s->ringBuf[s->writeIdx] = word;
         s->writeIdx = nextIdx;
+      }
+      if (s->coSingleByte) {
+        s->rxState = I2cRxState::WAIT_CTRL;
       }
     }
   }
@@ -76,6 +81,7 @@ void i2cSlaveInit(I2cSlaveState *s, const I2cSlaveConfig &cfg,
   s->writeIdx = 0;
   s->readIdx = 0;
   s->rxState = I2cRxState::WAIT_CTRL;
+  s->coSingleByte = false;
 
   i2c_init(cfg.i2c, 400u * 1000u);  // baudrate irrelevant in slave mode
   gpio_set_function(cfg.pinSda, GPIO_FUNC_I2C);

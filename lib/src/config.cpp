@@ -21,6 +21,7 @@ void getDefaultConfig(ControllerFamily type, LcdTapConfig* cfg) {
   cfg->scaleMode = ScaleMode::FIT;
   cfg->inverted = false;
   cfg->swapRB = false;
+  cfg->i2cSlaveAddr = 0x3C;
   switch (type) {
     case ControllerFamily::ST7789:
       cfg->buffWidth = 240;
@@ -49,7 +50,17 @@ void getDefaultConfig(ControllerFamily type, LcdTapConfig* cfg) {
       cfg->outputRotation = 0;
       cfg->busInterface = BusType::SPI_4LINE;
       break;
+    case ControllerFamily::ST7032:
+      cfg->textCols = 16;
+      cfg->textRows = 2;
+      cfg->textCgramArea = 1;
+      cfg->outputRotation = 0;
+      cfg->busInterface = BusType::I2C;
+      cfg->i2cSlaveAddr = 0x3E;
+      break;
+    default: break;
   }
+  normalizeConfig(cfg);
   cfg->trimMode = TrimMode::OFF;
   cfg->trimX = 0;
   cfg->trimY = 0;
@@ -63,8 +74,25 @@ InterfaceFormat getDefaultInterfaceFormat(ControllerFamily type) {
     case ControllerFamily::SSD1306: return InterfaceFormat::GRAY1_VPACK8_H2L;
     case ControllerFamily::SSD1331: return InterfaceFormat::RGB332;
     case ControllerFamily::ILI9341: return InterfaceFormat::RGB565_BE;
+    // ST7032 carries character codes, not pixels; value is unused.
+    case ControllerFamily::ST7032: return InterfaceFormat::GRAY1_VPACK8_H2L;
     default: return InterfaceFormat::RGB565_BE;
   }
+}
+
+void normalizeConfig(LcdTapConfig* cfg) {
+  cfg->i2cSlaveAddr &= 0x7F;
+  if (cfg->controllerFamily != ControllerFamily::ST7032) return;
+
+  uint8_t cols = cfg->textCols & ~1u;  // even only
+  cfg->textCols = (cols < 2) ? 2 : (cols > 40) ? 40 : cols;
+  uint8_t rows = cfg->textRows;
+  cfg->textRows = (rows >= 4) ? 4 : (rows >= 2) ? 2 : 1;
+  cfg->textCgramArea &= 3;
+
+  // Character cell is 5x8 plus a 1px gap; no gap after the last column/row.
+  cfg->buffWidth = cfg->textCols * 6 - 1;
+  cfg->buffHeight = cfg->textRows * 9 - 1;
 }
 
 void getConfigEntryById(ConfigId id, ConfigEntry* e) {
@@ -91,6 +119,18 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->max = static_cast<int16_t>(BusType::NUM_BUSES) - 1;
       break;
 
+    // I2C Slave Address
+    case ConfigId::I2C_ADDR:
+      e->type = ValueType::HEX;
+      e->name = "I2C Address";
+      e->min = 0x08;
+      e->max = 0x77;
+
+      e->enableKeyId = static_cast<int16_t>(ConfigId::BUS_INTERFACE);
+      e->enableKeyValueMin = static_cast<int16_t>(BusType::I2C);
+      e->enableKeyValueMax = static_cast<int16_t>(BusType::I2C);
+      break;
+
     // Frame Buffer Width
     case ConfigId::BUFF_WIDTH:
       e->type = ValueType::INT16;
@@ -100,6 +140,11 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->min = 32;
       e->max = 480;
       e->step = 8;
+
+      // Disabled for ST7032: the framebuffer size is derived from cols/rows.
+      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
+      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ILI9341);
       break;
 
     // Frame Buffer Height
@@ -111,6 +156,48 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->min = 32;
       e->max = 480;
       e->step = 8;
+
+      // Disabled for ST7032: the framebuffer size is derived from cols/rows.
+      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
+      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ILI9341);
+      break;
+
+    // ST7032 Columns
+    case ConfigId::TEXT_COLS:
+      e->type = ValueType::INT16;
+      e->name = "Text Buff Cols";
+      e->min = 2;
+      e->max = 40;
+      e->step = 2;
+
+      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7032);
+      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ST7032);
+      break;
+
+    // ST7032 Rows
+    case ConfigId::TEXT_ROWS:
+      e->type = ValueType::ENUM;
+      e->name = "Text Buff Rows";
+      e->options = ST7032_ROWS_NAMES;
+      e->max = 2;
+
+      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7032);
+      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ST7032);
+      break;
+
+    // ST7032 OPR (CGROM/CGRAM option)
+    case ConfigId::TEXT_CGRAM_AREA:
+      e->type = ValueType::ENUM;
+      e->name = "Text CGRAM Area";
+      e->options = ST7032_CGRAM_NAMES;
+      e->max = 3;
+
+      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7032);
+      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ST7032);
       break;
 
     // Inverse
@@ -126,11 +213,11 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->name = "Swap Red/Blue";
       e->options = ON_OFF_NAMES;
 
-      // Enable for all color controllers (no-op for SSD1306).
+      // Enable for pixel-based controllers only (no-op for SSD1306;
+      // meaningless for the ST7032 character display).
       e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
-      e->enableKeyValueMax =
-          static_cast<int16_t>(ControllerFamily::NUM_CONTROLLERS) - 1;
+      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ILI9341);
       break;
 
     // Force Power On
@@ -148,11 +235,11 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->min = -1;
       e->max = static_cast<int16_t>(InterfaceFormat::NUM_FORMATS) - 1;
 
-      // Enable for all color controllers (no-op for SSD1306).
+      // Enable for pixel-based controllers only (no-op for SSD1306;
+      // meaningless for the ST7032 character display).
       e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
-      e->enableKeyValueMax =
-          static_cast<int16_t>(ControllerFamily::NUM_CONTROLLERS) - 1;
+      e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ILI9341);
       break;
 
     // Trim Mode
@@ -244,8 +331,14 @@ int16_t getConfigValueById(const LcdTapConfig& cfg, ConfigId id) {
     case ConfigId::CTRL_FAMILY:
       return static_cast<int16_t>(cfg.controllerFamily);
     case ConfigId::BUS_INTERFACE: return static_cast<int16_t>(cfg.busInterface);
+    case ConfigId::I2C_ADDR: return static_cast<int16_t>(cfg.i2cSlaveAddr);
     case ConfigId::BUFF_WIDTH: return static_cast<int16_t>(cfg.buffWidth);
     case ConfigId::BUFF_HEIGHT: return static_cast<int16_t>(cfg.buffHeight);
+    case ConfigId::TEXT_COLS: return static_cast<int16_t>(cfg.textCols);
+    case ConfigId::TEXT_ROWS:
+      // Actual row count 1/2/4 -> enum index 0/1/2
+      return (cfg.textRows >= 4) ? 2 : (cfg.textRows >= 2) ? 1 : 0;
+    case ConfigId::TEXT_CGRAM_AREA: return static_cast<int16_t>(cfg.textCgramArea);
     case ConfigId::INVERSE: return cfg.inverted ? 1 : 0;
     case ConfigId::SWAP_RB: return cfg.swapRB ? 1 : 0;
     case ConfigId::FORCE_PWR_ON: return cfg.forcePowerOn ? 1 : 0;
@@ -271,11 +364,24 @@ void setConfigValueById(LcdTapConfig* cfg, ConfigId id, int16_t value) {
     case ConfigId::BUS_INTERFACE:
       cfg->busInterface = static_cast<BusType>(value);
       break;
+    case ConfigId::I2C_ADDR:
+      cfg->i2cSlaveAddr = static_cast<uint8_t>(value & 0x7F);
+      break;
     case ConfigId::BUFF_WIDTH:
       cfg->buffWidth = static_cast<uint16_t>(value);
       break;
     case ConfigId::BUFF_HEIGHT:
       cfg->buffHeight = static_cast<uint16_t>(value);
+      break;
+    case ConfigId::TEXT_COLS:
+      cfg->textCols = static_cast<uint8_t>(value);
+      break;
+    case ConfigId::TEXT_ROWS:
+      // Enum index 0/1/2 -> actual row count 1/2/4
+      cfg->textRows = (value >= 2) ? 4 : (value >= 1) ? 2 : 1;
+      break;
+    case ConfigId::TEXT_CGRAM_AREA:
+      cfg->textCgramArea = static_cast<uint8_t>(value & 3);
       break;
     case ConfigId::INVERSE: cfg->inverted = (value != 0); break;
     case ConfigId::SWAP_RB: cfg->swapRB = (value != 0); break;
@@ -322,6 +428,10 @@ void formatConfigValue(char* buf, int bufLen, const ConfigEntry& item) {
       snprintf(buf, static_cast<size_t>(bufLen), "%d",
                static_cast<int>(item.value));
       break;
+    case ValueType::HEX:
+      snprintf(buf, static_cast<size_t>(bufLen), "0x%02X",
+               static_cast<unsigned>(item.value) & 0xFFu);
+      break;
     default: buf[0] = '\0'; break;
   }
 }
@@ -358,6 +468,36 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
 
     case ConfigPreset::SSD1331:
       getDefaultConfig(ControllerFamily::SSD1331, cfg);
+      break;
+
+    case ConfigPreset::TEXT_0802:
+      getDefaultConfig(ControllerFamily::ST7032, cfg);
+      cfg->textCols = 8;
+      cfg->textRows = 2;
+      cfg->textCgramArea = 2;
+      break;
+
+    case ConfigPreset::TEXT_1602:
+      getDefaultConfig(ControllerFamily::ST7032, cfg);
+      cfg->textCols = 16;
+      cfg->textRows = 2;
+      cfg->textCgramArea = 1;
+      break;
+
+    case ConfigPreset::TEXT_1604:
+      getDefaultConfig(ControllerFamily::ST7032, cfg);
+      cfg->textCols = 16;
+      cfg->textRows = 4;
+      cfg->textCgramArea = 0;
+      cfg->busInterface = BusType::PARALLEL;
+      break;
+
+    case ConfigPreset::TEXT_2004:
+      getDefaultConfig(ControllerFamily::ST7032, cfg);
+      cfg->textCols = 20;
+      cfg->textRows = 4;
+      cfg->textCgramArea = 0;
+      cfg->busInterface = BusType::PARALLEL;
       break;
 
     case ConfigPreset::ST7735:
@@ -428,6 +568,10 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
 
     default: break;
   }
+
+  // Re-derive the ST7032 framebuffer size from the preset's cols/rows before
+  // the trim fixup below picks it up.
+  normalizeConfig(cfg);
 
   if (cfg->trimMode != TrimMode::CUSTOM) {
     cfg->trimX = 0;

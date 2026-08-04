@@ -77,7 +77,7 @@ Get the list of configuration parameters held by LcdTap as JSON.
     {"params":[parameter list]}
     ```
 
-The `id` field of each parameter is `"cfg0"`, `"cfg1"`, ..., `"cfg15"`, corresponding to the `ConfigId` enum index in the firmware. Use the same ids as keys in `setparams`.
+The `id` field of each parameter is `"cfg0"`, `"cfg1"`, ..., `"cfg19"`, corresponding to the `ConfigId` enum index in the firmware. Use the same ids as keys in `setparams`. Clients must treat the ids as opaque keys taken from the `getparams` response; the numbering shifts when `ConfigId` entries are inserted (e.g. `cfg2` became the I2C slave address when it was added after the bus interface).
 
 Two host-side settings appear in the list as well. They are not `ConfigId`s, so they have names instead of indices. **They are not at the end** — they sit immediately before `Output Rotation`, matching the position they occupy in the OSD menu. Match parameters by `id`, never by position:
 
@@ -143,6 +143,24 @@ Parameter list element types:
     }
     ```
 
+- Hex integer (same fields as Integer; the value is a plain integer on the wire, but clients should display it in hexadecimal, e.g. the I2C slave address `0x3E`):
+
+    ```json
+    {
+        "id": "cfgN" (string),
+        "type": "HEX",
+        "name": item label (string),
+        "unit": unit (string) or null,
+        "min": minimum value (integer),
+        "max": maximum value (integer),
+        "step": step size (integer),
+        "value": current value (integer),
+        "enableKeyId": "cfgN" (string, omitted if always enabled),
+        "enableKeyValueMin": integer (omitted if always enabled),
+        "enableKeyValueMax": integer (omitted if always enabled)
+    }
+    ```
+
 - Boolean:
 
     ```json
@@ -195,7 +213,7 @@ Set LcdTap configuration parameters in bulk from the host.
     }
     ```
 
-    - Keys are the `id` values returned by `getparams` (`"cfg0"` through `"cfg15"`, plus `"outputInterface"` and `"compositeDac"`).
+    - Keys are the `id` values returned by `getparams` (`"cfg0"` through `"cfg19"`, plus `"outputInterface"` and `"compositeDac"`).
     - It is not necessary to include all parameters; omitted parameters retain their current values.
 
 - Response:

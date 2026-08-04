@@ -5,7 +5,7 @@
 #include <cstring>
 
 namespace lcdtap {
-    
+
 //=============================================================================
 // LCD controller families
 //=============================================================================
@@ -14,11 +14,12 @@ enum class ControllerFamily : uint8_t {
   SSD1306,
   SSD1331,
   ILI9341,
+  ST7032,
   NUM_CONTROLLERS,
 };
 
 static const char* CONTROLLER_NAMES[] = {"ST7789", "SSD1306", "SSD1331",
-                                         "ILI9341"};
+                                         "ILI9341", "ST7032"};
 static_assert(sizeof(CONTROLLER_NAMES) / sizeof(CONTROLLER_NAMES[0]) ==
                   static_cast<size_t>(ControllerFamily::NUM_CONTROLLERS),
               "CONTROLLER_NAMES size must match ControllerFamily enum");
@@ -150,6 +151,10 @@ enum class ConfigPreset : uint8_t {
   SSD1331,
   ST7735,
   ST7789,
+  TEXT_0802,
+  TEXT_1602,
+  TEXT_1604,
+  TEXT_2004,
   ARDUBOY,
   ESPBOY,
   M5STACK_CORES3,
@@ -163,10 +168,10 @@ enum class ConfigPreset : uint8_t {
 };
 
 static const char* CONFIG_PRESET_NAMES[] = {
-    "ILI9341", "ILI9342",        "ILI9488",      "SSD1306",
-    "SSD1331", "ST7735",         "ST7789",       "Arduboy",
-    "ESPboy",  "M5Stack CoreS3", "PicoPad",      "PicoSystem",
-    "Thumby",  "TinyJoypad",     "Wio Terminal", "Xiamocon",
+    "ILI9341",    "ILI9342", "ILI9488",    "SSD1306",        "SSD1331",
+    "ST7735",     "ST7789",  "Text 8x2",   "Text 16x2",      "Text 16x4",
+    "Text 20x4",  "Arduboy", "ESPboy",     "M5Stack CoreS3", "PicoPad",
+    "PicoSystem", "Thumby",  "TinyJoypad", "Wio Terminal",   "Xiamocon",
 };
 static_assert(sizeof(CONFIG_PRESET_NAMES) / sizeof(CONFIG_PRESET_NAMES[0]) ==
                   static_cast<size_t>(ConfigPreset::NUM_PRESETS),
@@ -179,8 +184,19 @@ struct LcdTapConfig {
   ControllerFamily controllerFamily;
   BusType busInterface;
 
+  // 7-bit I2C slave address the host must be configured to respond on.
+  // Only meaningful when busInterface == BusType::I2C.
+  uint8_t i2cSlaveAddr;
+
   uint16_t buffWidth;
   uint16_t buffHeight;
+
+  // Character-display geometry (ControllerFamily::ST7032 only). buffWidth /
+  // buffHeight are derived from these by normalizeConfig() and any
+  // user-supplied values are overridden.
+  uint8_t textCols;       // visible columns: 2..40, even
+  uint8_t textRows;       // visible rows: 1, 2 or 4
+  uint8_t textCgramArea;  // OPR2:OPR1 CGROM/CGRAM option (0..3)
 
   bool inverted;  // true: INVON→non-inverted / INVOFF→inverted
   bool swapRB;    // true: invert cachedBGR (swap R and B channels)
@@ -210,8 +226,12 @@ struct LcdTapConfig {
 enum class ConfigId : uint8_t {
   CTRL_FAMILY,
   BUS_INTERFACE,
+  I2C_ADDR,
   BUFF_WIDTH,
   BUFF_HEIGHT,
+  TEXT_COLS,
+  TEXT_ROWS,
+  TEXT_CGRAM_AREA,
   TRIM_MODE,
   TRIM_X,
   TRIM_Y,
@@ -231,6 +251,7 @@ enum class ValueType : uint8_t {
   INT16,
   BOOL,
   ENUM,
+  HEX,  // INT16 semantics, displayed as 0xNN
 };
 
 struct ConfigEntry {
@@ -253,6 +274,9 @@ struct ConfigEntry {
 
 static const char* ON_OFF_NAMES[] = {"Off", "On"};
 static const char* ROTATION_NAMES[] = {"0", "90", "180", "270"};
+static const char* ST7032_ROWS_NAMES[] = {"1", "2", "4"};
+static const char* ST7032_CGRAM_NAMES[] = {"0x0-0xF", "0x0-0x7", "0x0-0x5",
+                                           "None"};
 
 //=============================================================================
 // Get default configuration
@@ -260,6 +284,15 @@ static const char* ROTATION_NAMES[] = {"0", "90", "180", "270"};
 // Override fields as needed before passing to the LcdTap constructor.
 //=============================================================================
 void getDefaultConfig(ControllerFamily type, LcdTapConfig* cfg);
+
+//=============================================================================
+// Normalize configuration
+// Clamps controller-specific fields to valid ranges. For ST7032 this also
+// derives buffWidth/buffHeight from textCols/textRows, overriding any
+// user-supplied framebuffer size. Called by the LcdTap constructor,
+// LcdTap::updateConfig() and getPresetConfig().
+//=============================================================================
+void normalizeConfig(LcdTapConfig* cfg);
 
 //=============================================================================
 // Get default interface format for a given controller family
@@ -290,6 +323,6 @@ struct DumpConfig {
 
 DumpConfig getDefaultDumpConfig();
 
-}
+}  // namespace lcdtap
 
 #endif

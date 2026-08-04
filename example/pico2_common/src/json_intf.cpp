@@ -319,6 +319,7 @@ static bool buildParamChunk(JsonIntf& ji, int slot,
   }
 
   const char* typeStr = (e.type == lcdtap::ValueType::INT16)  ? "INTEGER"
+                        : (e.type == lcdtap::ValueType::HEX)  ? "HEX"
                         : (e.type == lcdtap::ValueType::BOOL) ? "BOOLEAN"
                                                               : "ENUM";
   pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
@@ -333,7 +334,7 @@ static bool buildParamChunk(JsonIntf& ji, int slot,
         snprintf(buf + pos, static_cast<size_t>(cap - pos), "\"unit\":null,");
   }
 
-  if (e.type == lcdtap::ValueType::INT16) {
+  if (e.type == lcdtap::ValueType::INT16 || e.type == lcdtap::ValueType::HEX) {
     pos +=
         snprintf(buf + pos, static_cast<size_t>(cap - pos),
                  "\"min\":%d,\"max\":%d,\"step\":%d,", static_cast<int>(e.min),

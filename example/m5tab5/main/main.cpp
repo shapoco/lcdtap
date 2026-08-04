@@ -159,15 +159,18 @@ static void switchInterface(lcdtap::BusType newIface) {
     // touch/IMU bus.
     int internalPort = M5.In_I2C.getPort();
     int slavePort = internalPort == 0 ? 1 : 0;
-    I2cSlaveConfig i2cCfg = {slavePort, PIN_I2C_SDA, PIN_I2C_SCL,
-                             I2C_SLAVE_ADDR};
+    // The slave address follows the configured controller family
+    // (e.g. SSD1306: 0x3C, ST7032: 0x3E).
+    uint8_t slaveAddr =
+        gInst ? gInst->getConfig().i2cSlaveAddr : I2C_SLAVE_ADDR;
+    I2cSlaveConfig i2cCfg = {slavePort, PIN_I2C_SDA, PIN_I2C_SCL, slaveAddr};
     gI2c.inst = gInst;
     gI2c.drainTask = gInputTask;
     esp_err_t err = i2cSlaveInit(&gI2c, i2cCfg, i2cRingBuf, I2C_RING_BUF_WORDS);
     ESP_LOGI(TAG,
              "i2c slave: port=%d (In_I2C port=%d) sda=%d scl=%d addr=0x%02X "
              "err=%d",
-             slavePort, internalPort, PIN_I2C_SDA, PIN_I2C_SCL, I2C_SLAVE_ADDR,
+             slavePort, internalPort, PIN_I2C_SDA, PIN_I2C_SCL, slaveAddr,
              (int)err);
 
     if (I2C_SNIFF_ENABLE) {
@@ -240,6 +243,10 @@ static void inputTask(void *) {
         parlioSpiSlaveRealign(&gSpi);
       }
     }
+
+    // Periodic controller service (ST7032 cursor blink). Runs on this task
+    // because it renders into the framebuffer like the input drain does.
+    if (gInst) gInst->tick(static_cast<uint32_t>(esp_timer_get_time() / 1000));
 
     if (gIfaceActive) {
       if (gCurrentIface == lcdtap::BusType::I2C) {
@@ -396,9 +403,9 @@ static void displayTask(void *) {
         ESP_LOGE(TAG, "saveConfig failed");
       }
 
-      if (newIface != gCurrentIface) {
-        switchInterface(newIface);
-      }
+      // Re-init unconditionally: even with the bus type unchanged, a
+      // controller-family change must reach the I2C slave address register.
+      switchInterface(newIface);
     }
 
     int64_t tInput1 = esp_timer_get_time();

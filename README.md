@@ -11,15 +11,8 @@ See [introduction page](https://shapoco.github.io/lcdtap/).
 
 ### [LcdTap-Pico2 Universal](example/pico2_universal/)
 
-Supports multiple LCD controllers and interfaces, selectable at runtime via an OSD menu.
-
-### [LcdTap-Pico2 for ST7789](example/pico2_st7789/)
-
-Simplified version for 240x320 SPI LCDs with ST7789 or ILI9341 controller.
-
-### [LcdTap-Pico2 for SSD1306](example/pico2_ssd1306/)
-
-Simplified version 128x64 monochrome OLEDs with SSD1306 controller.
+Supports multiple LCD controllers (ST7789, ILI9341, SSD1306, SSD1331, ST7032)
+and interfaces, selectable at runtime via an OSD menu.
 
 ### [LcdTap-Pico2W Remote](example/pico2w_remote/)
 

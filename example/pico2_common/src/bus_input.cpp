@@ -43,9 +43,17 @@ static void parSlaveInit(const BusInputContext& ctx, uint progOffset) {
   gpio_pull_up(cfg.pinCs);
   gpio_init(ctx.pinParWr);
   gpio_set_dir(ctx.pinParWr, GPIO_IN);
+  // 6800-style hosts (ST7032 E) latch on the falling edge; invert the pad
+  // input so the rising-edge 8080 PIO program samples at the right moment.
+  gpio_set_inover(ctx.pinParWr, ctx.parWrInvert ? GPIO_OVERRIDE_INVERT
+                                                : GPIO_OVERRIDE_NORMAL);
   for (uint pin = ctx.pinParDataBase; pin < ctx.pinParDataBase + 8u; ++pin) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
+    // 4-bit-wired hosts drive only D[7:4]; pull the unused low nibble to 0.
+    if (ctx.parWrInvert && pin < ctx.pinParDataBase + 4u) {
+      gpio_pull_down(pin);
+    }
   }
   gpio_init(ctx.pinParDataBase + 8u);  // D/C#
   gpio_set_dir(ctx.pinParDataBase + 8u, GPIO_IN);
@@ -77,6 +85,13 @@ void busInputSwitch(const BusInputContext& ctx, LcdTap* inst, BusType* current,
     }
   }
   *active = true;
+
+  // Undo any parallel-mode pad overrides before the new interface claims the
+  // pins (WR# shares the SPI SCLK pin). parSlaveInit re-applies them.
+  gpio_set_inover(ctx.pinParWr, GPIO_OVERRIDE_NORMAL);
+  for (uint pin = ctx.pinParDataBase; pin < ctx.pinParDataBase + 4u; ++pin) {
+    gpio_disable_pulls(pin);
+  }
 
   switch (next) {
     case BusType::I2C: {

@@ -21,6 +21,12 @@ struct BusInputContext {
   uint32_t i2cRingWords;
   uint pinParWr;        // parallel write strobe (shares the SPI SCLK pin)
   uint pinParDataBase;  // D[0]; D/C# is pinParDataBase + 8
+
+  // Invert the WR# input (PARALLEL only). 6800-style hosts (ST7032 E signal)
+  // latch on the falling edge; inverting the pad input lets the 8080-style
+  // rising-edge PIO program capture them unchanged. Also enables pull-downs
+  // on D[3:0] so a 4-bit-wired host (DB7:4 -> D[7:4]) reads zeros there.
+  bool parWrInvert;
 };
 
 // Teardown the active input interface (if any) and set up `next`.

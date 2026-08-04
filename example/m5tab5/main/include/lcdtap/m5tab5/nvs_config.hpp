@@ -10,7 +10,8 @@ struct ConfigFile {
   lcdtap::LcdTapConfig libConfig;
 };
 
-static constexpr uint32_t CONFIG_FILE_VERSION = 1;
+// v2: LcdTapConfig grew i2cSlaveAddr / textCols / textRows / textCgramArea
+static constexpr uint32_t CONFIG_FILE_VERSION = 2;
 
 // Load the saved configuration from NVS.
 // Returns false if absent or the version/size does not match.

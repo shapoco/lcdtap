@@ -15,6 +15,7 @@
 #include "ili9341_controller.hpp"
 #include "ssd1306_controller.hpp"
 #include "ssd1331_controller.hpp"
+#include "st7032_controller.hpp"
 #include "st7789_controller.hpp"
 
 namespace lcdtap {
@@ -829,9 +830,12 @@ void ControllerBase::feedData(const uint8_t* data, uint32_t numBytes,
 // LcdTap
 //=============================================================================
 
-LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
+LcdTap::LcdTap(const LcdTapConfig& configIn, const HostInterface& host)
     : impl_(nullptr) {
   if (!host.alloc || !host.free) return;
+
+  LcdTapConfig config = configIn;
+  normalizeConfig(&config);
 
   ControllerBase* ctrl = nullptr;
   switch (config.controllerFamily) {
@@ -847,6 +851,10 @@ LcdTap::LcdTap(const LcdTapConfig& config, const HostInterface& host)
     case ControllerFamily::ILI9341:
       ctrl = new (std::nothrow) Ili9341Controller();
       break;
+    case ControllerFamily::ST7032:
+      ctrl = new (std::nothrow) St7032Controller();
+      break;
+    default: break;
   }
   if (!ctrl) return;
 
@@ -926,6 +934,13 @@ void LcdTap::inputData(const uint8_t* data, uint32_t numBytes,
     for (uint32_t i = 0; i < numBytes && dumpState_ == DumpState::ACTIVE; ++i)
       dumpPush(0x100u | data[i * s]);
   }
+}
+
+void LcdTap::tick(uint32_t nowMs) {
+  if (!impl_) return;
+  ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
+  if (ctrl->status != Status::OK || ctrl->hwReset) return;
+  ctrl->tick(nowMs);
 }
 
 uint32_t LcdTap::getUnknownCmdCount() const {
@@ -1126,10 +1141,13 @@ LcdTapConfig LcdTap::getConfig() const {
   return cfg;
 }
 
-Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
+Status LcdTap::updateConfig(const LcdTapConfig& cfgIn) {
   if (!impl_) return Status::NOT_READY;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK) return ctrl->status;
+
+  LcdTapConfig cfg = cfgIn;
+  normalizeConfig(&cfg);
 
   if (cfg.buffWidth == 0 || cfg.buffHeight == 0 || cfg.dviWidth == 0 ||
       cfg.dviHeight == 0) {
@@ -1167,6 +1185,9 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfg) {
         break;
       case ControllerFamily::ILI9341:
         ctrl = new (std::nothrow) Ili9341Controller();
+        break;
+      case ControllerFamily::ST7032:
+        ctrl = new (std::nothrow) St7032Controller();
         break;
       default: return Status::OUT_OF_MEMORY;
     }

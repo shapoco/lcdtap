@@ -106,7 +106,9 @@ static bool uniCommitParams(const lcdtap::LcdTapConfig& cfg,
       outIfChanged ||
       (outputInterfaceIsComposite(newOutIf) && (busChanged || dacChanged));
 
-  if (busChanged && !needReboot) {
+  if (!needReboot) {
+    // Re-init even when the bus type is unchanged: a controller-family or
+    // I2C-address change must reach the slave peripheral.
     hc.switchIface(cfg.busInterface);
   }
   // Keep the live values in step when no reboot will do it for us, so a
