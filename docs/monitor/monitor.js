@@ -702,9 +702,8 @@ export function initApp({
   // still reports the retired "cfgN" ids, and maps them back on import.
   const LEGACY_CFG_IDS = [
     'ctrlFamily', 'busInterface', 'i2cAddr', 'buffWidth', 'buffHeight',
-    'textCols', 'textRows', 'textCgramArea', 'trimMode', 'trimX', 'trimY',
-    'trimWidth', 'trimHeight', 'flipMode', 'inverted', 'swapRB', 'forcePwrOn',
-    'intfFmtOvr', 'outputRot', 'scaleMode',
+    'trimMode', 'trimX', 'trimY', 'trimWidth', 'trimHeight', 'flipMode',
+    'inverted', 'swapRB', 'forcePwrOn', 'intfFmtOvr', 'outputRot', 'scaleMode',
   ];
 
   function toStableId(uiId) {
