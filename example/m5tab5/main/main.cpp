@@ -390,7 +390,7 @@ static void displayTask(void *) {
     if (action == lcdtap::OSD_ACTION_APPLY) {
       const lcdtap::OsdMenuItem *ifaceItem = nullptr;
       uint16_t id = lcdtap::OSD_ITEM_ID_SYS_BASE +
-                    static_cast<uint16_t>(lcdtap::ConfigId::BUS_INTERFACE);
+                    static_cast<uint16_t>(lcdtap::Configs::BUS_INTERFACE);
       gOsd.getItemById(id, &ifaceItem);
       lcdtap::BusType newIface =
           ifaceItem ? static_cast<lcdtap::BusType>(ifaceItem->config.value)

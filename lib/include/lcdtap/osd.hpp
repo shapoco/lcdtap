@@ -39,7 +39,7 @@ static constexpr uint16_t OSD_ITEM_ID_NONE = 0;
 static constexpr uint16_t OSD_ITEM_ID_PRESET = 1;
 static constexpr uint16_t OSD_ITEM_ID_SYS_BASE = OSD_ITEM_ID_PRESET + 1;
 static constexpr uint16_t OSD_ITEM_ID_VIEW_DUMP =
-    OSD_ITEM_ID_SYS_BASE + static_cast<uint16_t>(ConfigId::NUM_CONFIGS);
+    OSD_ITEM_ID_SYS_BASE + static_cast<uint16_t>(Configs::NUM_CONFIGS);
 static constexpr uint16_t OSD_ITEM_ID_VIEW_STATS = OSD_ITEM_ID_VIEW_DUMP + 1;
 static constexpr uint16_t OSD_ITEM_ID_APPLY = OSD_ITEM_ID_VIEW_STATS + 1;
 static constexpr uint16_t OSD_ITEM_ID_CANCEL = OSD_ITEM_ID_APPLY + 1;

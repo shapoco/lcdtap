@@ -77,9 +77,15 @@ Get the list of configuration parameters held by LcdTap as JSON.
     {"params":[parameter list]}
     ```
 
-The `id` field of each parameter is `"cfg0"`, `"cfg1"`, ..., `"cfg19"`, corresponding to the `ConfigId` enum index in the firmware. Use the same ids as keys in `setparams`. Clients must treat the ids as opaque keys taken from the `getparams` response; the numbering shifts when `ConfigId` entries are inserted (e.g. `cfg2` became the I2C slave address when it was added after the bus interface).
+The `id` field of each parameter is a stable string identifier defined by `CONFIG_IDS` in the firmware (`lib/include/lcdtap/config.hpp`). Unlike the retired `"cfgN"` index-based ids, these identifiers never change meaning when config items are inserted, so they are also safe to use as keys in exported JSON config files. Use the same ids as keys in `setparams`.
 
-Two host-side settings appear in the list as well. They are not `ConfigId`s, so they have names instead of indices. **They are not at the end** — they sit immediately before `Output Rotation`, matching the position they occupy in the OSD menu. Match parameters by `id`, never by position:
+The current identifiers are:
+
+`ctrlFamily`, `busInterface`, `i2cAddr`, `buffWidth`, `buffHeight`, `textCols`, `textRows`, `textCgramArea`, `trimMode`, `trimX`, `trimY`, `trimWidth`, `trimHeight`, `flipMode`, `inverted`, `swapRB`, `forcePwrOn`, `intfFmtOvr`, `outputRot`, `scaleMode`
+
+**The legacy `"cfgN"` form is retired**: `getparams` no longer emits it and `setparams` no longer accepts it. Clients should still treat the ids as opaque keys taken from the `getparams` response rather than hard-coding the list above.
+
+Two host-side settings appear in the list as well. They are not `lcdtap::Configs` items, so they are absent from `CONFIG_IDS`. **They are not at the end** — they sit immediately before `Output Rotation` (`outputRot`), matching the position they occupy in the OSD menu. Match parameters by `id`, never by position:
 
 ```json
 {
@@ -89,7 +95,7 @@ Two host-side settings appear in the list as well. They are not `ConfigId`s, so 
     "unit": null,
     "options": {"DVI-D": 0, "NTSC": 1, "PAL": 2, "DisplayLink": 3},
     "value": 0,
-    "enableKeyId": "cfg1",
+    "enableKeyId": "busInterface",
     "enableKeyValueMin": 0,
     "enableKeyValueMax": 2
 },
@@ -106,15 +112,15 @@ Two host-side settings appear in the list as well. They are not `ConfigId`s, so 
 }
 ```
 
-Note that `compositeDac` is gated on `outputInterface` — an `enableKeyId` can name any parameter, not just a `cfgN`.
+Note that `compositeDac` is gated on `outputInterface` — an `enableKeyId` can name any parameter, host-side settings included.
 
-Composite output (GPIO5-11) and DisplayLink output (USB D+/D- on GPIO10/11) need GPIOs that the parallel bus already uses, so `outputInterface` is only selectable when `cfg1` (bus interface) is 0-2, and is silently forced back to `DVI-D` otherwise.
+Composite output (GPIO5-11) and DisplayLink output (USB D+/D- on GPIO10/11) need GPIOs that the parallel bus already uses, so `outputInterface` is only selectable when `busInterface` is 0-2, and is silently forced back to `DVI-D` otherwise.
 
 ### Enable-key cascade
 
 A parameter is enabled when its enable key is in range **and the enable key itself is enabled**. Clients must resolve this transitively, or gating will be wrong wherever the chain is longer than one link.
 
-Concretely: on the parallel bus, `cfg1` is 3, which disables `outputInterface`. `compositeDac` points at `outputInterface`, so it must be disabled too — even though `outputInterface`'s *value* may still read as `NTSC`. Evaluating only the immediate key would leave `compositeDac` selectable there.
+Concretely: on the parallel bus, `busInterface` is 3, which disables `outputInterface`. `compositeDac` points at `outputInterface`, so it must be disabled too — even though `outputInterface`'s *value* may still read as `NTSC`. Evaluating only the immediate key would leave `compositeDac` selectable there.
 
 `compositeDac` selects which DAC carries the composite signal:
 
@@ -129,7 +135,7 @@ Parameter list element types:
 
     ```json
     {
-        "id": "cfgN" (string),
+        "id": identifier from CONFIG_IDS (string),
         "type": "INTEGER",
         "name": item label (string),
         "unit": unit (string) or null,
@@ -137,7 +143,7 @@ Parameter list element types:
         "max": maximum value (integer),
         "step": step size (integer),
         "value": current value (integer),
-        "enableKeyId": "cfgN" of the parameter that gates this item (string, omitted if always enabled),
+        "enableKeyId": identifier of the parameter that gates this item (string, omitted if always enabled),
         "enableKeyValueMin": minimum value of the gate parameter that enables this item (integer, omitted if always enabled),
         "enableKeyValueMax": maximum value of the gate parameter that enables this item (integer, omitted if always enabled)
     }
@@ -147,7 +153,7 @@ Parameter list element types:
 
     ```json
     {
-        "id": "cfgN" (string),
+        "id": identifier from CONFIG_IDS (string),
         "type": "HEX",
         "name": item label (string),
         "unit": unit (string) or null,
@@ -155,7 +161,7 @@ Parameter list element types:
         "max": maximum value (integer),
         "step": step size (integer),
         "value": current value (integer),
-        "enableKeyId": "cfgN" (string, omitted if always enabled),
+        "enableKeyId": identifier (string, omitted if always enabled),
         "enableKeyValueMin": integer (omitted if always enabled),
         "enableKeyValueMax": integer (omitted if always enabled)
     }
@@ -165,11 +171,11 @@ Parameter list element types:
 
     ```json
     {
-        "id": "cfgN" (string),
+        "id": identifier from CONFIG_IDS (string),
         "type": "BOOLEAN",
         "name": item label (string),
         "value": current value (boolean),
-        "enableKeyId": "cfgN" (string, omitted if always enabled),
+        "enableKeyId": identifier (string, omitted if always enabled),
         "enableKeyValueMin": integer (omitted if always enabled),
         "enableKeyValueMax": integer (omitted if always enabled)
     }
@@ -179,7 +185,7 @@ Parameter list element types:
 
     ```json
     {
-        "id": "cfgN" (string),
+        "id": identifier from CONFIG_IDS (string),
         "type": "ENUM",
         "name": item label (string),
         "unit": unit (string) or null,
@@ -190,7 +196,7 @@ Parameter list element types:
             ...
         },
         "value": current value (integer),
-        "enableKeyId": "cfgN" (string, omitted if always enabled),
+        "enableKeyId": identifier (string, omitted if always enabled),
         "enableKeyValueMin": integer (omitted if always enabled),
         "enableKeyValueMax": integer (omitted if always enabled)
     }
@@ -206,15 +212,16 @@ Set LcdTap configuration parameters in bulk from the host.
     {
         "command": "setparams",
         "params": {
-            "cfg0": value0 (integer/boolean),
-            "cfg1": value1 (integer/boolean),
+            "ctrlFamily": value0 (integer/boolean),
+            "busInterface": value1 (integer/boolean),
             ...
         }
     }
     ```
 
-    - Keys are the `id` values returned by `getparams` (`"cfg0"` through `"cfg19"`, plus `"outputInterface"` and `"compositeDac"`).
+    - Keys are the `id` values returned by `getparams` (the `CONFIG_IDS` identifiers, plus `"outputInterface"` and `"compositeDac"`).
     - It is not necessary to include all parameters; omitted parameters retain their current values.
+    - Unknown keys are silently ignored, so a config exported from another example imports cleanly.
 
 - Response:
 
@@ -225,7 +232,7 @@ Set LcdTap configuration parameters in bulk from the host.
 **Some changes reset the device.** The firmware saves the new values, sends the `ok` response, and then reboots. The USB CDC connection will drop and re-enumerate; reconnect before sending further commands. A reset happens when:
 
 - `outputInterface` changes — each output binds its clocks and peripherals at startup (DVI-D and DisplayLink share clk_sys 312 MHz, NTSC 315 MHz, PAL 301.5 MHz).
-- `cfg1` (bus interface) or `compositeDac` changes **while a composite mode is selected** — the DAC binds to its pins and peripheral at startup.
+- `busInterface` or `compositeDac` changes **while a composite mode is selected** — the DAC binds to its pins and peripheral at startup.
 
 Changing `compositeDac` while `outputInterface` is `DVI-D` does not reset; nothing composite is running.
 

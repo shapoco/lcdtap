@@ -125,6 +125,20 @@ function appMarkup(title, transports) {
   <div class="config-actions">
     <button id="btn-apply" class="primary" disabled>Apply</button>
     <button id="btn-refresh-params" disabled>Refresh</button>
+    <div class="dropdown">
+      <button id="btn-export" disabled>Export <span class="caret">▼</span></button>
+      <div class="dropdown-menu">
+        <button id="menu-export-file">to File</button>
+        <button id="menu-export-clip">to Clipboard</button>
+      </div>
+    </div>
+    <div class="dropdown">
+      <button id="btn-import" disabled>Import <span class="caret">▼</span></button>
+      <div class="dropdown-menu">
+        <button id="menu-import-file">from File</button>
+        <button id="menu-import-clip">from Clipboard</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -242,7 +256,7 @@ export function initApp({
     btnDisconnect.disabled = !yes;
     if (transportSelect) transportSelect.disabled = yes;
     document.querySelectorAll('.tab-btn').forEach(b => { b.disabled = !yes; });
-    document.querySelectorAll('#btn-apply,#btn-refresh-params,#btn-load-preset,#btn-capture,#btn-force-trigger,#btn-abort,#btn-stats-reset')
+    document.querySelectorAll('#btn-apply,#btn-refresh-params,#btn-load-preset,#btn-export,#btn-import,#btn-capture,#btn-force-trigger,#btn-abort,#btn-stats-reset')
       .forEach(b => { b.disabled = !yes; });
     // Copy/Save stay disabled until a frame is captured
     if (!yes) {
@@ -259,9 +273,12 @@ export function initApp({
   }
 
   // The clipboard API needs a secure context; the device page is plain
-  // http://, so hide Copy there rather than offering a button that fails.
+  // http://, so hide the clipboard entries there rather than offering
+  // controls that fail.
   if (!window.isSecureContext) {
     document.getElementById('btn-copy').style.display = 'none';
+    document.getElementById('menu-export-clip').style.display = 'none';
+    document.getElementById('menu-import-clip').style.display = 'none';
   }
 
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -675,6 +692,178 @@ export function initApp({
       showToast('Load preset failed: ' + e.message, 'error');
     } finally {
       btn.disabled = !conn.connected;
+    }
+  });
+
+  // ─── Config Export / Import ───────────────────────────────────────────────
+
+  // cfgN index -> stable identifier, frozen at the cfgN->identifier
+  // changeover. Keeps exported JSON keys stable even against firmware that
+  // still reports the retired "cfgN" ids, and maps them back on import.
+  const LEGACY_CFG_IDS = [
+    'ctrlFamily', 'busInterface', 'i2cAddr', 'buffWidth', 'buffHeight',
+    'textCols', 'textRows', 'textCgramArea', 'trimMode', 'trimX', 'trimY',
+    'trimWidth', 'trimHeight', 'flipMode', 'inverted', 'swapRB', 'forcePwrOn',
+    'intfFmtOvr', 'outputRot', 'scaleMode',
+  ];
+
+  function toStableId(uiId) {
+    const m = /^cfg(\d+)$/.exec(uiId);
+    return m ? (LEGACY_CFG_IDS[parseInt(m[1], 10)] ?? uiId) : uiId;
+  }
+
+  // Stable identifier -> the id the connected firmware uses (identity on
+  // current firmware; cfgN on firmware predating stable ids).
+  function toUiId(stableId) {
+    if (paramElements[stableId]) return stableId;
+    const idx = LEGACY_CFG_IDS.indexOf(stableId);
+    return idx >= 0 ? 'cfg' + idx : stableId;
+  }
+
+  // Collect the current UI values under stable keys — the same set Apply
+  // sends, so the export mirrors what setparams would receive.
+  function collectConfig() {
+    const config = {};
+    document.querySelectorAll('[data-param-id]').forEach(el => {
+      const key = toStableId(el.dataset.paramId);
+      if (el.dataset.paramType === 'BOOLEAN') config[key] = el.checked;
+      else if (el.dataset.paramType === 'HEX') config[key] = parseInt(el.value, 16);
+      else config[key] = parseInt(el.value, 10);
+    });
+    return config;
+  }
+
+  // Reverse-lookup the display label of an ENUM param's current value.
+  function enumLabel(uiId) {
+    const el = paramElements[uiId];
+    const p = params.find(q => q.id === uiId);
+    if (!el || !p || !p.options) return null;
+    const v = parseInt(el.value, 10);
+    for (const [label, val] of Object.entries(p.options)) {
+      if (val === v) return label;
+    }
+    return null;
+  }
+
+  function exportFileName() {
+    const family = enumLabel(toUiId('ctrlFamily'));
+    const iface = enumLabel(toUiId('busInterface'));
+    const w = paramElements[toUiId('buffWidth')]?.value;
+    const h = paramElements[toUiId('buffHeight')]?.value;
+    if (!family || !iface || !w || !h) return 'lcdtap_cfg.json';
+    return `lcdtap_cfg_${family}_${iface}_${w}x${h}.json`.replace(/ /g, '-');
+  }
+
+  // Set one UI control from an imported value, clamping to the control's
+  // range. Returns false when the param or value cannot be applied.
+  function setParamValue(uiId, value) {
+    const el = paramElements[uiId];
+    const p = params.find(q => q.id === uiId);
+    if (!el || !p) return false;
+    if (p.type === 'BOOLEAN') {
+      el.checked = !!value;
+      return true;
+    }
+    let v = typeof value === 'boolean' ? (value ? 1 : 0) : parseInt(value, 10);
+    if (isNaN(v)) return false;
+    if (p.type === 'ENUM') {
+      if (!Object.values(p.options).includes(v)) return false;
+      el.value = v;
+      return true;
+    }
+    v = Math.min(p.max, Math.max(p.min, v));
+    el.value = p.type === 'HEX'
+      ? '0x' + v.toString(16).toUpperCase().padStart(2, '0')
+      : v;
+    return true;
+  }
+
+  function applyImportedConfig(obj) {
+    if (!obj || typeof obj.config !== 'object' || obj.config === null) {
+      showToast('Invalid config JSON: missing "config" object', 'error');
+      return;
+    }
+    let applied = 0, skipped = 0;
+    for (const [key, value] of Object.entries(obj.config)) {
+      if (setParamValue(toUiId(key), value)) applied++;
+      else skipped++;
+    }
+    updateParamEnables();
+    const skipMsg = skipped ? ` (${skipped} skipped)` : '';
+    showToast(`Loaded ${applied} params${skipMsg} — press Apply to send`, 'success');
+  }
+
+  function closeDropdowns() {
+    document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+  }
+  document.addEventListener('click', closeDropdowns);
+
+  for (const btnId of ['btn-export', 'btn-import']) {
+    const btn = document.getElementById(btnId);
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const dd = btn.closest('.dropdown');
+      const wasOpen = dd.classList.contains('open');
+      closeDropdowns();
+      if (!wasOpen) {
+        dd.classList.remove('drop-up');
+        dd.classList.add('open');
+        // Flip upward when the menu would spill past the viewport bottom.
+        const menu = dd.querySelector('.dropdown-menu');
+        if (menu.getBoundingClientRect().bottom > window.innerHeight) {
+          dd.classList.add('drop-up');
+        }
+      }
+    });
+  }
+
+  document.getElementById('menu-export-file').addEventListener('click', () => {
+    closeDropdowns();
+    const json = JSON.stringify({ config: collectConfig() }, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = exportFileName();
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  document.getElementById('menu-export-clip').addEventListener('click', async () => {
+    closeDropdowns();
+    const json = JSON.stringify({ config: collectConfig() }, null, 2);
+    try {
+      await navigator.clipboard.writeText(json);
+      showToast('Config copied to clipboard', 'success');
+    } catch (e) {
+      showToast('Copy failed: ' + e.message, 'error');
+    }
+  });
+
+  document.getElementById('menu-import-file').addEventListener('click', () => {
+    closeDropdowns();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try { applyImportedConfig(JSON.parse(reader.result)); }
+        catch (e) { showToast('Import failed: ' + e.message, 'error'); }
+      };
+      reader.readAsText(file);
+    });
+    input.click();
+  });
+
+  document.getElementById('menu-import-clip').addEventListener('click', async () => {
+    closeDropdowns();
+    try {
+      applyImportedConfig(JSON.parse(await navigator.clipboard.readText()));
+    } catch (e) {
+      showToast('Import failed: ' + e.message, 'error');
     }
   });
 

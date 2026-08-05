@@ -406,10 +406,10 @@ void Osd::makeItemById(uint16_t id, OsdMenuItem* item) {
       break;
 
     default:
-      uint16_t numConfigs = static_cast<uint16_t>(ConfigId::NUM_CONFIGS);
+      uint16_t numConfigs = static_cast<uint16_t>(Configs::NUM_CONFIGS);
       if (OSD_ITEM_ID_SYS_BASE <= id &&
           id < OSD_ITEM_ID_SYS_BASE + numConfigs) {
-        getConfigEntryById(static_cast<ConfigId>(id - OSD_ITEM_ID_SYS_BASE),
+        getConfigEntryById(static_cast<Configs>(id - OSD_ITEM_ID_SYS_BASE),
                            &item->config);
       }
       break;
@@ -431,7 +431,7 @@ void Osd::initMenuItems(const LcdTap& lcdtap) {
     makeItemById(id, &it);
     if (!it.isAction) {
       it.config.value = getConfigValueById(
-          cfg, static_cast<ConfigId>(id - OSD_ITEM_ID_SYS_BASE));
+          cfg, static_cast<Configs>(id - OSD_ITEM_ID_SYS_BASE));
       if (it.config.enableKeyId >= 0) {
         it.config.enableKeyId += OSD_ITEM_ID_SYS_BASE;
       }
@@ -547,7 +547,7 @@ void Osd::renderItem(int idx, int row) {
 LcdTapConfig Osd::buildConfig() const {
   const OsdMenuItem* ctrlItem;
   getItemById(
-      OSD_ITEM_ID_SYS_BASE + static_cast<uint16_t>(ConfigId::CTRL_FAMILY),
+      OSD_ITEM_ID_SYS_BASE + static_cast<uint16_t>(Configs::CTRL_FAMILY),
       &ctrlItem);
   ControllerFamily controller =
       static_cast<ControllerFamily>(ctrlItem ? ctrlItem->config.value : 0);
@@ -555,12 +555,12 @@ LcdTapConfig Osd::buildConfig() const {
   LcdTapConfig cfg;
   getDefaultConfig(controller, &cfg);
 
-  uint16_t numConfigs = static_cast<uint16_t>(lcdtap::ConfigId::NUM_CONFIGS);
-  for (uint16_t cfgId = 0; cfgId < numConfigs; ++cfgId) {
+  uint16_t numConfigs = static_cast<uint16_t>(lcdtap::Configs::NUM_CONFIGS);
+  for (uint16_t cfgIdx = 0; cfgIdx < numConfigs; ++cfgIdx) {
     const OsdMenuItem* item = nullptr;
-    getItemById(OSD_ITEM_ID_SYS_BASE + cfgId, &item);
+    getItemById(OSD_ITEM_ID_SYS_BASE + cfgIdx, &item);
     if (item) {
-      setConfigValueById(&cfg, static_cast<ConfigId>(cfgId),
+      setConfigValueById(&cfg, static_cast<Configs>(cfgIdx),
                          item->config.value);
     }
   }
@@ -957,13 +957,13 @@ void Osd::insertItem(int index, const OsdMenuItem& item) {
 }
 
 void Osd::loadConfig(const LcdTapConfig& cfg) {
-  uint16_t numConfigs = static_cast<uint16_t>(lcdtap::ConfigId::NUM_CONFIGS);
-  for (uint16_t cfgId = 0; cfgId < numConfigs; ++cfgId) {
+  uint16_t numConfigs = static_cast<uint16_t>(lcdtap::Configs::NUM_CONFIGS);
+  for (uint16_t cfgIdx = 0; cfgIdx < numConfigs; ++cfgIdx) {
     const OsdMenuItem* item = nullptr;
-    getItemById(OSD_ITEM_ID_SYS_BASE + cfgId, &item);
+    getItemById(OSD_ITEM_ID_SYS_BASE + cfgIdx, &item);
     if (item) {
       setItemValue(item->id,
-                   getConfigValueById(cfg, static_cast<ConfigId>(cfgId)));
+                   getConfigValueById(cfg, static_cast<Configs>(cfgIdx)));
     }
   }
   updateItemEnables();

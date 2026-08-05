@@ -247,6 +247,34 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
 
 .config-actions { margin-top: 20px; display: flex; gap: 10px; }
 
+/* Export/Import dropdown */
+.dropdown { position: relative; }
+.dropdown .caret { font-size: 9px; margin-left: 2px; }
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 150px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.dropdown.open .dropdown-menu { display: flex; flex-direction: column; }
+.dropdown.drop-up .dropdown-menu { top: auto; bottom: calc(100% + 4px); }
+.dropdown-menu button {
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 6px 10px;
+  width: 100%;
+  white-space: nowrap;
+}
+.dropdown-menu button:hover:not(:disabled) { background: var(--surface3); }
+
 /* Preset controls */
 .preset-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
 .preset-select {

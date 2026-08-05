@@ -1,7 +1,6 @@
 #include "lcdtap/pico2/json_intf.hpp"
 
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 
 #include "lcdtap/pico2/json_b64.hpp"
@@ -263,15 +262,15 @@ static void chunkFromStr(JsonIntf& ji, const char* s) {
 // slots immediately before the application's anchor slot, mirroring how the
 // OSD inserts them, so the two menus stay in the same order.
 static int numParamSlots(const JsonIntf& ji) {
-  return static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS) + ji.cb.numHostParams;
+  return static_cast<int>(lcdtap::Configs::NUM_CONFIGS) + ji.cb.numHostParams;
 }
 
-// Emission slot -> ConfigId. Only meaningful for slots that are not host
-// settings. Note that slot and ConfigId diverge past the anchor slot: the
-// "cfgN" number MUST come from here and never from the slot, or setparams
+// Emission slot -> Configs. Only meaningful for slots that are not host
+// settings. Note that slot and Configs diverge past the anchor slot: the
+// CONFIG_IDS key MUST come from here and never from the slot, or setparams
 // would write the value into a different setting.
-static lcdtap::ConfigId configIdForSlot(const JsonIntf& ji, int slot) {
-  return static_cast<lcdtap::ConfigId>(
+static lcdtap::Configs configForSlot(const JsonIntf& ji, int slot) {
+  return static_cast<lcdtap::Configs>(
       slot < ji.cb.hostParamAnchorSlot ? slot : slot - ji.cb.numHostParams);
 }
 
@@ -308,23 +307,24 @@ static bool buildParamChunk(JsonIntf& ji, int slot,
   }
 
   lcdtap::ConfigEntry e;
-  lcdtap::ConfigId cfgId = configIdForSlot(ji, slot);
-  lcdtap::getConfigEntryById(cfgId, &e);
+  lcdtap::Configs config = configForSlot(ji, slot);
+  lcdtap::getConfigEntryById(config, &e);
 
   int16_t value;
-  if (cfgId == lcdtap::ConfigId::BUS_INTERFACE) {
+  if (config == lcdtap::Configs::BUS_INTERFACE) {
     value = static_cast<int16_t>(iface);
   } else {
-    value = lcdtap::getConfigValueById(cfg, cfgId);
+    value = lcdtap::getConfigValueById(cfg, config);
   }
 
   const char* typeStr = (e.type == lcdtap::ValueType::INT16)  ? "INTEGER"
                         : (e.type == lcdtap::ValueType::HEX)  ? "HEX"
                         : (e.type == lcdtap::ValueType::BOOL) ? "BOOLEAN"
                                                               : "ENUM";
-  pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
-                  "{\"id\":\"cfg%d\",\"type\":\"%s\",\"name\":\"%s\",",
-                  static_cast<int>(cfgId), typeStr, e.name);
+  pos +=
+      snprintf(buf + pos, static_cast<size_t>(cap - pos),
+               "{\"id\":\"%s\",\"type\":\"%s\",\"name\":\"%s\",",
+               lcdtap::CONFIG_IDS[static_cast<int>(config)], typeStr, e.name);
 
   if (e.unit && e.unit[0] != '\0') {
     pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
@@ -361,9 +361,9 @@ static bool buildParamChunk(JsonIntf& ji, int slot,
 
   if (e.enableKeyId >= 0) {
     pos += snprintf(buf + pos, static_cast<size_t>(cap - pos),
-                    ",\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":%d"
+                    ",\"enableKeyId\":\"%s\",\"enableKeyValueMin\":%d"
                     ",\"enableKeyValueMax\":%d",
-                    static_cast<int>(e.enableKeyId),
+                    lcdtap::CONFIG_IDS[e.enableKeyId],
                     static_cast<int>(e.enableKeyValueMin),
                     static_cast<int>(e.enableKeyValueMax));
   }
@@ -498,18 +498,15 @@ static void execCommand(JsonIntf& ji, const JsonParser& p) {
       // All setparams values are numeric; string values only appear in
       // app-specific commands.
       if (p.params[i].isString) continue;
-      // Host-side settings; not ConfigIds, so they have their own keys.
+      // Host-side settings; not Configs, so they have their own keys.
       if (ji.cb.stageHostParam && ji.cb.stageHostParam(k, v, ji.cb.ctx)) {
         continue;
       }
-      // Accept "cfgN" keys and map to ConfigId by index.
-      if (k[0] == 'c' && k[1] == 'f' && k[2] == 'g' && k[3] != '\0') {
-        long idx = strtol(k + 3, nullptr, 10);
-        if (idx >= 0 &&
-            idx < static_cast<long>(lcdtap::ConfigId::NUM_CONFIGS)) {
-          lcdtap::setConfigValueById(&cfg, static_cast<lcdtap::ConfigId>(idx),
-                                     static_cast<int16_t>(v));
-        }
+      // Config item keys are the CONFIG_IDS identifiers; unknown keys are
+      // silently ignored so exports from other examples import cleanly.
+      lcdtap::Configs c = lcdtap::findConfigByKey(k);
+      if (c != lcdtap::Configs::NUM_CONFIGS) {
+        lcdtap::setConfigValueById(&cfg, c, static_cast<int16_t>(v));
       }
     }
 

@@ -95,16 +95,16 @@ void normalizeConfig(LcdTapConfig* cfg) {
   cfg->buffHeight = cfg->textRows * 9 - 1;
 }
 
-void getConfigEntryById(ConfigId id, ConfigEntry* e) {
+void getConfigEntryById(Configs config, ConfigEntry* e) {
   memset(e, 0, sizeof(*e));
   e->unit = "";
   e->step = 1;
   e->max = 1;
   e->enableKeyId = -1;
 
-  switch (id) {
+  switch (config) {
     // Controller Family
-    case ConfigId::CTRL_FAMILY:
+    case Configs::CTRL_FAMILY:
       e->type = ValueType::ENUM;
       e->name = "Controller Family";
       e->options = CONTROLLER_NAMES;
@@ -112,7 +112,7 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       break;
 
     // Bus Interface
-    case ConfigId::BUS_INTERFACE:
+    case Configs::BUS_INTERFACE:
       e->type = ValueType::ENUM;
       e->name = "Bus Interface";
       e->options = BUS_NAMES;
@@ -120,19 +120,19 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       break;
 
     // I2C Slave Address
-    case ConfigId::I2C_ADDR:
+    case Configs::I2C_ADDR:
       e->type = ValueType::HEX;
       e->name = "I2C Address";
       e->min = 0x08;
       e->max = 0x77;
 
-      e->enableKeyId = static_cast<int16_t>(ConfigId::BUS_INTERFACE);
+      e->enableKeyId = static_cast<int16_t>(Configs::BUS_INTERFACE);
       e->enableKeyValueMin = static_cast<int16_t>(BusType::I2C);
       e->enableKeyValueMax = static_cast<int16_t>(BusType::I2C);
       break;
 
     // Frame Buffer Width
-    case ConfigId::BUFF_WIDTH:
+    case Configs::BUFF_WIDTH:
       e->type = ValueType::INT16;
       e->name = "Buffer Width";
       e->unit = "px";
@@ -142,13 +142,13 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->step = 8;
 
       // Disabled for ST7032: the framebuffer size is derived from cols/rows.
-      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyId = static_cast<int16_t>(Configs::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
       e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ILI9341);
       break;
 
     // Frame Buffer Height
-    case ConfigId::BUFF_HEIGHT:
+    case Configs::BUFF_HEIGHT:
       e->type = ValueType::INT16;
       e->name = "Buffer Height";
       e->unit = "px";
@@ -158,77 +158,77 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       e->step = 8;
 
       // Disabled for ST7032: the framebuffer size is derived from cols/rows.
-      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyId = static_cast<int16_t>(Configs::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
       e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ILI9341);
       break;
 
     // ST7032 Columns
-    case ConfigId::TEXT_COLS:
+    case Configs::TEXT_COLS:
       e->type = ValueType::INT16;
       e->name = "Text Buff Cols";
       e->min = 2;
       e->max = 40;
       e->step = 2;
 
-      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyId = static_cast<int16_t>(Configs::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7032);
       e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ST7032);
       break;
 
     // ST7032 Rows
-    case ConfigId::TEXT_ROWS:
+    case Configs::TEXT_ROWS:
       e->type = ValueType::ENUM;
       e->name = "Text Buff Rows";
       e->options = ST7032_ROWS_NAMES;
       e->max = 2;
 
-      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyId = static_cast<int16_t>(Configs::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7032);
       e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ST7032);
       break;
 
     // ST7032 OPR (CGROM/CGRAM option)
-    case ConfigId::TEXT_CGRAM_AREA:
+    case Configs::TEXT_CGRAM_AREA:
       e->type = ValueType::ENUM;
       e->name = "Text CGRAM Area";
       e->options = ST7032_CGRAM_NAMES;
       e->max = 3;
 
-      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyId = static_cast<int16_t>(Configs::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7032);
       e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ST7032);
       break;
 
     // Inverse
-    case ConfigId::INVERSE:
+    case Configs::INVERTED:
       e->type = ValueType::BOOL;
       e->name = "Inverse";
       e->options = ON_OFF_NAMES;
       break;
 
     // Swap Red/Blue
-    case ConfigId::SWAP_RB:
+    case Configs::SWAP_RB:
       e->type = ValueType::BOOL;
       e->name = "Swap Red/Blue";
       e->options = ON_OFF_NAMES;
 
       // Enable for pixel-based controllers only (no-op for SSD1306;
       // meaningless for the ST7032 character display).
-      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyId = static_cast<int16_t>(Configs::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
       e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ILI9341);
       break;
 
     // Force Power On
-    case ConfigId::FORCE_PWR_ON:
+    case Configs::FORCE_PWR_ON:
       e->type = ValueType::BOOL;
       e->name = "Force Power On";
       e->options = ON_OFF_NAMES;
       break;
 
     // Format Override
-    case ConfigId::INTF_FMT_OVR:
+    case Configs::INTF_FMT_OVR:
       e->type = ValueType::ENUM;
       e->name = "Format Override";
       e->options = INTERFACE_FORMAT_NAMES;
@@ -237,13 +237,13 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
 
       // Enable for pixel-based controllers only (no-op for SSD1306;
       // meaningless for the ST7032 character display).
-      e->enableKeyId = static_cast<int16_t>(ConfigId::CTRL_FAMILY);
+      e->enableKeyId = static_cast<int16_t>(Configs::CTRL_FAMILY);
       e->enableKeyValueMin = static_cast<int16_t>(ControllerFamily::ST7789);
       e->enableKeyValueMax = static_cast<int16_t>(ControllerFamily::ILI9341);
       break;
 
     // Trim Mode
-    case ConfigId::TRIM_MODE:
+    case Configs::TRIM_MODE:
       e->type = ValueType::ENUM;
       e->name = "Trim Mode";
       e->options = TRIM_MODE_NAMES;
@@ -251,55 +251,55 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       break;
 
     // Offset X
-    case ConfigId::TRIM_X:
+    case Configs::TRIM_X:
       e->type = ValueType::INT16;
       e->name = "Trim Offset X";
       e->unit = "px";
       e->max = 480;
 
-      e->enableKeyId = static_cast<int16_t>(ConfigId::TRIM_MODE);
+      e->enableKeyId = static_cast<int16_t>(Configs::TRIM_MODE);
       e->enableKeyValueMin = static_cast<int16_t>(TrimMode::CUSTOM);
       e->enableKeyValueMax = static_cast<int16_t>(TrimMode::CUSTOM);
       break;
 
     // Offset Y
-    case ConfigId::TRIM_Y:
+    case Configs::TRIM_Y:
       e->type = ValueType::INT16;
       e->name = "Trim Offset Y";
       e->unit = "px";
       e->max = 480;
 
-      e->enableKeyId = static_cast<int16_t>(ConfigId::TRIM_MODE);
+      e->enableKeyId = static_cast<int16_t>(Configs::TRIM_MODE);
       e->enableKeyValueMin = static_cast<int16_t>(TrimMode::CUSTOM);
       e->enableKeyValueMax = static_cast<int16_t>(TrimMode::CUSTOM);
       break;
 
     // Trim Width
-    case ConfigId::TRIM_WIDTH:
+    case Configs::TRIM_WIDTH:
       e->type = ValueType::INT16;
       e->name = "Trim Width";
       e->unit = "px";
       e->max = 480;
 
-      e->enableKeyId = static_cast<int16_t>(ConfigId::TRIM_MODE);
+      e->enableKeyId = static_cast<int16_t>(Configs::TRIM_MODE);
       e->enableKeyValueMin = static_cast<int16_t>(TrimMode::CUSTOM);
       e->enableKeyValueMax = static_cast<int16_t>(TrimMode::CUSTOM);
       break;
 
     // Trim Height
-    case ConfigId::TRIM_HEIGHT:
+    case Configs::TRIM_HEIGHT:
       e->type = ValueType::INT16;
       e->name = "Trim Height";
       e->unit = "px";
       e->max = 480;
 
-      e->enableKeyId = static_cast<int16_t>(ConfigId::TRIM_MODE);
+      e->enableKeyId = static_cast<int16_t>(Configs::TRIM_MODE);
       e->enableKeyValueMin = static_cast<int16_t>(TrimMode::CUSTOM);
       e->enableKeyValueMax = static_cast<int16_t>(TrimMode::CUSTOM);
       break;
 
     // Flip Mode
-    case ConfigId::FLIP_MODE:
+    case Configs::FLIP_MODE:
       e->type = ValueType::ENUM;
       e->name = "Flip Mode";
       e->options = FLIP_MODE_NAMES;
@@ -307,7 +307,7 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       break;
 
     // Output Rotation
-    case ConfigId::OUTPUT_ROT:
+    case Configs::OUTPUT_ROT:
       e->type = ValueType::ENUM;
       e->name = "Output Rotation";
       e->unit = "deg";
@@ -316,7 +316,7 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
       break;
 
     // Output Scaling
-    case ConfigId::SCALE_MODE:
+    case Configs::SCALE_MODE:
       e->type = ValueType::ENUM;
       e->name = "Output Scaling";
       e->options = SCALE_MODE_NAMES;
@@ -326,91 +326,105 @@ void getConfigEntryById(ConfigId id, ConfigEntry* e) {
   }
 }
 
-int16_t getConfigValueById(const LcdTapConfig& cfg, ConfigId id) {
-  switch (id) {
-    case ConfigId::CTRL_FAMILY:
+int16_t getConfigValueById(const LcdTapConfig& cfg, Configs config) {
+  switch (config) {
+    case Configs::CTRL_FAMILY:
       return static_cast<int16_t>(cfg.controllerFamily);
-    case ConfigId::BUS_INTERFACE: return static_cast<int16_t>(cfg.busInterface);
-    case ConfigId::I2C_ADDR: return static_cast<int16_t>(cfg.i2cSlaveAddr);
-    case ConfigId::BUFF_WIDTH: return static_cast<int16_t>(cfg.buffWidth);
-    case ConfigId::BUFF_HEIGHT: return static_cast<int16_t>(cfg.buffHeight);
-    case ConfigId::TEXT_COLS: return static_cast<int16_t>(cfg.textCols);
-    case ConfigId::TEXT_ROWS:
+    case Configs::BUS_INTERFACE: return static_cast<int16_t>(cfg.busInterface);
+    case Configs::I2C_ADDR: return static_cast<int16_t>(cfg.i2cSlaveAddr);
+    case Configs::BUFF_WIDTH: return static_cast<int16_t>(cfg.buffWidth);
+    case Configs::BUFF_HEIGHT: return static_cast<int16_t>(cfg.buffHeight);
+    case Configs::TEXT_COLS: return static_cast<int16_t>(cfg.textCols);
+    case Configs::TEXT_ROWS:
       // Actual row count 1/2/4 -> enum index 0/1/2
       return (cfg.textRows >= 4) ? 2 : (cfg.textRows >= 2) ? 1 : 0;
-    case ConfigId::TEXT_CGRAM_AREA: return static_cast<int16_t>(cfg.textCgramArea);
-    case ConfigId::INVERSE: return cfg.inverted ? 1 : 0;
-    case ConfigId::SWAP_RB: return cfg.swapRB ? 1 : 0;
-    case ConfigId::FORCE_PWR_ON: return cfg.forcePowerOn ? 1 : 0;
-    case ConfigId::INTF_FMT_OVR:
+    case Configs::TEXT_CGRAM_AREA:
+      return static_cast<int16_t>(cfg.textCgramArea);
+    case Configs::INVERTED: return cfg.inverted ? 1 : 0;
+    case Configs::SWAP_RB: return cfg.swapRB ? 1 : 0;
+    case Configs::FORCE_PWR_ON: return cfg.forcePowerOn ? 1 : 0;
+    case Configs::INTF_FMT_OVR:
       return static_cast<int16_t>(cfg.interfaceFormatOverride);
-    case ConfigId::TRIM_MODE: return static_cast<int16_t>(cfg.trimMode);
-    case ConfigId::TRIM_X: return static_cast<int16_t>(cfg.trimX);
-    case ConfigId::TRIM_Y: return static_cast<int16_t>(cfg.trimY);
-    case ConfigId::TRIM_WIDTH: return static_cast<int16_t>(cfg.trimWidth);
-    case ConfigId::TRIM_HEIGHT: return static_cast<int16_t>(cfg.trimHeight);
-    case ConfigId::FLIP_MODE: return static_cast<int16_t>(cfg.flipMode);
-    case ConfigId::OUTPUT_ROT: return static_cast<int16_t>(cfg.outputRotation);
-    case ConfigId::SCALE_MODE: return static_cast<int16_t>(cfg.scaleMode);
+    case Configs::TRIM_MODE: return static_cast<int16_t>(cfg.trimMode);
+    case Configs::TRIM_X: return static_cast<int16_t>(cfg.trimX);
+    case Configs::TRIM_Y: return static_cast<int16_t>(cfg.trimY);
+    case Configs::TRIM_WIDTH: return static_cast<int16_t>(cfg.trimWidth);
+    case Configs::TRIM_HEIGHT: return static_cast<int16_t>(cfg.trimHeight);
+    case Configs::FLIP_MODE: return static_cast<int16_t>(cfg.flipMode);
+    case Configs::OUTPUT_ROT: return static_cast<int16_t>(cfg.outputRotation);
+    case Configs::SCALE_MODE: return static_cast<int16_t>(cfg.scaleMode);
     default: return 0;
   }
 }
 
-void setConfigValueById(LcdTapConfig* cfg, ConfigId id, int16_t value) {
-  switch (id) {
-    case ConfigId::CTRL_FAMILY:
+void setConfigValueById(LcdTapConfig* cfg, Configs config, int16_t value) {
+  switch (config) {
+    case Configs::CTRL_FAMILY:
       cfg->controllerFamily = static_cast<ControllerFamily>(value);
       break;
-    case ConfigId::BUS_INTERFACE:
+    case Configs::BUS_INTERFACE:
       cfg->busInterface = static_cast<BusType>(value);
       break;
-    case ConfigId::I2C_ADDR:
+    case Configs::I2C_ADDR:
       cfg->i2cSlaveAddr = static_cast<uint8_t>(value & 0x7F);
       break;
-    case ConfigId::BUFF_WIDTH:
+    case Configs::BUFF_WIDTH:
       cfg->buffWidth = static_cast<uint16_t>(value);
       break;
-    case ConfigId::BUFF_HEIGHT:
+    case Configs::BUFF_HEIGHT:
       cfg->buffHeight = static_cast<uint16_t>(value);
       break;
-    case ConfigId::TEXT_COLS:
-      cfg->textCols = static_cast<uint8_t>(value);
-      break;
-    case ConfigId::TEXT_ROWS:
+    case Configs::TEXT_COLS: cfg->textCols = static_cast<uint8_t>(value); break;
+    case Configs::TEXT_ROWS:
       // Enum index 0/1/2 -> actual row count 1/2/4
       cfg->textRows = (value >= 2) ? 4 : (value >= 1) ? 2 : 1;
       break;
-    case ConfigId::TEXT_CGRAM_AREA:
+    case Configs::TEXT_CGRAM_AREA:
       cfg->textCgramArea = static_cast<uint8_t>(value & 3);
       break;
-    case ConfigId::INVERSE: cfg->inverted = (value != 0); break;
-    case ConfigId::SWAP_RB: cfg->swapRB = (value != 0); break;
-    case ConfigId::FORCE_PWR_ON: cfg->forcePowerOn = (value != 0); break;
-    case ConfigId::INTF_FMT_OVR:
+    case Configs::INVERTED: cfg->inverted = (value != 0); break;
+    case Configs::SWAP_RB: cfg->swapRB = (value != 0); break;
+    case Configs::FORCE_PWR_ON: cfg->forcePowerOn = (value != 0); break;
+    case Configs::INTF_FMT_OVR:
       cfg->interfaceFormatOverride = static_cast<int8_t>(value);
       break;
-    case ConfigId::TRIM_MODE:
+    case Configs::TRIM_MODE:
       cfg->trimMode = static_cast<TrimMode>(value);
       break;
-    case ConfigId::TRIM_X: cfg->trimX = static_cast<uint16_t>(value); break;
-    case ConfigId::TRIM_Y: cfg->trimY = static_cast<uint16_t>(value); break;
-    case ConfigId::TRIM_WIDTH:
+    case Configs::TRIM_X: cfg->trimX = static_cast<uint16_t>(value); break;
+    case Configs::TRIM_Y: cfg->trimY = static_cast<uint16_t>(value); break;
+    case Configs::TRIM_WIDTH:
       cfg->trimWidth = static_cast<uint16_t>(value);
       break;
-    case ConfigId::TRIM_HEIGHT:
+    case Configs::TRIM_HEIGHT:
       cfg->trimHeight = static_cast<uint16_t>(value);
       break;
-    case ConfigId::FLIP_MODE:
+    case Configs::FLIP_MODE:
       cfg->flipMode = static_cast<FlipMode>(value);
       break;
-    case ConfigId::OUTPUT_ROT:
+    case Configs::OUTPUT_ROT:
       cfg->outputRotation = static_cast<uint8_t>(value & 3u);
       break;
-    case ConfigId::SCALE_MODE:
+    case Configs::SCALE_MODE:
       cfg->scaleMode = static_cast<ScaleMode>(value);
       break;
     default: break;
   }
+}
+
+Configs findConfigByKey(const char* key) {
+  // Resume just past the previous hit: clients send keys in CONFIG_IDS
+  // order, so the next lookup almost always matches immediately.
+  static uint8_t cursor = 0;
+  const uint8_t n = static_cast<uint8_t>(Configs::NUM_CONFIGS);
+  for (uint8_t i = 0; i < n; i++) {
+    uint8_t slot = static_cast<uint8_t>((cursor + i) % n);
+    if (strcmp(key, CONFIG_IDS[slot]) == 0) {
+      cursor = static_cast<uint8_t>((slot + 1) % n);
+      return static_cast<Configs>(slot);
+    }
+  }
+  return Configs::NUM_CONFIGS;
 }
 
 void formatConfigValue(char* buf, int bufLen, const ConfigEntry& item) {

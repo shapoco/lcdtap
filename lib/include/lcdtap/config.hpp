@@ -223,7 +223,7 @@ struct LcdTapConfig {
   uint8_t outputRotation;  // 0:none, 1:90°CW, 2:180°, 3:270°CW
 };
 
-enum class ConfigId : uint8_t {
+enum class Configs : uint8_t {
   CTRL_FAMILY,
   BUS_INTERFACE,
   I2C_ADDR,
@@ -238,7 +238,7 @@ enum class ConfigId : uint8_t {
   TRIM_WIDTH,
   TRIM_HEIGHT,
   FLIP_MODE,
-  INVERSE,
+  INVERTED,
   SWAP_RB,
   FORCE_PWR_ON,
   INTF_FMT_OVR,
@@ -246,6 +246,16 @@ enum class ConfigId : uint8_t {
   SCALE_MODE,
   NUM_CONFIGS,
 };
+
+static const char* CONFIG_IDS[] = {
+    "ctrlFamily", "busInterface", "i2cAddr",       "buffWidth", "buffHeight",
+    "textCols",   "textRows",     "textCgramArea", "trimMode",  "trimX",
+    "trimY",      "trimWidth",    "trimHeight",    "flipMode",  "inverted",
+    "swapRB",     "forcePwrOn",   "intfFmtOvr",    "outputRot", "scaleMode"};
+
+static_assert(sizeof(CONFIG_IDS) / sizeof(CONFIG_IDS[0]) ==
+                  static_cast<size_t>(Configs::NUM_CONFIGS),
+              "CONFIG_IDS size must match Configs enum");
 
 enum class ValueType : uint8_t {
   INT16,
@@ -302,10 +312,16 @@ InterfaceFormat getDefaultInterfaceFormat(ControllerFamily type);
 //=============================================================================
 // Configuration entry access
 //=============================================================================
-void getConfigEntryById(ConfigId id, ConfigEntry* e);
-int16_t getConfigValueById(const LcdTapConfig& cfg, ConfigId id);
-void setConfigValueById(LcdTapConfig* cfg, ConfigId id, int16_t value);
+void getConfigEntryById(Configs config, ConfigEntry* e);
+int16_t getConfigValueById(const LcdTapConfig& cfg, Configs config);
+void setConfigValueById(LcdTapConfig* cfg, Configs config, int16_t value);
 void formatConfigValue(char* buf, int bufLen, const ConfigEntry& item);
+
+// Find a config item by its CONFIG_IDS string key.
+// Returns Configs::NUM_CONFIGS when the key matches no item.
+// Not reentrant: keeps a cursor so that keys arriving in CONFIG_IDS order
+// (as setparams sends them) hit on the first comparison.
+Configs findConfigByKey(const char* key);
 
 //=============================================================================
 // Get configuration preset

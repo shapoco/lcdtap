@@ -57,13 +57,13 @@ enum class JsonParseState {
 // Compile-time bound on JsonIntfCallbacks::numHostParams; sizes the parser.
 static constexpr int JSON_INTF_MAX_HOST_PARAMS = 4;
 
-// A full setparams carries every cfgN plus the host-side settings, because
+// A full setparams carries every config item plus the host-side settings, as
 // the web UI echoes the whole set back rather than a diff. Deriving the limit
-// from ConfigId means it cannot fall behind when settings are appended. The
+// from Configs means it cannot fall behind when settings are appended. The
 // spare slots are headroom for clients that send extra keys.
 static constexpr int JSON_INTF_MAX_PARAMS =
-    static_cast<int>(lcdtap::ConfigId::NUM_CONFIGS) +
-    JSON_INTF_MAX_HOST_PARAMS + 6;
+    static_cast<int>(lcdtap::Configs::NUM_CONFIGS) + JSON_INTF_MAX_HOST_PARAMS +
+    6;
 
 // Pool for string-valued parameters (e.g. setnetconfig SSID/PSK). Sized for a
 // handful of strings of up to TOK_MAX_LEN chars each.
@@ -197,7 +197,7 @@ struct JsonRespGen {
 
 // =============================================================================
 // Application callbacks
-// Host-side parameters (settings that are not lcdtap ConfigIds) and
+// Host-side parameters (settings that are not lcdtap Configs) and
 // persistence are application policy, injected here so the engine has no
 // dependency on any particular example.
 // =============================================================================

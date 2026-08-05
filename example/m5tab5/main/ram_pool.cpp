@@ -16,7 +16,7 @@ esp_err_t sramPoolInit() {
   }
   if (!frameBuffMemPool) {
     // Fixed pool sized for the largest buffer the OSD can configure:
-    // ConfigId::BUFF_WIDTH/BUFF_HEIGHT (lib/src/config.cpp) both allow up
+    // Configs::BUFF_WIDTH/BUFF_HEIGHT (lib/src/config.cpp) both allow up
     // to 480, and the framebuffer is RGB565 (2 bytes/px), so 480*480*2 is
     // the true worst case -- a smaller pool here would silently overflow
     // as soon as a user picks a large enough resolution from the menu.

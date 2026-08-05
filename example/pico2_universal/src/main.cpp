@@ -163,9 +163,8 @@ static constexpr uint16_t OSD_ITEM_ID_CVBS_DAC =
 static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   // Called after initMenuItems() has populated every system item, so Apply
   // already exists and can be used as an anchor.
-  const int16_t busKeyId =
-      lcdtap::OSD_ITEM_ID_SYS_BASE +
-      static_cast<int16_t>(lcdtap::ConfigId::BUS_INTERFACE);
+  const int16_t busKeyId = lcdtap::OSD_ITEM_ID_SYS_BASE +
+                           static_cast<int16_t>(lcdtap::Configs::BUS_INTERFACE);
 
   lcdtap::OsdMenuItem out = {};
   out.id = OSD_ITEM_ID_OUTPUT_IF;
@@ -178,7 +177,7 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   out.config.max = OUTPUT_INTERFACE_COUNT - 1;
   out.config.step = 1;
   out.config.value = static_cast<int16_t>(gOutputIf);
-  // enableKeyId is auto-offset from ConfigId to OSD id only for system items
+  // enableKeyId is auto-offset from Configs to OSD id only for system items
   // (osd.cpp initMenuItems), so a user item must supply a resolved id.
   // Composite needs pins the parallel bus already owns.
   out.config.enableKeyId = busKeyId;
@@ -635,7 +634,7 @@ int main() {
       if (action == lcdtap::OSD_ACTION_APPLY) {
         const lcdtap::OsdMenuItem *ifaceItem = nullptr;
         uint16_t id = lcdtap::OSD_ITEM_ID_SYS_BASE +
-                      static_cast<uint16_t>(lcdtap::ConfigId::BUS_INTERFACE);
+                      static_cast<uint16_t>(lcdtap::Configs::BUS_INTERFACE);
         gOsd.getItemById(id, &ifaceItem);
         lcdtap::BusType newIface =
             ifaceItem ? static_cast<lcdtap::BusType>(ifaceItem->config.value)

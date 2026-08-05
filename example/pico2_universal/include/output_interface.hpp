@@ -2,7 +2,7 @@
 
 // Host-side video output selection.
 //
-// This is deliberately *not* a lcdtap::ConfigId: the LcdTap library has no
+// This is deliberately *not* a lcdtap::Configs: the LcdTap library has no
 // concept of how the host gets pixels onto a screen, and adding one would
 // mean modifying lib/. The value lives in ConfigFile and is surfaced through
 // an OSD custom item and a dedicated UART parameter.
@@ -20,7 +20,7 @@ enum class OutputInterface : uint8_t {
 
 static constexpr uint8_t OUTPUT_INTERFACE_COUNT = 4u;
 
-// Number of host-side settings that sit alongside the library's ConfigId
+// Number of host-side settings that sit alongside the library's Configs
 // list: outputInterface and compositeDac.
 static constexpr int NUM_HOST_PARAMS = 2;
 
@@ -28,8 +28,8 @@ static constexpr int NUM_HOST_PARAMS = 2;
 // (buildParamChunk in uart_intf.cpp) place the host-side settings immediately
 // before this library setting, so the two orders stay in step. Change it here
 // and both follow.
-static constexpr lcdtap::ConfigId HOST_PARAM_ANCHOR =
-    lcdtap::ConfigId::OUTPUT_ROT;
+static constexpr lcdtap::Configs HOST_PARAM_ANCHOR =
+    lcdtap::Configs::OUTPUT_ROT;
 
 // Static storage duration is required: ConfigEntry::options holds this
 // pointer and formatConfigValue() dereferences it on every OSD render.

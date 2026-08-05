@@ -39,10 +39,10 @@ static int uniBuildHostParamChunk(int hostIdx, char* buf, int cap, void* ctx) {
         "\"name\":\"Output Interface\",\"unit\":null,"
         "\"options\":{\"DVI-D\":0,\"NTSC\":1,\"PAL\":2,\"DisplayLink\":3},"
         "\"value\":%d,"
-        "\"enableKeyId\":\"cfg%d\",\"enableKeyValueMin\":0,"
+        "\"enableKeyId\":\"%s\",\"enableKeyValueMin\":0,"
         "\"enableKeyValueMax\":%d",
         static_cast<int>(*hc.currentOutIf),
-        static_cast<int>(lcdtap::ConfigId::BUS_INTERFACE),
+        lcdtap::CONFIG_IDS[static_cast<int>(lcdtap::Configs::BUS_INTERFACE)],
         static_cast<int>(lcdtap::BusType::PARALLEL) - 1);
   }
   // Gated on the output interface, mirroring the OSD: the DAC only means
