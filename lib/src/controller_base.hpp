@@ -124,6 +124,22 @@ class ControllerBase {
   // Default: no time-dependent behaviour.
   virtual void tick(uint32_t nowMs) { (void)nowMs; }
 
+  // Text buffer size in character cells; (0, 0) for pixel-based controllers.
+  virtual void getTextSize(uint16_t* cols, uint16_t* rows) const {
+    *cols = 0;
+    *rows = 0;
+  }
+
+  // Copy the characters currently visible on screen (row-major, cols*rows
+  // bytes total; unmapped cells read as 0x20). Returns bytes copied.
+  virtual uint32_t readText(uint32_t offset, uint32_t size,
+                            uint8_t* dst) const {
+    (void)offset;
+    (void)size;
+    (void)dst;
+    return 0;
+  }
+
   // --- Common implementation ---
 
   // Compute scaling parameters (call inside the constructor)

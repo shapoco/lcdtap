@@ -330,6 +330,25 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
 
 .fb-info { margin-top: 8px; font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
 
+/* Character LCD text buffer readout (shown below the captured image) */
+.fb-text {
+  display: block;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 21px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  white-space: pre;
+  overflow: hidden;
+  resize: none;
+  max-width: 100%;
+}
+.fb-text:focus { outline: none; border-color: var(--accent); }
+
 /* ── Command Dump tab ────────────────────────────────────── */
 .dump-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 

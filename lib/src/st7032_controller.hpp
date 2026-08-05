@@ -63,6 +63,9 @@ class St7032Controller : public ControllerBase {
   void processRamwrData(const uint8_t* data, uint32_t numBytes,
                         uint32_t stride) override;
   void tick(uint32_t nowMs) override;
+  void getTextSize(uint16_t* cols, uint16_t* rows) const override;
+  uint32_t readText(uint32_t offset, uint32_t size,
+                    uint8_t* dst) const override;
 
  private:
   bool nibbleMode() const;

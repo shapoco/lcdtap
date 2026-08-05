@@ -55,6 +55,29 @@ export function rleDecodeRGB565(bytes, expectedLen) {
   return out;
 }
 
+// ─── Text buffer decode ─────────────────────────────────────────────────────
+
+// Convert a character-LCD text buffer (row-major, cols*rows bytes of the
+// controller's native codes) to a display string, one line per row.
+// 0x20-0x7E map to ASCII, 0xA1-0xDF to half-width katakana (U+FF61-FF9F);
+// everything else (CGRAM chars, CGROM extras) has no Unicode equivalent and
+// shows as U+FFFD.
+export function textBufferToString(bytes, cols, rows) {
+  const lines = [];
+  for (let r = 0; r < rows; r++) {
+    let line = '';
+    for (let c = 0; c < cols; c++) {
+      const code = bytes[r * cols + c];
+      if (code === undefined) break;
+      if (code >= 0x20 && code <= 0x7E) line += String.fromCharCode(code);
+      else if (code >= 0xA1 && code <= 0xDF) line += String.fromCharCode(0xFEC0 + code);
+      else line += '�';
+    }
+    lines.push(line);
+  }
+  return lines.join('\n');
+}
+
 // ─── App markup ─────────────────────────────────────────────────────────────
 
 function appMarkup(title, transports) {
@@ -140,6 +163,7 @@ function appMarkup(title, transports) {
   <div class="fb-container">
     <canvas id="fb-canvas" width="1" height="1"></canvas>
     <div class="fb-info" id="fb-info">No image captured.</div>
+    <textarea id="fb-text" class="fb-text" readonly spellcheck="false" wrap="off" style="display:none"></textarea>
   </div>
 </div>
 
@@ -195,6 +219,13 @@ export function initApp({
   let statsPollTimer = null;
   let autoReloadTimer = null;
   let activeTab = 'config';
+  // Text buffer probing: 'unknown' until the first capture on this visit to
+  // the Frame Buffer tab; 'unsupported' stops further gettextbuffer commands
+  // until the tab is left, so pixel-only devices see no extra traffic.
+  let fbTextState = 'unknown';
+  // Set by Apply: capture automatically once the Frame Buffer tab is live
+  // again (immediately, or after the post-reboot auto-reconnect).
+  let pendingAutoCapture = false;
 
   // ─── Connection UI ────────────────────────────────────────────────────────
 
@@ -217,6 +248,9 @@ export function initApp({
     if (!yes) {
       document.getElementById('btn-copy').disabled = true;
       document.getElementById('btn-save').disabled = true;
+      // The device (and possibly its controller family) may change across a
+      // reconnect: re-probe text buffer support on the next capture.
+      fbTextState = 'unknown';
     }
   }
 
@@ -274,6 +308,10 @@ export function initApp({
         showToast('Reconnected', 'success');
         await loadPresets();
         await loadParams();
+        if (pendingAutoCapture && activeTab === 'framebuffer') {
+          pendingAutoCapture = false;
+          await captureFramebuffer(true);
+        }
         return;
       } catch (_) {
         // Device is still rebooting (or mid-enumeration); clean up and retry.
@@ -282,6 +320,7 @@ export function initApp({
     }
 
     reconnecting = false;
+    pendingAutoCapture = false;
     try { await conn.disconnect(); } catch (_) {}
     setConnected(false);
     if (!reconnectCancel) {
@@ -316,6 +355,7 @@ export function initApp({
   btnDisconnect.addEventListener('click', async () => {
     reconnectCancel = true;   // abort an in-progress auto-reconnect, if any
     reconnecting = false;
+    pendingAutoCapture = false;
     stopDumpPolling();
     stopStatsPolling();
     stopAutoReload();
@@ -338,6 +378,7 @@ export function initApp({
       else if (prev === 'dump') stopDumpPolling();
       if (tab === 'stats') startStatsPolling();
       else if (prev === 'stats') stopStatsPolling();
+      if (prev === 'framebuffer' && tab !== 'framebuffer') fbTextState = 'unknown';
     });
   });
 
@@ -599,8 +640,13 @@ export function initApp({
       const obj = JSON.parse(resp);
       if (obj.response === 'ok') {
         showToast('Parameters applied', 'success');
-        // Switch to Frame Buffer tab
+        // Switch to Frame Buffer tab and capture. A reboot-inducing apply
+        // drops the link right after the response, in which case this
+        // immediate attempt fails silently and the auto-reconnect success
+        // path retries the capture via pendingAutoCapture.
         document.querySelector('.tab-btn[data-tab="framebuffer"]').click();
+        pendingAutoCapture = true;
+        captureFramebuffer(true);
       } else {
         const detail = obj.state ? ` (state: ${obj.state})` : '';
         showToast('setparams error: ' + (obj.error || JSON.stringify(obj)) + detail, 'error');
@@ -637,7 +683,34 @@ export function initApp({
   const canvas = document.getElementById('fb-canvas');
   const ctx = canvas.getContext('2d');
 
-  async function captureFramebuffer() {
+  // Fetch and render the character-LCD text buffer, or decide the device has
+  // none. Failures are silent by design: an old firmware answers "unknown
+  // command" and a pixel device answers cols=0, both meaning "stop asking".
+  async function fetchTextBuffer() {
+    const textEl = document.getElementById('fb-text');
+    try {
+      const resp = await conn.sendCommand({ command: 'gettextbuffer' }, 8000);
+      const obj = JSON.parse(resp);
+      if (!(obj.cols > 0) || !(obj.rows > 0)) {
+        fbTextState = 'unsupported';
+        textEl.style.display = 'none';
+        return;
+      }
+      textEl.value = textBufferToString(base64Decode(obj.data), obj.cols, obj.rows);
+      // U+FFFD replacement chars render wider than one monospace cell; give
+      // the box some slack instead of letting it scroll (overflow: hidden).
+      textEl.cols = Math.ceil(obj.cols * 2);
+      textEl.rows = obj.rows;
+      textEl.style.display = '';
+      fbTextState = 'supported';
+    } catch (e) {
+      fbTextState = 'unsupported';
+      textEl.style.display = 'none';
+      console.warn('gettextbuffer failed:', e.message);
+    }
+  }
+
+  async function captureFramebuffer(silent = false) {
     const btnCapture = document.getElementById('btn-capture');
     btnCapture.disabled = true;
     try {
@@ -679,14 +752,18 @@ export function initApp({
       document.getElementById('fb-info').textContent = `${width} × ${height} px · scale ×${scale} · decoded ${raw.length} bytes${bytesMismatch}`;
       document.getElementById('btn-copy').disabled = false;
       document.getElementById('btn-save').disabled = false;
+
+      if (fbTextState !== 'unsupported') await fetchTextBuffer();
+      pendingAutoCapture = false;
     } catch (e) {
-      showToast('Capture failed: ' + e.message, 'error');
+      if (silent) console.warn('Capture failed:', e.message);
+      else showToast('Capture failed: ' + e.message, 'error');
     } finally {
       btnCapture.disabled = !conn.connected;
     }
   }
 
-  document.getElementById('btn-capture').addEventListener('click', captureFramebuffer);
+  document.getElementById('btn-capture').addEventListener('click', () => captureFramebuffer());
 
   document.getElementById('btn-copy').addEventListener('click', () => {
     canvas.toBlob(async blob => {

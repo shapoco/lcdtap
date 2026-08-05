@@ -608,6 +608,45 @@ static void execCommand(JsonIntf& ji, const JsonParser& p) {
     return;
   }
 
+  // ----- gettextbuffer -----
+  if (strcmp(cmd, "gettextbuffer") == 0) {
+    uint16_t cols, rows;
+    ji.inst->getTextBufferSize(&cols, &rows);
+
+    // 40x4 is the largest layout normalizeConfig() allows; the whole
+    // response fits chunkBuf, so no streaming phase is needed. The snapshot
+    // is taken in one call, so the text cannot tear.
+    uint8_t text[160];
+    uint32_t len = 0;
+    if (cols > 0 && rows > 0) {
+      uint32_t total = static_cast<uint32_t>(cols) * rows;
+      if (total > sizeof(text)) total = sizeof(text);
+      len = ji.inst->readTextBuffer(0, total, text);
+    }
+
+    char b64[(sizeof(text) + 2) / 3 * 4 + 1];
+    int b64Len = 0;
+    uint32_t consumed = 0;
+    for (; consumed + 3 <= len; consumed += 3) {
+      b64Encode3(text + consumed, b64 + b64Len);
+      b64Len += 4;
+    }
+    if (consumed < len) {
+      b64EncodePad(text + consumed, static_cast<int>(len - consumed),
+                   b64 + b64Len);
+      b64Len += 4;
+    }
+    b64[b64Len] = '\0';
+
+    snprintf(r.chunkBuf, sizeof(r.chunkBuf),
+             "{\"cols\":%d,\"rows\":%d,\"data\":\"%s\"}\r\n",
+             static_cast<int>(cols), static_cast<int>(rows), b64);
+    r.chunkLen = static_cast<int>(strlen(r.chunkBuf));
+    r.chunkPos = 0;
+    r.phase = JsonRespPhase::SHORT;
+    return;
+  }
+
   // ----- cmddump_start -----
   if (strcmp(cmd, "cmddump_start") == 0) {
     ji.inst->dumpStart(lcdtap::getDefaultDumpConfig());

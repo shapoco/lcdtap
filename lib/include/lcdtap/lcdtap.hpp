@@ -241,6 +241,17 @@ class LcdTap {
   uint32_t getUnknownCmdCount() const;
   uint8_t getLastUnknownCmd() const;
 
+  //--- Text buffer (character LCD controllers) ---
+
+  // Text buffer size in character cells. (0, 0) when the current controller
+  // has no text buffer (pixel-based controllers).
+  void getTextBufferSize(uint16_t* cols, uint16_t* rows) const;
+
+  // Copy the characters currently visible on screen into dst. The stream is
+  // row-major, cols*rows bytes total; cells with no mapped character read as
+  // 0x20. offset/size are clamped to the buffer; returns bytes copied.
+  uint32_t readTextBuffer(uint32_t offset, uint32_t size, uint8_t* dst) const;
+
   //--- Write protection ---
 
   // When true, RAM write commands (RAMWR) are silently discarded while all

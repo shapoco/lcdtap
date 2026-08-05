@@ -354,6 +354,90 @@ void testNibbleMode() {
   CHECK(h.cellShowsCode(0, 2, 'B'), "4-bit write: cell(0,2) != 'B'");
 }
 
+void testTextBuffer() {
+  printf("text buffer readout\n");
+  Harness h(makeConfig(ConfigPreset::TEXT_1602));
+  init8bit(h);
+
+  uint16_t cols = 0, rows = 0;
+  h.tap.getTextBufferSize(&cols, &rows);
+  CHECK(cols == 16 && rows == 2, "text size %dx%d != 16x2", cols, rows);
+
+  h.cmd(0x80);
+  for (const char* p = "Hello"; *p; ++p) h.data(static_cast<uint8_t>(*p));
+  h.cmd(0x80 | 0x40);
+  for (const char* p = "World"; *p; ++p) h.data(static_cast<uint8_t>(*p));
+
+  uint8_t text[80];
+  memset(text, 0xAA, sizeof(text));
+  uint32_t n = h.tap.readTextBuffer(0, 32, text);
+  CHECK(n == 32, "readTextBuffer returned %u != 32", n);
+  CHECK(memcmp(text, "Hello           ", 16) == 0, "row 0 mismatch");
+  CHECK(memcmp(text + 16, "World           ", 16) == 0, "row 1 mismatch");
+
+  // offset/size are honoured and clamped to the buffer
+  n = h.tap.readTextBuffer(16, 5, text);
+  CHECK(n == 5 && memcmp(text, "World", 5) == 0, "offset read mismatch");
+  n = h.tap.readTextBuffer(30, 100, text);
+  CHECK(n == 2, "clamped read returned %u != 2", n);
+  n = h.tap.readTextBuffer(32, 4, text);
+  CHECK(n == 0, "out-of-range offset returned %u != 0", n);
+
+  // Display shift moves the readout window with the visible cells
+  h.cmd(0x18);  // shift left: position 0 shows DDRAM addr 1
+  n = h.tap.readTextBuffer(0, 16, text);
+  CHECK(n == 16 && memcmp(text, "ello            ", 16) == 0,
+        "shifted row 0 mismatch");
+  h.cmd(0x02);  // return home
+
+  // 1-line mode: the second row has no mapped cells and reads as spaces
+  h.cmd(0x30);  // DL=1, N=0
+  n = h.tap.readTextBuffer(16, 16, text);
+  CHECK(n == 16, "1-line read returned %u != 16", n);
+  bool allSpace = true;
+  for (uint32_t i = 0; i < 16; ++i) allSpace &= (text[i] == 0x20);
+  CHECK(allSpace, "1-line mode row 1 not blank");
+}
+
+void testTextBufferFourRow() {
+  printf("text buffer 4-row fold\n");
+  LcdTapConfig cfg = makeConfig(ConfigPreset::TEXT_2004);
+  cfg.busInterface = BusType::I2C;
+  Harness h(cfg);
+  init8bit(h);
+
+  uint16_t cols = 0, rows = 0;
+  h.tap.getTextBufferSize(&cols, &rows);
+  CHECK(cols == 20 && rows == 4, "text size %dx%d != 20x4", cols, rows);
+
+  h.cmd(0x80 | 0x00);
+  h.data('1');  // row 0
+  h.cmd(0x80 | 0x40);
+  h.data('2');  // row 1
+  h.cmd(0x80 | 0x14);
+  h.data('3');  // cols offset on line 1 -> visible row 2
+  h.cmd(0x80 | 0x54);
+  h.data('4');  // cols offset on line 2 -> visible row 3
+  uint8_t text[80];
+  uint32_t n = h.tap.readTextBuffer(0, 80, text);
+  CHECK(n == 80, "readTextBuffer returned %u != 80", n);
+  CHECK(text[0] == '1' && text[20] == '2' && text[40] == '3' && text[60] == '4',
+        "fold rows mismatch: %c %c %c %c", text[0], text[20], text[40],
+        text[60]);
+}
+
+void testTextBufferAbsent() {
+  printf("text buffer absent on pixel controllers\n");
+  Harness h(makeConfig(ConfigPreset::ST7789));
+  uint16_t cols = 99, rows = 99;
+  h.tap.getTextBufferSize(&cols, &rows);
+  CHECK(cols == 0 && rows == 0, "pixel controller text size %dx%d != 0x0", cols,
+        rows);
+  uint8_t text[4];
+  CHECK(h.tap.readTextBuffer(0, 4, text) == 0,
+        "pixel controller readTextBuffer != 0");
+}
+
 void testDirtyTracking() {
   printf("dirty tracking\n");
   Harness h(makeConfig(ConfigPreset::TEXT_1602));
@@ -386,6 +470,9 @@ int main() {
   testOneLineMode();
   testFourRowFold();
   testNibbleMode();
+  testTextBuffer();
+  testTextBufferFourRow();
+  testTextBufferAbsent();
   testDirtyTracking();
 
   if (gFailures == 0) {

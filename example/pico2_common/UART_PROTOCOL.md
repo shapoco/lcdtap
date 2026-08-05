@@ -273,6 +273,35 @@ Get the contents of the frame buffer.
     byte per 128 pixels, i.e. +0.39% over the raw size. The packet stream as a
     whole is Base64-encoded into `data`.
 
+### gettextbuffer
+
+Get the text currently visible on a character LCD (e.g. ST7032).
+
+- Command:
+
+    ```json
+    {"command": "gettextbuffer"}
+    ```
+
+- Response:
+
+    ```json
+    {
+        "cols": number of character columns (integer),
+        "rows": number of character rows (integer),
+        "data": visible characters encoded as Base64 (string)
+    }
+    ```
+
+    - `data` decodes to `cols * rows` bytes in row-major order (e.g. 32 bytes
+      for a 2x16 display), reflecting what is actually shown on screen:
+      display shift and line layout are applied, and cells with no mapped
+      character (e.g. the second row in 1-line mode) read as `0x20`.
+    - Character codes are the controller's native codes (CGROM/CGRAM);
+      `0x20`-`0x7E` are ASCII, `0xA1`-`0xDF` are half-width katakana.
+    - When the current controller has no text buffer (pixel-based
+      controllers), `cols` and `rows` are `0` and `data` is empty.
+
 ### dump_start
 
 Start capturing a command dump.

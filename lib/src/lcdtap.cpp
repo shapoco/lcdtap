@@ -953,6 +953,21 @@ uint8_t LcdTap::getLastUnknownCmd() const {
   return static_cast<const ControllerBase*>(impl_)->lastUnknownCmd;
 }
 
+void LcdTap::getTextBufferSize(uint16_t* cols, uint16_t* rows) const {
+  if (!impl_) {
+    *cols = 0;
+    *rows = 0;
+    return;
+  }
+  static_cast<const ControllerBase*>(impl_)->getTextSize(cols, rows);
+}
+
+uint32_t LcdTap::readTextBuffer(uint32_t offset, uint32_t size,
+                                uint8_t* dst) const {
+  if (!impl_) return 0;
+  return static_cast<const ControllerBase*>(impl_)->readText(offset, size, dst);
+}
+
 //=============================================================================
 // LcdTap dump API
 //=============================================================================

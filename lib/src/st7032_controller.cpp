@@ -447,4 +447,24 @@ void St7032Controller::tick(uint32_t nowMs) {
   }
 }
 
+void St7032Controller::getTextSize(uint16_t* cols, uint16_t* rows) const {
+  *cols = config.textCols;
+  *rows = config.textRows;
+}
+
+uint32_t St7032Controller::readText(uint32_t offset, uint32_t size,
+                                    uint8_t* dst) const {
+  const uint32_t cols = config.textCols;
+  const uint32_t total = cols * config.textRows;
+  if (offset >= total) return 0;
+  if (size > total - offset) size = total - offset;
+  for (uint32_t i = 0; i < size; ++i) {
+    const uint32_t cell = offset + i;
+    int16_t idx = ddramIndexAtCell(static_cast<uint16_t>(cell % cols),
+                                   static_cast<uint16_t>(cell / cols));
+    dst[i] = (idx >= 0) ? ddram[idx] : 0x20u;
+  }
+  return size;
+}
+
 }  // namespace lcdtap
