@@ -186,7 +186,8 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
 /* Integer control */
 .int-ctrl { display: flex; align-items: center; gap: 4px; }
 .int-ctrl button { padding: 4px 10px; font-size: 16px; line-height: 1; }
-.int-ctrl input[type=number] {
+.int-ctrl input[type=number],
+.int-ctrl input[type=text] {
   width: 80px;
   background: var(--surface2);
   border: 1px solid var(--border);
