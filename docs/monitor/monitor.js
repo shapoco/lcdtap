@@ -697,11 +697,13 @@ export function initApp({
 
   // ─── Config Export / Import ───────────────────────────────────────────────
 
-  // cfgN index -> stable identifier, frozen at the cfgN->identifier
-  // changeover. Keeps exported JSON keys stable even against firmware that
-  // still reports the retired "cfgN" ids, and maps them back on import.
+  // cfgN index -> stable identifier, frozen at the ConfigId enum of the last
+  // released "cfgN" firmware (v202607282111). Keeps exported JSON keys stable
+  // even against firmware that still reports the retired "cfgN" ids, and maps
+  // them back on import. Items introduced together with stable ids (i2cAddr,
+  // textCols/textRows/textCgramArea) never had a cfgN and must stay out.
   const LEGACY_CFG_IDS = [
-    'ctrlFamily', 'busInterface', 'i2cAddr', 'buffWidth', 'buffHeight',
+    'ctrlFamily', 'busInterface', 'buffWidth', 'buffHeight',
     'trimMode', 'trimX', 'trimY', 'trimWidth', 'trimHeight', 'flipMode',
     'inverted', 'swapRB', 'forcePwrOn', 'intfFmtOvr', 'outputRot', 'scaleMode',
   ];
