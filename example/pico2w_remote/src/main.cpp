@@ -233,13 +233,14 @@ static void saveNetConfigParked(const NetConfig &cfg) {
 // =============================================================================
 
 static bool remoteCommitParams(const lcdtap::LcdTapConfig &cfg,
-                               lcdtap::BusType /*oldBus*/, void * /*ctx*/) {
+                               lcdtap::BusType /*oldBus*/, bool save,
+                               void * /*ctx*/) {
   // All buses run at the same clock here, so a bus change never needs a
   // reboot — hand it to Core 1 and persist. The switch runs even when the
   // bus type is unchanged: a controller-family or I2C-address change must
   // reach the slave peripheral (address register, WR# inversion).
   requestBusSwitch(cfg.busInterface);
-  saveDeviceConfig();
+  if (save) saveDeviceConfig();
   return false;
 }
 

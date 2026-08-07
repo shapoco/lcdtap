@@ -84,7 +84,7 @@ static bool uniStageHostParam(const char* key, int32_t value, void* ctx) {
 }
 
 static bool uniCommitParams(const lcdtap::LcdTapConfig& cfg,
-                            lcdtap::BusType oldBus, void* ctx) {
+                            lcdtap::BusType oldBus, bool save, void* ctx) {
   UniversalHostCtx& hc = *static_cast<UniversalHostCtx*>(ctx);
 
   // Composite is unavailable on the parallel bus and the R-2R ladder is
@@ -118,11 +118,15 @@ static bool uniCommitParams(const lcdtap::LcdTapConfig& cfg,
     *hc.currentDac = newDac;
   }
 
-  ConfigFile toSave = {};
-  toSave.libConfig = hc.inst->getConfig();
-  toSave.outputInterface = static_cast<uint8_t>(newOutIf);
-  toSave.compositeDac = static_cast<uint8_t>(newDac);
-  hc.saveConfig(toSave);
+  // "save": false skips persistence, except when a reboot is needed: the
+  // reboot re-reads flash, so an unsaved change would silently revert.
+  if (save || needReboot) {
+    ConfigFile toSave = {};
+    toSave.libConfig = hc.inst->getConfig();
+    toSave.outputInterface = static_cast<uint8_t>(newOutIf);
+    toSave.compositeDac = static_cast<uint8_t>(newDac);
+    hc.saveConfig(toSave);
+  }
 
   return needReboot;
 }

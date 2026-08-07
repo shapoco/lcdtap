@@ -492,12 +492,20 @@ static void execCommand(JsonIntf& ji, const JsonParser& p) {
     lcdtap::BusType oldIface = *ji.currentBus;
     if (ji.cb.beginSetParams) ji.cb.beginSetParams(ji.cb.ctx);
 
+    bool save = true;
     for (int i = 0; i < p.numParams; i++) {
       const char* k = p.params[i].key;
       int32_t v = p.params[i].value;
       // All setparams values are numeric; string values only appear in
       // app-specific commands.
       if (p.params[i].isString) continue;
+      // Protocol-level option, not a config item: "save": false applies the
+      // settings without persisting them (avoids flash wear for automated
+      // callers that reconfigure the device continuously).
+      if (strcmp(k, "save") == 0) {
+        save = (v != 0);
+        continue;
+      }
       // Host-side settings; not Configs, so they have their own keys.
       if (ji.cb.stageHostParam && ji.cb.stageHostParam(k, v, ji.cb.ctx)) {
         continue;
@@ -518,9 +526,9 @@ static void execCommand(JsonIntf& ji, const JsonParser& p) {
 
     // Sanitizing staged host params, switching the bus and persisting are
     // application policy.
-    const bool needReboot = ji.cb.commitParams
-                                ? ji.cb.commitParams(cfg, oldIface, ji.cb.ctx)
-                                : false;
+    const bool needReboot =
+        ji.cb.commitParams ? ji.cb.commitParams(cfg, oldIface, save, ji.cb.ctx)
+                           : false;
 
     respSetShort(ji, "{\"response\":\"ok\"}\r\n");
     // Reboot only after the response has been flushed, so the client sees it.

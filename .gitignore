@@ -25,3 +25,4 @@ _autosave-*
 
 # PlatformIO
 .pio/
+build_diag/

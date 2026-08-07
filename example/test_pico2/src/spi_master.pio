@@ -1,0 +1,35 @@
+;
+; SPI mode-0 TX-only master, MSB first, 2 PIO cycles per bit.
+; OUT pin: MOSI. Side-set pin: SCLK (idle low).
+; Bit rate = clk_sys / (2 * clkdiv); 240 MHz / div 2 = 60 MHz.
+;
+; OSR shifts left with autopull threshold 8, so 8-bit bus writes (replicated
+; into bits 31:24 by the bus fabric) emit the byte MSB first.
+;
+.program spi_master
+.side_set 1
+
+    out pins, 1   side 0  ; setup MOSI on falling edge
+    nop           side 1  ; target samples on rising edge
+
+% c-sdk {
+static inline void spi_master_program_init(PIO pio, uint sm, uint offset,
+                                           uint pin_mosi, uint pin_sclk,
+                                           float clkdiv) {
+  pio_sm_config c = spi_master_program_get_default_config(offset);
+  sm_config_set_out_pins(&c, pin_mosi, 1);
+  sm_config_set_sideset_pins(&c, pin_sclk);
+  sm_config_set_out_shift(&c, false, true, 8);  // shift left, autopull 8
+  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+  sm_config_set_clkdiv(&c, clkdiv);
+
+  pio_gpio_init(pio, pin_mosi);
+  pio_gpio_init(pio, pin_sclk);
+  pio_sm_set_consecutive_pindirs(pio, sm, pin_mosi, 1, true);
+  pio_sm_set_consecutive_pindirs(pio, sm, pin_sclk, 1, true);
+  pio_sm_set_pins_with_mask(pio, sm, 0, (1u << pin_sclk));  // SCLK idle low
+
+  pio_sm_init(pio, sm, offset, &c);
+  pio_sm_set_enabled(pio, sm, true);
+}
+%}

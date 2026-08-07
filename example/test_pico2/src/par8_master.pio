@@ -1,0 +1,39 @@
+;
+; 8080-style 8-bit parallel write master, 3 PIO cycles per byte.
+; OUT pins: D[7:0]. Side-set pin: WR# (idle high).
+; Data is set up while WR# is low; the target latches on the WR# rising edge
+; and needs the data held ~26 ns after it, which the 2-cycle high phase
+; guarantees at every supported divider.
+; Byte rate = clk_sys / (3 * clkdiv); 240 MHz / div 8 = 10 MB/s.
+;
+; For 6800-style targets (ST7032 E strobe: idle low, latch on falling edge)
+; invert the WR output with gpio_set_outover() — the inverted waveform is
+; exactly the E timing.
+;
+.program par8_master
+.side_set 1
+
+    out pins, 8   side 0      ; setup data, WR# low
+    nop           side 1 [1]  ; WR# rising edge latches; hold 2 cycles
+
+% c-sdk {
+static inline void par8_master_program_init(PIO pio, uint sm, uint offset,
+                                            uint pin_d0, uint pin_wr,
+                                            float clkdiv) {
+  pio_sm_config c = par8_master_program_get_default_config(offset);
+  sm_config_set_out_pins(&c, pin_d0, 8);
+  sm_config_set_sideset_pins(&c, pin_wr);
+  sm_config_set_out_shift(&c, true, true, 8);  // shift right, autopull 8
+  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+  sm_config_set_clkdiv(&c, clkdiv);
+
+  for (uint i = 0; i < 8; i++) pio_gpio_init(pio, pin_d0 + i);
+  pio_gpio_init(pio, pin_wr);
+  pio_sm_set_consecutive_pindirs(pio, sm, pin_d0, 8, true);
+  pio_sm_set_consecutive_pindirs(pio, sm, pin_wr, 1, true);
+  pio_sm_set_pins_with_mask(pio, sm, (1u << pin_wr), (1u << pin_wr));
+
+  pio_sm_init(pio, sm, offset, &c);
+  pio_sm_set_enabled(pio, sm, true);
+}
+%}

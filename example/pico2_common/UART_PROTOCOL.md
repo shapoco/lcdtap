@@ -222,6 +222,7 @@ Set LcdTap configuration parameters in bulk from the host.
     - Keys are the `id` values returned by `getparams` (the `CONFIG_IDS` identifiers, plus `"outputInterface"` and `"compositeDac"`).
     - It is not necessary to include all parameters; omitted parameters retain their current values.
     - Unknown keys are silently ignored, so a config exported from another example imports cleanly.
+    - The optional key `"save"` (boolean, default `true`) is a protocol-level option, not a parameter: `"save": false` applies the settings without persisting them to flash. Intended for automated callers (e.g. test rigs) that reconfigure the device continuously — every persisted `setparams` costs one flash sector erase. When the change requires a reboot (see below), the settings are persisted even with `"save": false`, because the reboot re-reads flash and would otherwise revert them.
 
 - Response:
 
@@ -262,8 +263,8 @@ Get the contents of the frame buffer.
     }
     ```
 
-    - Only the region specified by `outSrcX/Y/Width/Height` (the trim region) is sent, in pre-rotation physical buffer coordinates.
-    - Brightness inversion is applied if active. Rotation is not applied.
+    - Only the region specified by `outSrcX/Y/Width/Height` (the trim region) is sent.
+    - Brightness inversion and `outputRot` rotation are applied: pixels are emitted in rotated output order, and `width`/`height` are the post-rotation dimensions (swapped relative to the trim region when the rotation is 90° or 270°). Flip and scaling are not applied.
 
 - RLE format (`RGB565-RLE`):
 

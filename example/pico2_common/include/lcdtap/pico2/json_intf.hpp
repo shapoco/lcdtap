@@ -224,9 +224,12 @@ struct JsonIntfCallbacks {
   bool (*stageHostParam)(const char* key, int32_t value, void* ctx) = nullptr;
   // setparams: apply staged host params, switch the bus if needed and persist
   // everything, after the lcdtap config has been updated. Returns true when
-  // the device must reboot for the change to take effect.
+  // the device must reboot for the change to take effect. When save is false
+  // the client asked to apply without persisting; implementations should
+  // still persist when they return true, or the reboot would revert the
+  // change.
   bool (*commitParams)(const lcdtap::LcdTapConfig& cfg, lcdtap::BusType oldBus,
-                       void* ctx) = nullptr;
+                       bool save, void* ctx) = nullptr;
 
   // Debug statistics providers.
   int (*statsCollect)(lcdtap::StatEntry* out, int maxCount,

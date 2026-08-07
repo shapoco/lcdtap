@@ -1,3 +1,12 @@
 [submodule "submodule/Pico_USB_Disp"]
 	path = submodule/Pico_USB_Disp
 	url = git@github.com:htlabnet/Pico_USB_Disp.git
+[submodule "submodule/Pico-PIO-USB"]
+	path = submodule/Pico-PIO-USB
+	url = https://github.com/sekigon-gonnoc/Pico-PIO-USB.git
+[submodule "submodule/ArduinoJson"]
+	path = submodule/ArduinoJson
+	url = https://github.com/bblanchon/ArduinoJson.git
+[submodule "submodule/LovyanGFX"]
+	path = submodule/LovyanGFX
+	url = https://github.com/lovyan03/LovyanGFX.git

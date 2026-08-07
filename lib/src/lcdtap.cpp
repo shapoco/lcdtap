@@ -691,7 +691,7 @@ void ControllerBase::processRamwrDataImpl(const uint8_t* data,
         i += stride;
         if (ramwrBufLen == 3) {
           uint_fast16_t pixel = 0;
-          pixel |= (ramwrBuf[0] & 0xFCu) << 8;  // R5
+          pixel |= (ramwrBuf[0] & 0xF8u) << 8;  // R5
           pixel |= (ramwrBuf[1] & 0xFCu) << 3;  // G6
           pixel |= (ramwrBuf[2] & 0xFCu) >> 3;  // B5
           writePixelRgb565<kDirty>(static_cast<uint16_t>(pixel), acc);
@@ -701,7 +701,7 @@ void ControllerBase::processRamwrDataImpl(const uint8_t* data,
       // Tight loop: 3 bytes → 1 pixel
       while (i + stride * 3 <= length) {
         uint_fast16_t pixel = 0;
-        pixel |= (data[i] & 0xFCu) << 8;  // R5
+        pixel |= (data[i] & 0xF8u) << 8;  // R5
         i += stride;
         pixel |= (data[i] & 0xFCu) << 3;  // G6
         i += stride;
