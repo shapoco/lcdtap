@@ -27,13 +27,17 @@ of scope for automatic verification.
   target (JSON protocol), bus master TX, streaming verification, OLED UI.
   Target BOOTSEL (MSC) presence is *detected* and shown as
   "Download Mode".
-- **Phase 2 (planned)**: USB MSC passthrough — while the target is in
-  BOOTSEL, the rig exposes the RPI-RP2 drive to the PC and forwards UF2
-  writes, ported from the proven `mimicusb` project (core0 device stack
-  with `TUD_MSC_RET_BUSY` deferred IO, core1 host stack, cross-core IO
-  queue, media insert/remove via SCSI sense NOT READY). The device
-  descriptors already carry the optional MSC interface behind
-  `-DTESTRIG_MSC_PASSTHROUGH=1`.
+- **Phase 2 (implemented, on by default)**: USB MSC passthrough — while
+  the target is in BOOTSEL, the rig exposes the RPI-RP2 drive to the PC
+  ("TestRig Storage") and forwards UF2 writes, ported from the proven
+  `mimicusb` project (`src/msc_bridge.cpp`): core 0 device callbacks
+  defer with `TUD_MSC_RET_BUSY` while a single-slot cross-core handshake
+  runs the block transfer on the core 1 host stack; target attach/detach
+  is reported as SCSI media insert/remove (Unit Attention 0x28 / Not
+  Ready 0x3A), so the drive letter stays put and only the medium comes
+  and goes. Disable with `-DTESTRIG_MSC_PASSTHROUGH=0`. Note: MSC IO is
+  only serviced while the UI is idle or between executor steps — do not
+  flash the target while a test run is active.
 
 ## Hardware
 
@@ -253,7 +257,6 @@ leaking into green bit 10) before any hardware existed.
 
 ## Known limitations / future work
 
-- Phase 2 MSC passthrough not yet enabled (`TESTRIG_MSC_PASSTHROUGH`).
 - Target parallel input is marked untested in pico2_universal — expect
   to shake out target-side issues; start at 1 MHz.
 - Rotation vectors validate the config path, input decode and the

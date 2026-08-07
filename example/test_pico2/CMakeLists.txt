@@ -85,6 +85,7 @@ add_executable(lcdtap_test_pico2
     src/usb_descriptors.c
     src/usb_device.cpp
     src/usb_host.cpp
+    src/msc_bridge.cpp
     src/link_cdc.cpp
     src/jsonclient.cpp
     # PIO-USB glue for TinyUSB (host uses hcd; dcd unused but harmless)
@@ -105,6 +106,15 @@ target_compile_definitions(lcdtap_test_pico2 PRIVATE PIO_USB_USE_TINYUSB)
 # at runtime via the dynamic-divider hook.
 target_compile_definitions(lcdtap_test_pico2 PRIVATE
     CYW43_PIO_CLOCK_DIV_DYNAMIC=1
+)
+
+# Phase 2 MSC passthrough (PC <-> target BOOTSEL drive), on by default;
+# disable with -DTESTRIG_MSC_PASSTHROUGH=0.
+if(NOT DEFINED TESTRIG_MSC_PASSTHROUGH)
+    set(TESTRIG_MSC_PASSTHROUGH 1)
+endif()
+target_compile_definitions(lcdtap_test_pico2 PRIVATE
+    "TESTRIG_MSC_PASSTHROUGH=${TESTRIG_MSC_PASSTHROUGH}"
 )
 
 # CYW43 staged fault-isolation firmware: -DTESTRIG_CYW43_DIAG=1

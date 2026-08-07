@@ -1,6 +1,7 @@
 #include "testrig/usb_host.hpp"
 
 #include "hardware/dma.h"
+#include "testrig/msc_bridge.hpp"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "pio_usb.h"
@@ -80,6 +81,7 @@ void core1Main() {
   while (true) {
     tuh_task();
     cdcHostTask();
+    mscBridgeHostTask();
   }
 }
 
@@ -121,14 +123,14 @@ extern "C" void tuh_cdc_umount_cb(uint8_t idx) {
   if (testrig::gCdcIdx == (int8_t)idx) testrig::gCdcIdx = -1;
 }
 
-// Target entered BOOTSEL (RPI-RP2 drive). Phase 1 only reports it; Phase 2
-// bridges it to the PC.
+// Target entered BOOTSEL (RPI-RP2 drive): show "Download Mode" on the UI
+// and hand the drive to the passthrough bridge.
 extern "C" void tuh_msc_mount_cb(uint8_t devAddr) {
-  (void)devAddr;
   testrig::gMscMounted = true;
+  testrig::mscBridgeOnMount(devAddr);
 }
 
 extern "C" void tuh_msc_umount_cb(uint8_t devAddr) {
-  (void)devAddr;
   testrig::gMscMounted = false;
+  testrig::mscBridgeOnUnmount(devAddr);
 }
