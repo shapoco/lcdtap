@@ -13,6 +13,9 @@ namespace {
 constexpr uint32_t I2C_FAST = 1000000;   // 100k / 400k / 1M / 2M
 constexpr uint32_t SPI_FAST = 40000000;  // 10M / 20M / 40M / 60M
 constexpr uint32_t PAR_FAST = 5000000;   // 1M / 2.5M / 5M / 10M
+// Character LCDs on the parallel bus: real HD44780-class modules (e.g.
+// SC2004) need ~100 us per byte, so the clock stays in the kHz range.
+constexpr uint32_t PAR_TEXT_FAST = 10000;  // 2k / 5k / 10k / 20k
 
 constexpr InterfaceFormat FMT_NONE = InterfaceFormat::NUM_FORMATS;
 
@@ -56,7 +59,7 @@ const TestVector TEST_VECTORS[] = {
     {"TEXT_16x2",      ConfigPreset::TEXT_1602, BusType::I2C,       I2C_FAST,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
     {"TEXT_16x4",      ConfigPreset::TEXT_1604, BusType::I2C,       I2C_FAST,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
     {"TEXT_20x4",      ConfigPreset::TEXT_2004, BusType::I2C,       I2C_FAST,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
-    {"TEXT_Par8",      ConfigPreset::TEXT_2004, BusType::PARALLEL,  PAR_FAST,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
+    {"TEXT_Par8",      ConfigPreset::TEXT_2004, BusType::PARALLEL,  PAR_TEXT_FAST, 0, 0, FMT_NONE,                             0, TrimMode::OFF,    0, 0, 0, 0},
 };
 // clang-format on
 
@@ -103,14 +106,17 @@ int allowedBuses(ControllerFamily fam, BusType* out, int cap) {
   return n;
 }
 
-int freqChoices(BusType bus, uint32_t* out, int cap) {
+int freqChoices(ControllerFamily fam, BusType bus, uint32_t* out, int cap) {
   static const uint32_t I2C_FREQS[] = {100000, 400000, 1000000, 2000000};
   static const uint32_t SPI_FREQS[] = {10000000, 20000000, 40000000, 60000000};
   static const uint32_t PAR_FREQS[] = {1000000, 2500000, 5000000, 10000000};
+  static const uint32_t PAR_TEXT_FREQS[] = {2000, 5000, 10000, 20000};
   const uint32_t* src;
   switch (bus) {
     case BusType::I2C: src = I2C_FREQS; break;
-    case BusType::PARALLEL: src = PAR_FREQS; break;
+    case BusType::PARALLEL:
+      src = (fam == ControllerFamily::ST7032) ? PAR_TEXT_FREQS : PAR_FREQS;
+      break;
     default: src = SPI_FREQS; break;
   }
   int n = 0;
@@ -118,9 +124,9 @@ int freqChoices(BusType bus, uint32_t* out, int cap) {
   return n;
 }
 
-uint32_t defaultFreq(BusType bus) {
+uint32_t defaultFreq(ControllerFamily fam, BusType bus) {
   uint32_t f[4];
-  freqChoices(bus, f, 4);
+  freqChoices(fam, bus, f, 4);
   return f[2];  // "Fast"
 }
 

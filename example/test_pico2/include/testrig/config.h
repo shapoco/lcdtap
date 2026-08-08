@@ -30,8 +30,8 @@ static constexpr uint8_t OLED_I2C_ADDR = 0x3C;
 // -----------------------------------------------------------------------------
 // UI keys (all low-active, internal pull-up). Dec/Inc auto-repeat on hold.
 // -----------------------------------------------------------------------------
-static constexpr uint PIN_KEY_DEC = 2;
-static constexpr uint PIN_KEY_INC = 3;
+static constexpr uint PIN_KEY_DEC = 3;
+static constexpr uint PIN_KEY_INC = 2;
 static constexpr uint PIN_KEY_START = 4;
 static constexpr uint PIN_KEY_SELECT = 5;
 static constexpr uint PIN_KEY_BACK = 6;

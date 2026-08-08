@@ -35,9 +35,12 @@ bool vectorIsText(const TestVector& v);
 // Allowed buses for a controller family. Returns count; fills out[].
 int allowedBuses(lcdtap::ControllerFamily fam, lcdtap::BusType* out, int cap);
 
-// Clock frequency choices per bus (4 each; index 2 = "Fast" default).
-int freqChoices(lcdtap::BusType bus, uint32_t* out, int cap);
-uint32_t defaultFreq(lcdtap::BusType bus);
+// Clock frequency choices per family and bus (4 each; index 2 = "Fast"
+// default). Character LCDs (ST7032) get kHz-range parallel clocks: real
+// HD44780-class modules cannot follow the graphic-panel rates.
+int freqChoices(lcdtap::ControllerFamily fam, lcdtap::BusType bus,
+                uint32_t* out, int cap);
+uint32_t defaultFreq(lcdtap::ControllerFamily fam, lcdtap::BusType bus);
 
 // Framebuffer resolution choices per family. Returns count; w/h pairs.
 int resolutionChoices(lcdtap::ControllerFamily fam, uint16_t* w, uint16_t* h,

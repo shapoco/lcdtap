@@ -55,8 +55,8 @@ GPIO N−10**.
 |---:|---|---:|
 | 0 | UI OLED SDA (I2C0) | — |
 | 1 | UI OLED SCL (I2C0) | — |
-| 2 | Dec key (low active, pull-up, auto-repeat) | — |
-| 3 | Inc key (low active, pull-up, auto-repeat) | — |
+| 2 | Inc key (low active, pull-up, auto-repeat) | — |
+| 3 | Dec key (low active, pull-up, auto-repeat) | — |
 | 4 | Start key (low active, pull-up) | — |
 | 5 | Select key (low active, pull-up) | — |
 | 6 | Back key (low active, pull-up) | — |
@@ -110,7 +110,7 @@ is kept high-impedance.
 | Bus | Implementation | Rates |
 |---|---|---|
 | SPI mode 0 | PIO (pio2), 2 cycles/bit, MSB first; DC on GPIO14 switched between command/data phases after a TXSTALL drain | 10 / 20 / 40 / 60 MHz |
-| 8-bit parallel | PIO, 3 cycles/byte: data setup with WR# low, target latches on the rising edge, 2-cycle hold (the target samples D+DC ~26 ns after the edge) | 1 / 2.5 / 5 / 10 MHz |
+| 8-bit parallel | PIO, 3 cycles/byte: data setup with WR# low, target latches on the rising edge, 2-cycle hold (the target samples D+DC ~26 ns after the edge) | graphic: 1 / 2.5 / 5 / 10 MHz; character LCDs: 2 / 5 / 10 / 20 kHz (real HD44780-class modules such as the SC2004 need ~100 µs per byte) |
 | I2C | hardware i2c1; control-byte framing per the target's parser (first byte per transaction: bit6 = D/C, Co=0 streams the rest) | 100 k / 400 k / 1 M / 2 MHz |
 
 - For ST7032 targets the parallel strobe is inverted with
@@ -125,8 +125,9 @@ is kept high-impedance.
 ## Test vectors
 
 31 built-in vectors plus the **ALL** entry (runs every vector, continues
-on failure). Defaults use the "Fast" clock (third choice of each bus:
-I2C 1 MHz, SPI 40 MHz, parallel 5 MHz). See `src/vectors.cpp` for the
+on failure). Defaults use the "Fast" clock (third choice of each
+family/bus list: I2C 1 MHz, SPI 40 MHz, parallel 5 MHz — 10 kHz for
+character LCDs). See `src/vectors.cpp` for the
 full table: SSD1306 (I2C rot 0–3, SPI), SSD1331 (RGB332 rot 0–3,
 RGB565, RGB666-RA), ST7789 (RGB444 rot 0–3, RGB565, RGB666-LA),
 ILI9341, ILI9488 (RGB111 rot 0–3, RGB565, RGB666-LA, trim CUSTOM/AUTO,

@@ -109,7 +109,7 @@ int valueChoiceCount(const TestVector& v, Item item) {
   BusType buses[4];
   switch (item) {
     case Item::INTF: return allowedBuses(fam, buses, 4);
-    case Item::FREQ: return freqChoices(v.busInterface, f, 4);
+    case Item::FREQ: return freqChoices(fam, v.busInterface, f, 4);
     case Item::RESO: return resolutionChoices(fam, w, h, 4);
     case Item::FMT: return formatChoices(fam, fmts, 4);
     case Item::ROT: return 4;
@@ -132,7 +132,7 @@ int valueCurrentIndex(const TestVector& v, Item item) {
     }
     case Item::FREQ: {
       uint32_t f[4];
-      int n = freqChoices(v.busInterface, f, 4);
+      int n = freqChoices(fam, v.busInterface, f, 4);
       for (int i = 0; i < n; i++) {
         if (f[i] == v.busFreqHz) return i;
       }
@@ -167,12 +167,12 @@ void valueApply(TestVector* v, Item item, int idx) {
       BusType buses[4];
       allowedBuses(fam, buses, 4);
       v->busInterface = buses[idx];
-      v->busFreqHz = defaultFreq(v->busInterface);
+      v->busFreqHz = defaultFreq(fam, v->busInterface);
       break;
     }
     case Item::FREQ: {
       uint32_t f[4];
-      freqChoices(v->busInterface, f, 4);
+      freqChoices(fam, v->busInterface, f, 4);
       v->busFreqHz = f[idx];
       break;
     }

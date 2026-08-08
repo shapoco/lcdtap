@@ -13,8 +13,8 @@ namespace testrig {
 
 enum class InputEvent : uint8_t {
   NONE,
-  KEY_DEC,     // selection decrement (GPIO2, auto-repeats)
-  KEY_INC,     // selection increment (GPIO3, auto-repeats)
+  KEY_DEC,     // selection decrement (GPIO3, auto-repeats)
+  KEY_INC,     // selection increment (GPIO2, auto-repeats)
   KEY_START,   // Start pressed
   KEY_SELECT,  // Select pressed
   KEY_BACK,    // Back pressed
