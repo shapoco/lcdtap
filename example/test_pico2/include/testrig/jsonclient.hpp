@@ -18,7 +18,12 @@ namespace testrig {
 
 class JsonClient {
  public:
-  explicit JsonClient(Transport& t) : t_(t) {}
+  explicit JsonClient(Transport* t) : t_(t) {}
+
+  // Switch between transports (CDC / WiFi HTTP) at runtime.
+  void setTransport(Transport* t) { t_ = t; }
+  Transport* transport() { return t_; }
+  bool connected() { return t_ != nullptr && t_->connected(); }
 
   // hello round trip; true when the target answered "welcome lcdtap".
   bool hello(uint32_t timeoutMs = 1000);
@@ -47,7 +52,7 @@ class JsonClient {
   // Read an unsigned integer, stopping at (and consuming) the delimiter.
   bool readUint(uint32_t* value, char delim, uint32_t timeoutMs);
 
-  Transport& t_;
+  Transport* t_;
   static constexpr size_t LINE_CAP = 12288;
   char lineBuf_[LINE_CAP];
 };

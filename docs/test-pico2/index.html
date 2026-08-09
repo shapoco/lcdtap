@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
+<script>
+  var remoteHost = window.location.hostname;
+  if (remoteHost == "localhost") {
+    console.log(`Google Analytics disabled on: '${remoteHost}'`);
+  }
+  else {
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-KJ53WNQ22G');
+  }
+</script>
+
+<title>LcdTap Test Rig Setup</title>
+<link rel="icon" type="image/png" href="../favicon.png">
+<link rel="shortcut icon" href="../favicon.ico">
+<link rel="stylesheet" href="../monitor/monitor.css">
+<style>
+/* Page-specific additions on top of the shared monitor.css */
+main { padding: 20px 16px; max-width: 560px; }
+
+.form-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.form-label { flex: 1; min-width: 140px; font-weight: 500; }
+.form-row input[type=text], .form-row input[type=password] {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 6px 10px;
+  width: 220px;
+}
+.form-row input:focus { outline: none; border-color: var(--accent); }
+.form-hint { flex-basis: 100%; font-size: 11px; color: var(--text-muted); }
+
+.status-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.status-panel table td { padding: 3px 12px 3px 0; }
+.status-panel .k { color: var(--text-muted); }
+
+.actions { display: flex; gap: 10px; margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LcdTap Test Rig Setup</h1>
+  <div class="conn-status">
+    <div class="conn-dot" id="conn-dot"></div>
+    <span id="conn-label">Disconnected</span>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="conn-controls">
+    <select id="transport-select">
+      <option value="webserial">WebSerial</option>
+      <option value="webusb">WebUSB</option>
+    </select>
+    <button id="btn-connect" class="primary">Connect</button>
+    <button id="btn-disconnect" disabled>Disconnect</button>
+  </div>
+</header>
+
+<main>
+  <div class="section-title">Rig WiFi Settings (test_pico2)</div>
+  <div class="form-hint" style="margin-bottom:12px">
+    Credentials for the rig to join the same WLAN as the pico2w_remote
+    target. The target's IP address is discovered automatically over USB
+    CDC, so there is nothing else to configure here.
+  </div>
+
+  <div class="form-row">
+    <div class="form-label">SSID</div>
+    <input type="text" id="in-ssid" maxlength="32" autocomplete="off">
+  </div>
+  <div class="form-row">
+    <div class="form-label">Passphrase</div>
+    <input type="password" id="in-psk" maxlength="63"
+           placeholder="(leave blank to keep current)" autocomplete="off">
+    <div class="form-hint">
+      <label style="cursor:pointer">
+        <input type="checkbox" id="in-open"> Open network (no passphrase)
+      </label>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-label">Country Code</div>
+    <input type="text" id="in-country" maxlength="2" placeholder="JP"
+           style="width:60px">
+    <div class="form-hint">ISO 3166-1 alpha-2; takes effect on next power
+      cycle</div>
+  </div>
+
+  <div class="actions">
+    <button id="btn-apply" class="primary" disabled>Apply</button>
+    <button id="btn-reload" disabled>Reload</button>
+  </div>
+
+  <div class="section-title">Rig Status</div>
+  <div class="status-panel">
+    <table>
+      <tr><td class="k">WiFi</td><td id="st-state">–</td></tr>
+      <tr><td class="k">SSID</td><td id="st-ssid">–</td></tr>
+      <tr><td class="k">IP Address</td><td id="st-ip">–</td></tr>
+      <tr><td class="k">RSSI</td><td id="st-rssi">–</td></tr>
+    </table>
+    <div class="form-hint" style="margin-top:8px">
+      WiFi joins when "Intf: WiFi" is selected on the rig's title screen.
+    </div>
+  </div>
+</main>
+
+<div id="toast-area"></div>
+
+<script type="module">
+'use strict';
+
+import { serial as webSerialPolyfill } from "https://cdn.jsdelivr.net/npm/web-serial-polyfill@1.0.15";
+import { SerialConnection } from '../monitor/serial_conn.js';
+import { showToast } from '../monitor/monitor.js';
+
+// jsonOnly: the rig's console interleaves log lines with JSON responses.
+const conn = new SerialConnection({ jsonOnly: true });
+const $ = (id) => document.getElementById(id);
+
+// ─── Connection UI ──────────────────────────────────────────────────────────
+
+const transportSelect = $('transport-select');
+transportSelect.value = ('serial' in navigator) ? 'webserial' : 'webusb';
+
+let statusTimer = null;
+
+function setConnected(yes) {
+  $('conn-dot').className = 'conn-dot' + (yes ? ' connected' : '');
+  $('conn-label').textContent = yes ? 'Connected' : 'Disconnected';
+  $('btn-connect').disabled = yes;
+  $('btn-disconnect').disabled = !yes;
+  transportSelect.disabled = yes;
+  $('btn-apply').disabled = !yes;
+  $('btn-reload').disabled = !yes;
+  if (yes) {
+    if (!statusTimer) statusTimer = setInterval(pollStatus, 2000);
+  } else if (statusTimer) {
+    clearInterval(statusTimer);
+    statusTimer = null;
+  }
+}
+
+async function sendJson(cmdObj, timeoutMs) {
+  const resp = await conn.sendCommand(cmdObj, timeoutMs);
+  return JSON.parse(resp);
+}
+
+$('btn-connect').addEventListener('click', async () => {
+  try {
+    $('btn-connect').disabled = true;
+    const api = (transportSelect.value === 'webusb') ? webSerialPolyfill : navigator.serial;
+    await conn.connect(api);
+    const obj = await sendJson({ command: 'hello' }, 5000);
+    if (obj.response !== 'welcome testrig') {
+      throw new Error(obj.response === 'welcome lcdtap'
+        ? 'This is an LcdTap target, not the test rig'
+        : 'Unexpected hello response');
+    }
+    setConnected(true);
+    showToast('Connected', 'success');
+    await loadConfig();
+    await pollStatus();
+  } catch (e) {
+    try { await conn.disconnect(); } catch (_) {}
+    setConnected(false);
+    showToast('Connection failed: ' + e.message, 'error');
+    $('btn-connect').disabled = false;
+  }
+});
+
+$('btn-disconnect').addEventListener('click', async () => {
+  await conn.disconnect();
+  setConnected(false);
+  showToast('Disconnected');
+});
+
+conn.onLost = () => {
+  setConnected(false);
+  showToast('Connection lost', 'error');
+};
+
+$('in-open').addEventListener('change', () => {
+  $('in-psk').disabled = $('in-open').checked;
+});
+
+// ─── Load / apply ───────────────────────────────────────────────────────────
+
+async function loadConfig() {
+  try {
+    const c = await sendJson({ command: 'getrigconfig' }, 5000);
+    $('in-ssid').value = c.ssid || '';
+    $('in-psk').value = '';
+    $('in-psk').placeholder = c.pskSet ? '(leave blank to keep current)' : '(not set)';
+    $('in-open').checked = false;
+    $('in-psk').disabled = false;
+    $('in-country').value = c.country || '';
+  } catch (e) {
+    showToast('getrigconfig failed: ' + e.message, 'error');
+  }
+}
+
+$('btn-reload').addEventListener('click', loadConfig);
+
+async function pollStatus() {
+  if (!conn.connected) return;
+  try {
+    const s = await sendJson({ command: 'netstatus' }, 3000);
+    $('st-state').textContent = s.state;
+    $('st-ssid').textContent = s.ssid || '–';
+    $('st-ip').textContent = s.ip !== '0.0.0.0' ? s.ip : '–';
+    $('st-rssi').textContent = s.state === 'CONNECTED' ? s.rssi + ' dBm' : '–';
+  } catch (_) {
+    // Polling failure is transient; the interval retries.
+  }
+}
+
+$('btn-apply').addEventListener('click', async () => {
+  const params = {};
+  params.ssid = $('in-ssid').value;
+  if ($('in-open').checked) {
+    params.psk = '';
+  } else if ($('in-psk').value !== '') {
+    params.psk = $('in-psk').value;
+  }
+  params.country = $('in-country').value.toUpperCase();
+
+  try {
+    $('btn-apply').disabled = true;
+    const obj = await sendJson({ command: 'setrigconfig', params }, 8000);
+    if (obj.response !== 'ok') {
+      showToast('setrigconfig error: ' + (obj.error || JSON.stringify(obj)), 'error');
+      return;
+    }
+    // No reboot: the rig saves to flash and re-joins in place.
+    showToast('Saved', 'success');
+    await loadConfig();
+    await pollStatus();
+  } catch (e) {
+    showToast('setrigconfig failed: ' + e.message, 'error');
+  } finally {
+    $('btn-apply').disabled = !conn.connected;
+  }
+});
+</script>
+</body>
+</html>

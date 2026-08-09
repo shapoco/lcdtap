@@ -1,6 +1,7 @@
 #include "testrig/usb_host.hpp"
 
 #include "hardware/dma.h"
+#include "hardware/sync.h"
 #include "testrig/msc_bridge.hpp"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -26,6 +27,12 @@ volatile bool gMscMounted = false;
 // Set once the host stack owns its pio0/pio1 resources; core 0 gates the
 // CYW43 init on this (see main.cpp).
 volatile bool gHostReady = false;
+bool gCore1Started = false;
+
+// Flash-write park handshake (pico2w_remote pattern): core 1 must spin in
+// SRAM with IRQs off while core 0 erases/programs flash, because XIP stalls.
+volatile bool gFlashParkReq = false;
+volatile bool gFlashParkAck = false;
 
 // Explicit core 1 stack: the SDK default is 2 KB, which is tight for the
 // TinyUSB host stack plus the PIO-USB IRQs.
@@ -61,6 +68,14 @@ void cdcHostTask() {
   }
 }
 
+void __not_in_flash_func(core1FlashPark)() {
+  uint32_t save = save_and_disable_interrupts();
+  gFlashParkAck = true;
+  while (gFlashParkReq) tight_loop_contents();
+  gFlashParkAck = false;
+  restore_interrupts(save);
+}
+
 void core1Main() {
   sleep_ms(10);
 
@@ -82,6 +97,7 @@ void core1Main() {
     tuh_task();
     cdcHostTask();
     mscBridgeHostTask();
+    if (gFlashParkReq) core1FlashPark();
   }
 }
 
@@ -91,6 +107,19 @@ void usbHostStart() {
   multicore_reset_core1();
   multicore_launch_core1_with_stack(core1Main, gCore1Stack,
                                     sizeof(gCore1Stack));
+  gCore1Started = true;
+}
+
+void usbHostFlashAcquire() {
+  if (!gCore1Started) return;
+  gFlashParkReq = true;
+  while (!gFlashParkAck) tight_loop_contents();
+}
+
+void usbHostFlashRelease() {
+  if (!gCore1Started) return;
+  gFlashParkReq = false;
+  while (gFlashParkAck) tight_loop_contents();
 }
 
 bool usbHostReady() { return gHostReady; }

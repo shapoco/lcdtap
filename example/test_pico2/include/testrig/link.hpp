@@ -30,6 +30,12 @@ class Transport {
   virtual void drainInput() = 0;
 };
 
+// WiFi HTTP transport singleton (link_http.cpp): POST /api per command
+// against the pico2w_remote target. Set the target IP (from its CDC
+// netstatus) before use.
+Transport* httpTransport();
+void httpTransportSetTarget(uint32_t ipv4NetOrder);
+
 // USB CDC transport backed by usb_host.hpp rings.
 class CdcTransport : public Transport {
  public:

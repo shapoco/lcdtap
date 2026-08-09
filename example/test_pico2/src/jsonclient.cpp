@@ -6,18 +6,18 @@
 namespace testrig {
 
 bool JsonClient::send(const char* cmdLine, uint32_t timeoutMs) {
-  if (!t_.connected()) return false;
+  if (!t_->connected()) return false;
   // A stale partial response would desync the parser; start clean.
-  t_.drainInput();
+  t_->drainInput();
   size_t len = strlen(cmdLine);
-  if (!t_.sendLine(cmdLine, len, timeoutMs)) return false;
-  return t_.sendLine("\r\n", 2, timeoutMs);
+  if (!t_->sendLine(cmdLine, len, timeoutMs)) return false;
+  return t_->sendLine("\r\n", 2, timeoutMs);
 }
 
 int JsonClient::readLine(uint32_t timeoutMs) {
   size_t pos = 0;
   while (true) {
-    int c = t_.recvChar(timeoutMs);
+    int c = t_->recvChar(timeoutMs);
     if (c < 0) return -1;
     if (c == '\r') continue;
     if (c == '\n') {
@@ -31,7 +31,7 @@ int JsonClient::readLine(uint32_t timeoutMs) {
 
 bool JsonClient::expect(const char* s, uint32_t timeoutMs) {
   for (const char* p = s; *p != '\0'; p++) {
-    int c = t_.recvChar(timeoutMs);
+    int c = t_->recvChar(timeoutMs);
     if (c < 0 || c != *p) return false;
   }
   return true;
@@ -41,7 +41,7 @@ bool JsonClient::readUint(uint32_t* value, char delim, uint32_t timeoutMs) {
   uint32_t v = 0;
   bool any = false;
   while (true) {
-    int c = t_.recvChar(timeoutMs);
+    int c = t_->recvChar(timeoutMs);
     if (c < 0) return false;
     if (c == delim) {
       *value = v;
@@ -86,14 +86,14 @@ bool JsonClient::getFramebuffer(FrameVerifier& v, bool writeProtected,
   // single snprintf), so a literal match is exact, not fragile:
   //   {"width":W,"height":H,"format":"RGB565-RLE","data":"...."}
   // An {"error":...} line is the only other possibility.
-  int c = t_.recvChar(timeoutMs);
-  while (c == '\r' || c == '\n') c = t_.recvChar(timeoutMs);
+  int c = t_->recvChar(timeoutMs);
+  while (c == '\r' || c == '\n') c = t_->recvChar(timeoutMs);
   if (c != '{') return false;
   if (!expect("\"", timeoutMs)) return false;
-  c = t_.recvChar(timeoutMs);
+  c = t_->recvChar(timeoutMs);
   if (c != 'w') {
     // Probably an error response; consume the rest of the line and fail.
-    while (c >= 0 && c != '\n') c = t_.recvChar(timeoutMs);
+    while (c >= 0 && c != '\n') c = t_->recvChar(timeoutMs);
     return false;
   }
   if (!expect("idth\":", timeoutMs)) return false;
@@ -109,13 +109,13 @@ bool JsonClient::getFramebuffer(FrameVerifier& v, bool writeProtected,
 
   // Stream the Base64 payload into the verifier up to the closing quote.
   while (true) {
-    c = t_.recvChar(timeoutMs);
+    c = t_->recvChar(timeoutMs);
     if (c < 0) return false;
     if (c == '"') break;
     if (dimsOk) v.feedBase64(static_cast<char>(c));
   }
   // Trailing "}" + CRLF.
-  while (c >= 0 && c != '\n') c = t_.recvChar(timeoutMs);
+  while (c >= 0 && c != '\n') c = t_->recvChar(timeoutMs);
   return dimsOk;
 }
 

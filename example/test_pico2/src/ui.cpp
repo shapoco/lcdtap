@@ -3,11 +3,14 @@
 #include <cstdio>
 #include <cstring>
 
+#include "lwip/ip4_addr.h"
 #include "pico/stdlib.h"
 #include "testrig/executor.hpp"
 #include "testrig/input.hpp"
 #include "testrig/oled.hpp"
+#include "testrig/rig_config.hpp"
 #include "testrig/usb_host.hpp"
+#include "testrig/wifi_mgr.hpp"
 #include "testrig/vectors.hpp"
 #include "tusb.h"
 
@@ -21,6 +24,7 @@ using lcdtap::TrimMode;
 namespace {
 
 enum class UiMode : uint8_t {
+  TITLE,
   VECTOR_SELECT,
   ITEM_SELECT,
   VALUE_SELECT,
@@ -29,14 +33,23 @@ enum class UiMode : uint8_t {
   MSC_MODE,
 };
 
-// Customizable items (order fixed; text vectors only expose the first two).
-enum class Item : uint8_t { INTF, FREQ, RESO, FMT, ROT, TRIM, COUNT };
-const char* const ITEM_NAMES[] = {"Intf", "Freq", "Reso", "Fmt", "Rot", "Trim"};
+// Customizable items (order fixed; text vectors only expose the bus). The
+// bus clock is no longer per-vector: it comes from the global speed class
+// chosen on the title screen.
+enum class Item : uint8_t { INTF, RESO, FMT, ROT, TRIM, COUNT };
+const char* const ITEM_NAMES[] = {"Intf", "Reso", "Fmt", "Rot", "Trim"};
 
 JsonClient* gClient = nullptr;
+Transport* gCdcTransport = nullptr;
 
-UiMode gMode = UiMode::VECTOR_SELECT;
-UiMode gModeBeforeMsc = UiMode::VECTOR_SELECT;
+UiMode gMode = UiMode::TITLE;
+UiMode gModeBeforeMsc = UiMode::TITLE;
+
+// Title screen state (applies to the whole run).
+int gTitleFocus = 0;  // 0 = Intf, 1 = Freq
+int gIntfSel = 0;     // 0 = CDC, 1 = WiFi
+SpeedClass gSpeed = SpeedClass::FAST;
+const char* const INTF_NAMES[] = {"CDC", "WiFi"};
 
 int gVectorSel = 0;  // 0 = ALL, 1..N = TEST_VECTORS[i-1]
 TestVector gCustom;  // working copy of the selected vector
@@ -79,7 +92,7 @@ const char* fmtName(InterfaceFormat f) {
 }
 
 int itemCount(const TestVector& v) {
-  return vectorIsText(v) ? 2 : static_cast<int>(Item::COUNT);
+  return vectorIsText(v) ? 1 : static_cast<int>(Item::COUNT);
 }
 
 void applyTrimRule(TestVector* v) {
@@ -103,13 +116,11 @@ void loadVector(int sel) {
 
 int valueChoiceCount(const TestVector& v, Item item) {
   ControllerFamily fam = presetFamily(v.preset);
-  uint32_t f[4];
   uint16_t w[4], h[4];
   InterfaceFormat fmts[4];
   BusType buses[4];
   switch (item) {
     case Item::INTF: return allowedBuses(fam, buses, 4);
-    case Item::FREQ: return freqChoices(fam, v.busInterface, f, 4);
     case Item::RESO: return resolutionChoices(fam, w, h, 4);
     case Item::FMT: return formatChoices(fam, fmts, 4);
     case Item::ROT: return 4;
@@ -129,14 +140,6 @@ int valueCurrentIndex(const TestVector& v, Item item) {
         if (buses[i] == v.busInterface) return i;
       }
       return 0;
-    }
-    case Item::FREQ: {
-      uint32_t f[4];
-      int n = freqChoices(fam, v.busInterface, f, 4);
-      for (int i = 0; i < n; i++) {
-        if (f[i] == v.busFreqHz) return i;
-      }
-      return 2;
     }
     case Item::RESO: {
       uint16_t w[4], h[4];
@@ -167,13 +170,6 @@ void valueApply(TestVector* v, Item item, int idx) {
       BusType buses[4];
       allowedBuses(fam, buses, 4);
       v->busInterface = buses[idx];
-      v->busFreqHz = defaultFreq(fam, v->busInterface);
-      break;
-    }
-    case Item::FREQ: {
-      uint32_t f[4];
-      freqChoices(fam, v->busInterface, f, 4);
-      v->busFreqHz = f[idx];
       break;
     }
     case Item::RESO: {
@@ -209,7 +205,6 @@ void valueString(const TestVector& v, Item item, int idx, char* buf,
       snprintf(buf, cap, "%s",
                lcdtap::BUS_SHORT_NAMES[static_cast<int>(tmp.busInterface)]);
       break;
-    case Item::FREQ: fmtFreq(tmp.busFreqHz, buf, cap); break;
     case Item::RESO:
       if (vectorIsText(tmp)) {
         snprintf(buf, cap, "n/a");
@@ -269,13 +264,25 @@ void drawVectorScreen(int blinkItem, int blinkValueOf) {
            lcdtap::CONFIG_PRESET_NAMES[static_cast<int>(gCustom.preset)]);
   oledText(0, 1, line);
 
+  // Row 3 shows the bus clock the global speed class resolves to for this
+  // vector's bus (informational, not editable here).
+  {
+    char freq[12];
+    fmtFreq(freqForClass(presetFamily(gCustom.preset), gCustom.busInterface,
+                         gSpeed),
+            freq, sizeof(freq));
+    snprintf(line, sizeof(line), "Freq: %s (%s)", freq,
+             SPEED_CLASS_NAMES[static_cast<int>(gSpeed)]);
+    oledText(0, 3, line);
+  }
+
   struct Row {
     Item item;
     int col, row;
   };
   static const Row ROWS[] = {
-      {Item::INTF, 0, 2}, {Item::FREQ, 0, 3}, {Item::RESO, 0, 4},
-      {Item::FMT, 0, 5},  {Item::ROT, 0, 6},  {Item::TRIM, 0, 7},
+      {Item::INTF, 0, 2}, {Item::RESO, 0, 4}, {Item::FMT, 0, 5},
+      {Item::ROT, 0, 6},  {Item::TRIM, 0, 7},
   };
   int items = itemCount(gCustom);
   for (int i = 0; i < static_cast<int>(sizeof(ROWS) / sizeof(ROWS[0])); i++) {
@@ -364,8 +371,42 @@ void drawMscMode() {
   oledFlush();
 }
 
+void drawTitle() {
+  char line[24];
+  oledClear();
+  oledText(0, 0, "LcdTap Pico2 Test Rig");
+
+  bool intfBlink = (gTitleFocus == 0) && gBlinkPhase;
+  snprintf(line, sizeof(line), "Intf: %s",
+           intfBlink ? "" : INTF_NAMES[gIntfSel]);
+  oledText(0, 2, line);
+
+  bool freqBlink = (gTitleFocus == 1) && gBlinkPhase;
+  snprintf(line, sizeof(line), "Freq: %s",
+           freqBlink ? "" : SPEED_CLASS_NAMES[static_cast<int>(gSpeed)]);
+  oledText(0, 3, line);
+
+  // Rig-side WiFi state (CDC needs none).
+  if (gIntfSel == 1) {
+    uint32_t a = wifiMgrIp();
+    if (a != 0) {
+      snprintf(line, sizeof(line), "WiFi: %u.%u.%u.%u", (unsigned)(a & 0xFF),
+               (unsigned)((a >> 8) & 0xFF), (unsigned)((a >> 16) & 0xFF),
+               (unsigned)(a >> 24));
+    } else {
+      snprintf(line, sizeof(line), "WiFi: %s", wifiMgrStateStr());
+    }
+    oledText(0, 5, line);
+    // The 500 ms blink tick redraws this screen, keeping the line fresh.
+  }
+
+  oledText(0, 7, "Start: enter");
+  oledFlush();
+}
+
 void draw() {
   switch (gMode) {
+    case UiMode::TITLE: drawTitle(); break;
     case UiMode::VECTOR_SELECT: drawVectorScreen(-1, -1); break;
     case UiMode::ITEM_SELECT: drawVectorScreen(gItemSel, -1); break;
     case UiMode::VALUE_SELECT: drawVectorScreen(-2, gItemSel); break;
@@ -393,6 +434,29 @@ bool runProgress(void* /*ctx*/, int pct) {
   return !gCancelReq;
 }
 
+// Select the transport for this run. CDC: direct. WiFi: ask the target for
+// its IP over CDC (netstatus) and point the HTTP transport at it. Returns
+// false when the WiFi path cannot be established (stage "target-wifi").
+bool prepareTransport() {
+  gClient->setTransport(gCdcTransport);
+  if (gIntfSel == 0) return true;
+
+  if (wifiMgrState() != WifiState::CONNECTED) return false;
+  JsonDocument doc;
+  if (!gClient->command("{\"command\":\"netstatus\"}", doc, 3000)) {
+    return false;
+  }
+  const char* st = doc["state"] | "";
+  const char* ip = doc["ip"] | "";
+  if (strcmp(st, "CONNECTED") != 0) return false;
+  ip4_addr_t a;
+  if (!ip4addr_aton(ip, &a)) return false;
+  httpTransportSetTarget(ip4_addr_get_u32(&a));
+  gClient->setTransport(httpTransport());
+  printf("WiFi run: target %s\n", ip);
+  return true;
+}
+
 void runTests() {
   memset(gRan, 0, sizeof(gRan));
   gFailCount = 0;
@@ -400,6 +464,7 @@ void runTests() {
   gCancelReq = false;
   gRunProgress = 0;
   gMode = UiMode::RUNNING;
+  const bool prepOk = prepareTransport();
 
   if (gVectorSel == 0) {
     gRunCount = NUM_TEST_VECTORS;
@@ -408,8 +473,15 @@ void runTests() {
       gRunBasePct = i * 100 / NUM_TEST_VECTORS;
       gRunSpanPct = 100 / NUM_TEST_VECTORS;
       gRan[i] = true;
-      executorRunVector(TEST_VECTORS[i], *gClient, &gResults[i], runProgress,
-                        nullptr);
+      if (!prepOk) {
+        gResults[i] = ExecResult{};
+        gResults[i].stage = "target-wifi";
+      } else {
+        executorRunVector(TEST_VECTORS[i], *gClient,
+                          freqForClass(presetFamily(TEST_VECTORS[i].preset),
+                                       TEST_VECTORS[i].busInterface, gSpeed),
+                          &gResults[i], runProgress, nullptr);
+      }
       if (!gResults[i].pass) gFailCount++;
       printf("[%s] %s%s\n", TEST_VECTORS[i].name,
              gResults[i].pass ? "PASS" : "FAIL ", gResults[i].stage);
@@ -421,13 +493,22 @@ void runTests() {
     gRunBasePct = 0;
     gRunSpanPct = 100;
     gRan[i] = true;
-    executorRunVector(gCustom, *gClient, &gResults[i], runProgress, nullptr);
+    if (!prepOk) {
+      gResults[i] = ExecResult{};
+      gResults[i].stage = "target-wifi";
+    } else {
+      executorRunVector(gCustom, *gClient,
+                        freqForClass(presetFamily(gCustom.preset),
+                                     gCustom.busInterface, gSpeed),
+                        &gResults[i], runProgress, nullptr);
+    }
     if (!gResults[i].pass) gFailCount++;
     printf("[%s] %s%s n=%lu\n", gCustom.name,
            gResults[i].pass ? "PASS" : "FAIL ", gResults[i].stage,
            static_cast<unsigned long>(gResults[i].mismatchCount));
   }
 
+  gClient->setTransport(gCdcTransport);  // back to the idle default
   inputFlush();
   gMode = UiMode::RESULT;
   gDirty = true;
@@ -448,8 +529,48 @@ int failVectorIndex() {
 // Input handling per mode
 // ---------------------------------------------------------------------------
 
+// Applied when leaving the title screen: persist changed selections and
+// start the rig-side WiFi join when the WiFi transport is chosen. (The
+// JsonClient transport itself is switched per test run in runTests.)
+void applyTitleSelection() {
+  RigConfig& cfg = rigConfig();
+  if (cfg.intf != static_cast<uint8_t>(gIntfSel) ||
+      cfg.speedClass != static_cast<uint8_t>(gSpeed)) {
+    cfg.intf = static_cast<uint8_t>(gIntfSel);
+    cfg.speedClass = static_cast<uint8_t>(gSpeed);
+    rigConfigSave();
+  }
+  if (gIntfSel == 1) wifiMgrStart();
+}
+
 void handleEvent(InputEvent ev) {
   switch (gMode) {
+    case UiMode::TITLE:
+      switch (ev) {
+        case InputEvent::KEY_INC:
+        case InputEvent::KEY_DEC: {
+          int dir = (ev == InputEvent::KEY_INC) ? 1 : -1;
+          if (gTitleFocus == 0) {
+            gIntfSel = (gIntfSel + dir + 2) % 2;
+            // Join as soon as WiFi is chosen so the status line shows the
+            // progress while still on this screen.
+            if (gIntfSel == 1) wifiMgrStart();
+          } else {
+            int n = static_cast<int>(SpeedClass::COUNT);
+            gSpeed = static_cast<SpeedClass>(
+                (static_cast<int>(gSpeed) + dir + n) % n);
+          }
+          break;
+        }
+        case InputEvent::KEY_SELECT: gTitleFocus ^= 1; break;
+        case InputEvent::KEY_START:
+          applyTitleSelection();
+          gMode = UiMode::VECTOR_SELECT;
+          break;
+        default: break;  // Back ignored
+      }
+      break;
+
     case UiMode::VECTOR_SELECT:
       switch (ev) {
         case InputEvent::KEY_INC:
@@ -460,6 +581,7 @@ void handleEvent(InputEvent ev) {
           gVectorSel = (gVectorSel + NUM_TEST_VECTORS) % (NUM_TEST_VECTORS + 1);
           loadVector(gVectorSel);
           break;
+        case InputEvent::KEY_BACK: gMode = UiMode::TITLE; break;
         case InputEvent::KEY_SELECT:
           if (gVectorSel != 0) {
             gItemSel = 0;
@@ -549,8 +671,11 @@ void handleEvent(InputEvent ev) {
 
 }  // namespace
 
-void uiInit(JsonClient* client) {
+void uiInit(JsonClient* client, Transport* cdcTransport) {
   gClient = client;
+  gCdcTransport = cdcTransport;
+  gIntfSel = rigConfig().intf;
+  gSpeed = static_cast<SpeedClass>(rigConfig().speedClass);
   gVectorSel = 0;
   loadVector(1);  // have a valid gCustom even while ALL is selected
   gNextBlink = make_timeout_time_ms(500);

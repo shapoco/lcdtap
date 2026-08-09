@@ -10,13 +10,6 @@ using lcdtap::TrimMode;
 
 namespace {
 
-constexpr uint32_t I2C_FAST = 1000000;   // 100k / 400k / 1M / 2M
-constexpr uint32_t SPI_FAST = 40000000;  // 10M / 20M / 40M / 60M
-constexpr uint32_t PAR_FAST = 5000000;   // 1M / 2.5M / 5M / 10M
-// Character LCDs on the parallel bus: real HD44780-class modules (e.g.
-// SC2004) need ~100 us per byte, so the clock stays in the kHz range.
-constexpr uint32_t PAR_TEXT_FAST = 10000;  // 2k / 5k / 10k / 20k
-
 constexpr InterfaceFormat FMT_NONE = InterfaceFormat::NUM_FORMATS;
 
 // Trim rectangle rule: x=11, y=15, w=buffWidth/2, h=buffHeight/2.
@@ -27,39 +20,39 @@ constexpr uint16_t TRIM_Y = 15;
 
 // clang-format off
 const TestVector TEST_VECTORS[] = {
-    // name              preset                     bus                 freq      WxH        format                                 rot trim           tx      ty      tw   th
-    {"SSD1306_I2C",    ConfigPreset::SSD1306,   BusType::I2C,       I2C_FAST, 128,  64, InterfaceFormat::GRAY1_VPACK8_H2L,      0, TrimMode::OFF,    0, 0, 0, 0},
-    {"SSD1306_Rot1",   ConfigPreset::SSD1306,   BusType::I2C,       I2C_FAST, 128,  64, InterfaceFormat::GRAY1_VPACK8_H2L,      1, TrimMode::OFF,    0, 0, 0, 0},
-    {"SSD1306_Rot2",   ConfigPreset::SSD1306,   BusType::I2C,       I2C_FAST, 128,  64, InterfaceFormat::GRAY1_VPACK8_H2L,      2, TrimMode::OFF,    0, 0, 0, 0},
-    {"SSD1306_Rot3",   ConfigPreset::SSD1306,   BusType::I2C,       I2C_FAST, 128,  64, InterfaceFormat::GRAY1_VPACK8_H2L,      3, TrimMode::OFF,    0, 0, 0, 0},
-    {"SSD1306_SPI",    ConfigPreset::SSD1306,   BusType::SPI_4LINE, SPI_FAST, 128,  64, InterfaceFormat::GRAY1_VPACK8_H2L,      2, TrimMode::OFF,    0, 0, 0, 0},
-    {"SSD1331_RGB332", ConfigPreset::SSD1331,   BusType::SPI_4LINE, SPI_FAST,  96,  64, InterfaceFormat::RGB332,                0, TrimMode::OFF,    0, 0, 0, 0},
-    {"SSD1331_Rot1",   ConfigPreset::SSD1331,   BusType::SPI_4LINE, SPI_FAST,  96,  64, InterfaceFormat::RGB332,                1, TrimMode::OFF,    0, 0, 0, 0},
-    {"SSD1331_Rot2",   ConfigPreset::SSD1331,   BusType::SPI_4LINE, SPI_FAST,  96,  64, InterfaceFormat::RGB332,                2, TrimMode::OFF,    0, 0, 0, 0},
-    {"SSD1331_Rot3",   ConfigPreset::SSD1331,   BusType::SPI_4LINE, SPI_FAST,  96,  64, InterfaceFormat::RGB332,                3, TrimMode::OFF,    0, 0, 0, 0},
-    {"SSD1331_RGB565", ConfigPreset::SSD1331,   BusType::SPI_4LINE, SPI_FAST,  96,  64, InterfaceFormat::RGB565_BE,             2, TrimMode::OFF,    0, 0, 0, 0},
-    {"SSD1331_RGB666", ConfigPreset::SSD1331,   BusType::SPI_4LINE, SPI_FAST,  96,  64, InterfaceFormat::RGB666_UNPACK_RA8_BE,  2, TrimMode::OFF,    0, 0, 0, 0},
-    {"ST7789_RGB444",  ConfigPreset::ST7789,    BusType::SPI_4LINE, SPI_FAST, 240, 320, InterfaceFormat::RGB444_HPACK2_H2L_BE,  0, TrimMode::OFF,    0, 0, 0, 0},
-    {"ST7789_Rot1",    ConfigPreset::ST7789,    BusType::SPI_4LINE, SPI_FAST, 240, 320, InterfaceFormat::RGB444_HPACK2_H2L_BE,  1, TrimMode::OFF,    0, 0, 0, 0},
-    {"ST7789_Rot2",    ConfigPreset::ST7789,    BusType::SPI_4LINE, SPI_FAST, 240, 320, InterfaceFormat::RGB444_HPACK2_H2L_BE,  2, TrimMode::OFF,    0, 0, 0, 0},
-    {"ST7789_Rot3",    ConfigPreset::ST7789,    BusType::SPI_4LINE, SPI_FAST, 240, 320, InterfaceFormat::RGB444_HPACK2_H2L_BE,  3, TrimMode::OFF,    0, 0, 0, 0},
-    {"ST7789_RGB565",  ConfigPreset::ST7789,    BusType::SPI_4LINE, SPI_FAST, 240, 320, InterfaceFormat::RGB565_BE,             3, TrimMode::OFF,    0, 0, 0, 0},
-    {"ST7789_RGB666",  ConfigPreset::ST7789,    BusType::SPI_4LINE, SPI_FAST, 240, 320, InterfaceFormat::RGB666_UNPACK_LA8_BE,  3, TrimMode::OFF,    0, 0, 0, 0},
-    {"ILI9341_SPI",    ConfigPreset::ILI9341,   BusType::SPI_4LINE, SPI_FAST, 240, 320, InterfaceFormat::RGB565_BE,             3, TrimMode::OFF,    0, 0, 0, 0},
-    {"ILI9488_RGB111", ConfigPreset::ILI9488,   BusType::SPI_4LINE, SPI_FAST, 320, 480, InterfaceFormat::RGB111_HPACK2_H2L_RA8, 0, TrimMode::OFF,    0, 0, 0, 0},
-    {"ILI9488_Rot1",   ConfigPreset::ILI9488,   BusType::SPI_4LINE, SPI_FAST, 320, 480, InterfaceFormat::RGB111_HPACK2_H2L_RA8, 1, TrimMode::OFF,    0, 0, 0, 0},
-    {"ILI9488_Rot2",   ConfigPreset::ILI9488,   BusType::SPI_4LINE, SPI_FAST, 320, 480, InterfaceFormat::RGB111_HPACK2_H2L_RA8, 2, TrimMode::OFF,    0, 0, 0, 0},
-    {"ILI9488_Rot3",   ConfigPreset::ILI9488,   BusType::SPI_4LINE, SPI_FAST, 320, 480, InterfaceFormat::RGB111_HPACK2_H2L_RA8, 3, TrimMode::OFF,    0, 0, 0, 0},
-    {"ILI9488_RGB565", ConfigPreset::ILI9488,   BusType::SPI_4LINE, SPI_FAST, 320, 480, InterfaceFormat::RGB565_BE,             3, TrimMode::OFF,    0, 0, 0, 0},
-    {"ILI9488_RGB666", ConfigPreset::ILI9488,   BusType::SPI_4LINE, SPI_FAST, 320, 480, InterfaceFormat::RGB666_UNPACK_LA8_BE,  3, TrimMode::OFF,    0, 0, 0, 0},
-    {"ILI9488_TrimC",  ConfigPreset::ILI9488,   BusType::SPI_4LINE, SPI_FAST, 320, 480, InterfaceFormat::RGB565_BE,             3, TrimMode::CUSTOM, TRIM_X, TRIM_Y, 160, 240},
-    {"ILI9488_TrimA",  ConfigPreset::ILI9488,   BusType::SPI_4LINE, SPI_FAST, 320, 480, InterfaceFormat::RGB565_BE,             3, TrimMode::AUTO,   TRIM_X, TRIM_Y, 160, 240},
-    {"ILI9488_Par8",   ConfigPreset::ILI9488,   BusType::PARALLEL,  PAR_FAST, 320, 480, InterfaceFormat::RGB565_BE,             3, TrimMode::OFF,    0, 0, 0, 0},
-    {"TEXT_8x2",       ConfigPreset::TEXT_0802, BusType::I2C,       I2C_FAST,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
-    {"TEXT_16x2",      ConfigPreset::TEXT_1602, BusType::I2C,       I2C_FAST,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
-    {"TEXT_16x4",      ConfigPreset::TEXT_1604, BusType::I2C,       I2C_FAST,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
-    {"TEXT_20x4",      ConfigPreset::TEXT_2004, BusType::I2C,       I2C_FAST,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
-    {"TEXT_Par8",      ConfigPreset::TEXT_2004, BusType::PARALLEL,  PAR_TEXT_FAST, 0, 0, FMT_NONE,                             0, TrimMode::OFF,    0, 0, 0, 0},
+    // name              preset                     bus                 WxH        format                                 rot trim           tx      ty      tw   th
+    {"SSD1306_I2C",    ConfigPreset::SSD1306,   BusType::I2C, 128,  64, InterfaceFormat::GRAY1_VPACK8_H2L,      0, TrimMode::OFF,    0, 0, 0, 0},
+    {"SSD1306_Rot1",   ConfigPreset::SSD1306,   BusType::I2C, 128,  64, InterfaceFormat::GRAY1_VPACK8_H2L,      1, TrimMode::OFF,    0, 0, 0, 0},
+    {"SSD1306_Rot2",   ConfigPreset::SSD1306,   BusType::I2C, 128,  64, InterfaceFormat::GRAY1_VPACK8_H2L,      2, TrimMode::OFF,    0, 0, 0, 0},
+    {"SSD1306_Rot3",   ConfigPreset::SSD1306,   BusType::I2C, 128,  64, InterfaceFormat::GRAY1_VPACK8_H2L,      3, TrimMode::OFF,    0, 0, 0, 0},
+    {"SSD1306_SPI",    ConfigPreset::SSD1306,   BusType::SPI_4LINE, 128,  64, InterfaceFormat::GRAY1_VPACK8_H2L,      2, TrimMode::OFF,    0, 0, 0, 0},
+    {"SSD1331_RGB332", ConfigPreset::SSD1331,   BusType::SPI_4LINE,  96,  64, InterfaceFormat::RGB332,                0, TrimMode::OFF,    0, 0, 0, 0},
+    {"SSD1331_Rot1",   ConfigPreset::SSD1331,   BusType::SPI_4LINE,  96,  64, InterfaceFormat::RGB332,                1, TrimMode::OFF,    0, 0, 0, 0},
+    {"SSD1331_Rot2",   ConfigPreset::SSD1331,   BusType::SPI_4LINE,  96,  64, InterfaceFormat::RGB332,                2, TrimMode::OFF,    0, 0, 0, 0},
+    {"SSD1331_Rot3",   ConfigPreset::SSD1331,   BusType::SPI_4LINE,  96,  64, InterfaceFormat::RGB332,                3, TrimMode::OFF,    0, 0, 0, 0},
+    {"SSD1331_RGB565", ConfigPreset::SSD1331,   BusType::SPI_4LINE,  96,  64, InterfaceFormat::RGB565_BE,             2, TrimMode::OFF,    0, 0, 0, 0},
+    {"SSD1331_RGB666", ConfigPreset::SSD1331,   BusType::SPI_4LINE,  96,  64, InterfaceFormat::RGB666_UNPACK_RA8_BE,  2, TrimMode::OFF,    0, 0, 0, 0},
+    {"ST7789_RGB444",  ConfigPreset::ST7789,    BusType::SPI_4LINE, 240, 320, InterfaceFormat::RGB444_HPACK2_H2L_BE,  0, TrimMode::OFF,    0, 0, 0, 0},
+    {"ST7789_Rot1",    ConfigPreset::ST7789,    BusType::SPI_4LINE, 240, 320, InterfaceFormat::RGB444_HPACK2_H2L_BE,  1, TrimMode::OFF,    0, 0, 0, 0},
+    {"ST7789_Rot2",    ConfigPreset::ST7789,    BusType::SPI_4LINE, 240, 320, InterfaceFormat::RGB444_HPACK2_H2L_BE,  2, TrimMode::OFF,    0, 0, 0, 0},
+    {"ST7789_Rot3",    ConfigPreset::ST7789,    BusType::SPI_4LINE, 240, 320, InterfaceFormat::RGB444_HPACK2_H2L_BE,  3, TrimMode::OFF,    0, 0, 0, 0},
+    {"ST7789_RGB565",  ConfigPreset::ST7789,    BusType::SPI_4LINE, 240, 320, InterfaceFormat::RGB565_BE,             3, TrimMode::OFF,    0, 0, 0, 0},
+    {"ST7789_RGB666",  ConfigPreset::ST7789,    BusType::SPI_4LINE, 240, 320, InterfaceFormat::RGB666_UNPACK_LA8_BE,  3, TrimMode::OFF,    0, 0, 0, 0},
+    {"ILI9341_SPI",    ConfigPreset::ILI9341,   BusType::SPI_4LINE, 240, 320, InterfaceFormat::RGB565_BE,             3, TrimMode::OFF,    0, 0, 0, 0},
+    {"ILI9488_RGB111", ConfigPreset::ILI9488,   BusType::SPI_4LINE, 320, 480, InterfaceFormat::RGB111_HPACK2_H2L_RA8, 0, TrimMode::OFF,    0, 0, 0, 0},
+    {"ILI9488_Rot1",   ConfigPreset::ILI9488,   BusType::SPI_4LINE, 320, 480, InterfaceFormat::RGB111_HPACK2_H2L_RA8, 1, TrimMode::OFF,    0, 0, 0, 0},
+    {"ILI9488_Rot2",   ConfigPreset::ILI9488,   BusType::SPI_4LINE, 320, 480, InterfaceFormat::RGB111_HPACK2_H2L_RA8, 2, TrimMode::OFF,    0, 0, 0, 0},
+    {"ILI9488_Rot3",   ConfigPreset::ILI9488,   BusType::SPI_4LINE, 320, 480, InterfaceFormat::RGB111_HPACK2_H2L_RA8, 3, TrimMode::OFF,    0, 0, 0, 0},
+    {"ILI9488_RGB565", ConfigPreset::ILI9488,   BusType::SPI_4LINE, 320, 480, InterfaceFormat::RGB565_BE,             3, TrimMode::OFF,    0, 0, 0, 0},
+    {"ILI9488_RGB666", ConfigPreset::ILI9488,   BusType::SPI_4LINE, 320, 480, InterfaceFormat::RGB666_UNPACK_LA8_BE,  3, TrimMode::OFF,    0, 0, 0, 0},
+    {"ILI9488_TrimC",  ConfigPreset::ILI9488,   BusType::SPI_4LINE, 320, 480, InterfaceFormat::RGB565_BE,             3, TrimMode::CUSTOM, TRIM_X, TRIM_Y, 160, 240},
+    {"ILI9488_TrimA",  ConfigPreset::ILI9488,   BusType::SPI_4LINE, 320, 480, InterfaceFormat::RGB565_BE,             3, TrimMode::AUTO,   TRIM_X, TRIM_Y, 160, 240},
+    {"ILI9488_Par8",   ConfigPreset::ILI9488,   BusType::PARALLEL, 320, 480, InterfaceFormat::RGB565_BE,             3, TrimMode::OFF,    0, 0, 0, 0},
+    {"TEXT_8x2",       ConfigPreset::TEXT_0802, BusType::I2C,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
+    {"TEXT_16x2",      ConfigPreset::TEXT_1602, BusType::I2C,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
+    {"TEXT_16x4",      ConfigPreset::TEXT_1604, BusType::I2C,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
+    {"TEXT_20x4",      ConfigPreset::TEXT_2004, BusType::I2C,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
+    {"TEXT_Par8",      ConfigPreset::TEXT_2004, BusType::PARALLEL, 0, 0, FMT_NONE,                             0, TrimMode::OFF,    0, 0, 0, 0},
 };
 // clang-format on
 
@@ -124,10 +117,14 @@ int freqChoices(ControllerFamily fam, BusType bus, uint32_t* out, int cap) {
   return n;
 }
 
-uint32_t defaultFreq(ControllerFamily fam, BusType bus) {
+const char* const SPEED_CLASS_NAMES[] = {"Slow", "Medium", "Fast", "Extra"};
+
+uint32_t freqForClass(ControllerFamily fam, BusType bus, SpeedClass cls) {
   uint32_t f[4];
   freqChoices(fam, bus, f, 4);
-  return f[2];  // "Fast"
+  int idx = static_cast<int>(cls);
+  if (idx < 0 || idx > 3) idx = 2;
+  return f[idx];
 }
 
 int resolutionChoices(ControllerFamily fam, uint16_t* w, uint16_t* h, int cap) {

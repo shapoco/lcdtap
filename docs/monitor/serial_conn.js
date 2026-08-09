@@ -4,7 +4,11 @@
 // Shared by the GitHub-Pages monitor and the WiFi setup page.
 
 export class SerialConnection {
-  constructor() {
+  // opts.jsonOnly: ignore lines that do not start with '{' — for devices
+  // whose console interleaves free-form log output with JSON responses
+  // (e.g. the test rig).
+  constructor(opts = {}) {
+    this._jsonOnly = !!opts.jsonOnly;
     this._port = null;
     this._reader = null;
     this._writer = null;
@@ -107,6 +111,7 @@ export class SerialConnection {
         while ((idx = this._lineBuffer.indexOf('\r\n')) !== -1) {
           const line = this._lineBuffer.substring(0, idx);
           this._lineBuffer = this._lineBuffer.substring(idx + 2);
+          if (this._jsonOnly && !line.startsWith('{')) continue;
           if (this._lineResolvers.length > 0) {
             const { resolve } = this._lineResolvers.shift();
             resolve(line);

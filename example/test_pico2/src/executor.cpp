@@ -182,7 +182,8 @@ void sendDummyFrame(ControllerFamily fam, const TestVector& vec,
 }  // namespace
 
 bool executorRunVector(const TestVector& vec, JsonClient& client,
-                       ExecResult* res, ExecProgressFn progress, void* ctx) {
+                       uint32_t busFreqHz, ExecResult* res,
+                       ExecProgressFn progress, void* ctx) {
   *res = ExecResult{};
   ControllerFamily fam = presetFamily(vec.preset);
   const bool text = vectorIsText(vec);
@@ -200,6 +201,7 @@ bool executorRunVector(const TestVector& vec, JsonClient& client,
   };
 
   if (!step(0)) return fail("cancel");
+  if (!client.connected()) return fail("link");
 
   // --- 1. getparams for the base preset -----------------------------------
   char cmd[128];
@@ -255,7 +257,7 @@ bool executorRunVector(const TestVector& vec, JsonClient& client,
   }
 
   // --- 3. bus + reset + controller init -----------------------------------
-  if (!busSelect(vec.busInterface, vec.busFreqHz, i2cAddr,
+  if (!busSelect(vec.busInterface, busFreqHz, i2cAddr,
                  fam == ControllerFamily::ST7032)) {
     return fail("bus-select");
   }

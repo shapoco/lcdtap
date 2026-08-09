@@ -82,11 +82,17 @@ add_executable(lcdtap_test_pico2
     src/ctrl_init.cpp
     src/executor.cpp
     src/ui.cpp
+    src/rig_config.cpp
+    src/wifi_mgr.cpp
+    src/config_cmds.cpp
+    ../pico2_common/src/flash_store.cpp
     src/usb_descriptors.c
     src/usb_device.cpp
     src/usb_host.cpp
     src/msc_bridge.cpp
     src/link_cdc.cpp
+    src/link_http.cpp
+    src/http_client.cpp
     src/jsonclient.cpp
     # PIO-USB glue for TinyUSB (host uses hcd; dcd unused but harmless)
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
@@ -95,6 +101,9 @@ add_executable(lcdtap_test_pico2
 
 target_include_directories(lcdtap_test_pico2 PRIVATE
     include
+    # flash_store.hpp only (the pico2_common library itself is NOT linked:
+    # it would re-add the lcdtap target and pull in the slave drivers)
+    ../pico2_common/include
 )
 
 # Tell Pico-PIO-USB to use the TinyUSB stack.
@@ -142,13 +151,15 @@ target_link_libraries(lcdtap_test_pico2
     pico_stdlib
     pico_multicore
     pico_unique_id
-    pico_cyw43_arch_none
+    pico_cyw43_arch_lwip_poll
     tinyusb_device
     tinyusb_host
     pico_pio_usb
     hardware_dma
+    hardware_flash
     hardware_i2c
     hardware_pio
+    hardware_sync
     hardware_timer
 )
 

@@ -13,13 +13,16 @@
 #include "pico/stdlib.h"
 #include "testrig/bus.hpp"
 #include "testrig/config.h"
+#include "testrig/config_cmds.hpp"
 #include "testrig/input.hpp"
 #include "testrig/jsonclient.hpp"
 #include "testrig/link.hpp"
 #include "testrig/oled.hpp"
 #include "testrig/ui.hpp"
+#include "testrig/rig_config.hpp"
 #include "testrig/usb_device.hpp"
 #include "testrig/usb_host.hpp"
+#include "testrig/wifi_mgr.hpp"
 #include "tusb.h"
 
 #if TESTRIG_CYW43_DIAG
@@ -54,6 +57,8 @@ int main() {
   // C: + USB device stack (CDC console)
   tud_init(0);
   testrig::usbDeviceStdioInit();
+
+  testrig::rigConfigLoad();
   rcC = diagTry();
 
   // D: + OLED / inputs / bus master init
@@ -131,6 +136,8 @@ int main() {
   tud_init(0);
   testrig::usbDeviceStdioInit();
 
+  testrig::rigConfigLoad();
+
   testrig::oledInit();
   testrig::inputInit();
   testrig::busInit();
@@ -186,8 +193,8 @@ int main() {
   }
 
   static testrig::CdcTransport transport;
-  static testrig::JsonClient client(transport);
-  testrig::uiInit(&client);
+  static testrig::JsonClient client(&transport);
+  testrig::uiInit(&client, &transport);
 
   absolute_time_t nextBlink = get_absolute_time();
   absolute_time_t nextReport = get_absolute_time();
@@ -195,6 +202,9 @@ int main() {
 
   while (true) {
     tud_task();
+    cyw43_arch_poll();
+    testrig::wifiMgrProcess(to_ms_since_boot(get_absolute_time()));
+    testrig::configCmdsProcess();
     testrig::uiTick();
 
     if (absolute_time_diff_us(get_absolute_time(), nextBlink) <= 0) {

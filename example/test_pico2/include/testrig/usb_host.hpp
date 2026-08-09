@@ -21,6 +21,12 @@ bool usbHostMscMounted();  // target is in BOOTSEL / download mode
 // other free-PIO-resource consumer (CYW43) on this.
 bool usbHostReady();
 
+// Park core 1 in SRAM (IRQs off) around a flash erase/program on core 0.
+// The target USB link may glitch for the duration; only save settings while
+// no test run is in flight.
+void usbHostFlashAcquire();
+void usbHostFlashRelease();
+
 // CDC stream to/from the target (core 0 side of the rings).
 uint32_t usbHostCdcWrite(const uint8_t* data, uint32_t len);
 uint32_t usbHostCdcRead(uint8_t* data, uint32_t len);

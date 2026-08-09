@@ -134,10 +134,12 @@ ILI9341, ILI9488 (RGB111 rot 0–3, RGB565, RGB666-LA, trim CUSTOM/AUTO,
 parallel), and ST7032 text presets (8x2/16x2/16x4/20x4 I2C, 20x4
 parallel).
 
-Customization (per selected vector, volatile): bus interface, clock,
+Customization (per selected vector, volatile): bus interface,
 resolution, pixel format, rotation, trim (Off / Custom / Auto with
 x=11, y=15, w=width/2, h=height/2). Choice lists are constrained per
-controller family.
+controller family. The bus clock is not per-vector: the global speed
+class from the title screen picks index 0-3 of the same per-family/bus
+frequency lists.
 
 Formats that the controller command set cannot express are forced via
 the target's `intfFmtOvr` setting: SSD1331 RGB666-RA (SETREMAP encodes
@@ -204,8 +206,18 @@ low-active with internal pull-ups, 1 ms sampling, level accepted after
 3 identical samples). The Dec/Inc keys auto-repeat while held: first
 repeat after 500 ms, then every 100 ms.
 
-- **Vector select** (boot): Inc/Dec scroll ALL / #1..#31; the title
-  blinks. Start runs, Select customizes (not on ALL).
+- **Title screen** (boot): run-wide options. `Intf` selects the target
+  link (CDC over the PIO-USB port, or WiFi against pico2w_remote);
+  `Freq` selects the global bus speed class Slow/Medium/Fast/Extra
+  (index 0-3 into each family/bus frequency list; default Fast).
+  Inc/Dec change the focused value, Select moves the focus, Start
+  enters vector select (persisting changed options to flash and, for
+  WiFi, starting the rig-side join), Back is ignored. A status line
+  shows the rig's WiFi state / IP while WiFi is selected.
+- **Vector select**: Inc/Dec scroll ALL / #1..#31; the title blinks.
+  Start runs, Select customizes (not on ALL), Back returns to the
+  title screen. The `Freq` line shows the clock the speed class
+  resolves to for the vector's bus (informational).
 - **Item select**: Inc/Dec pick Intf/Freq/Reso/Fmt/Rot/Trim (text
   vectors: Intf/Freq only); the item name blinks. Select edits, Back
   returns.
@@ -223,6 +235,40 @@ repeat after 500 ms, then every 100 ms.
 The PC-facing CDC console logs pass/fail lines via `printf`
 (`pico_stdio_usb` cannot coexist with `tinyusb_host`, so a minimal
 custom stdio driver feeds the device CDC).
+
+## WiFi mode (pico2w_remote target)
+
+With `Intf: WiFi`, the run talks to a pico2w_remote target over HTTP
+(`POST /api`, same JSON protocol) instead of CDC:
+
+- The rig joins the WLAN with credentials stored in its flash (settings
+  page below); DHCP only. `cyw43_arch_lwip_poll` + a minimal raw-TCP
+  HTTP client (`src/link_http.cpp`, response parsing in
+  `src/http_client.cpp`, host-tested by `test_host/http_test.cpp`).
+- **The target's IP is discovered automatically**: at the start of every
+  run the rig sends `netstatus` over the USB CDC link (the rig and
+  target stay USB-connected in WiFi mode too) and uses the reported
+  address. No target address is configured anywhere. If the target is
+  not `CONNECTED`, every selected vector fails fast with stage
+  `target-wifi`; if the rig's own WiFi is down, stage is `link`.
+- One TCP connection per command: the target answers chunked with
+  `Connection: close`, and the transport synthesizes the terminating
+  newline on completion, so `JsonClient` runs unmodified. A `503`
+  (target busy) is retried up to 3 times with a 200 ms backoff.
+- The bus wiring, RST pulse and verification pipeline are identical to
+  CDC mode. Note pico2w_remote's RGB111-at-40MHz limitation: run the
+  Medium speed class for a clean ALL pass.
+
+### Rig settings page (docs/test-pico2/)
+
+A Web Serial page (same stack as docs/remote/) configures the rig's
+SSID / passphrase / country over its PC-facing CDC and shows the join
+state. It speaks `hello` (expects `"welcome testrig"` — distinguishes
+the rig from a target), `getrigconfig`, `setrigconfig` and `netstatus`;
+non-JSON console log lines are filtered (`jsonOnly` option of
+serial_conn.js). Settings persist in the rig's last flash sector
+(pico2_common flash_store; core 1 is parked in SRAM around the write)
+and apply without a reboot.
 
 ## JSON protocol usage
 
@@ -263,4 +309,3 @@ leaking into green bit 10) before any hardware existed.
 - Rotation vectors validate the config path, input decode and the
   rotated readback mapping; the DVI-side rendering itself remains a
   visual check.
-- pico2w_remote support: implement `Transport` over WiFi HTTP.

@@ -21,8 +21,10 @@ struct ExecResult {
 // Progress callback: percent 0..100; return false to cancel the vector.
 using ExecProgressFn = bool (*)(void* ctx, int percent);
 
-// Runs one vector start to finish (blocking). Returns res->pass.
+// Runs one vector start to finish (blocking). busFreqHz is the bus clock
+// resolved from the global speed class (freqForClass). Returns res->pass.
 bool executorRunVector(const TestVector& vec, JsonClient& client,
-                       ExecResult* res, ExecProgressFn progress, void* ctx);
+                       uint32_t busFreqHz, ExecResult* res,
+                       ExecProgressFn progress, void* ctx);
 
 }  // namespace testrig

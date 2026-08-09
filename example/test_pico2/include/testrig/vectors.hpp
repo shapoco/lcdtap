@@ -12,13 +12,21 @@ struct TestVector {
   const char* name;
   lcdtap::ConfigPreset preset;
   lcdtap::BusType busInterface;
-  uint32_t busFreqHz;
   uint16_t buffWidth, buffHeight;           // 0 for character LCDs
   lcdtap::InterfaceFormat interfaceFormat;  // NUM_FORMATS for character LCDs
   uint8_t outputRot;
   lcdtap::TrimMode trimMode;
   uint16_t trimX, trimY, trimWidth, trimHeight;
 };
+
+// Global bus clock speed classes: index into the per-family/bus frequency
+// list (freqChoices). Applied to a whole test run from the title screen.
+enum class SpeedClass : uint8_t { SLOW, MEDIUM, FAST, EXTRA, COUNT };
+extern const char* const SPEED_CLASS_NAMES[];  // "Slow" ... "Extra"
+
+// Bus clock for a vector under the given speed class.
+uint32_t freqForClass(lcdtap::ControllerFamily fam, lcdtap::BusType bus,
+                      SpeedClass cls);
 
 // The vector table. UI index 0 is the "ALL" pseudo entry; vector i is
 // TEST_VECTORS[i - 1].
@@ -35,12 +43,11 @@ bool vectorIsText(const TestVector& v);
 // Allowed buses for a controller family. Returns count; fills out[].
 int allowedBuses(lcdtap::ControllerFamily fam, lcdtap::BusType* out, int cap);
 
-// Clock frequency choices per family and bus (4 each; index 2 = "Fast"
-// default). Character LCDs (ST7032) get kHz-range parallel clocks: real
-// HD44780-class modules cannot follow the graphic-panel rates.
+// Clock frequency choices per family and bus (4, ordered slow to fast =
+// SpeedClass indices). Character LCDs (ST7032) get kHz-range parallel
+// clocks: real HD44780-class modules cannot follow the graphic-panel rates.
 int freqChoices(lcdtap::ControllerFamily fam, lcdtap::BusType bus,
                 uint32_t* out, int cap);
-uint32_t defaultFreq(lcdtap::ControllerFamily fam, lcdtap::BusType bus);
 
 // Framebuffer resolution choices per family. Returns count; w/h pairs.
 int resolutionChoices(lcdtap::ControllerFamily fam, uint16_t* w, uint16_t* h,
