@@ -378,6 +378,8 @@ button.danger:hover:not(:disabled) { background: rgba(248,81,73,0.25); }
 }
 .fb-text:focus { outline: none; border-color: var(--accent); }
 
+.fb-text-copy { margin-top: 8px; }
+
 /* ── Command Dump tab ────────────────────────────────────── */
 .dump-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 

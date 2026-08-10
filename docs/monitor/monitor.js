@@ -178,6 +178,7 @@ function appMarkup(title, transports) {
     <canvas id="fb-canvas" width="1" height="1"></canvas>
     <div class="fb-info" id="fb-info">No image captured.</div>
     <textarea id="fb-text" class="fb-text" readonly spellcheck="false" wrap="off" style="display:none"></textarea>
+    <button id="btn-copy-text" class="fb-text-copy" style="display:none">Copy Text</button>
   </div>
 </div>
 
@@ -878,12 +879,14 @@ export function initApp({
   // command" and a pixel device answers cols=0, both meaning "stop asking".
   async function fetchTextBuffer() {
     const textEl = document.getElementById('fb-text');
+    const copyTextBtn = document.getElementById('btn-copy-text');
     try {
       const resp = await conn.sendCommand({ command: 'gettextbuffer' }, 8000);
       const obj = JSON.parse(resp);
       if (!(obj.cols > 0) || !(obj.rows > 0)) {
         fbTextState = 'unsupported';
         textEl.style.display = 'none';
+        copyTextBtn.style.display = 'none';
         return;
       }
       textEl.value = textBufferToString(base64Decode(obj.data), obj.cols, obj.rows);
@@ -892,10 +895,12 @@ export function initApp({
       textEl.cols = Math.ceil(obj.cols * 2);
       textEl.rows = obj.rows;
       textEl.style.display = '';
+      copyTextBtn.style.display = '';
       fbTextState = 'supported';
     } catch (e) {
       fbTextState = 'unsupported';
       textEl.style.display = 'none';
+      copyTextBtn.style.display = 'none';
       console.warn('gettextbuffer failed:', e.message);
     }
   }
@@ -933,10 +938,12 @@ export function initApp({
       }
       ctx.putImageData(imgData, 0, 0);
 
-      // Scale canvas display size (max 640px wide, nearest-neighbor)
+      // Scale canvas display size (max 640px wide, nearest-neighbor).
+      // Only the width is set; the height stays 'auto' so the CSS max-width
+      // clamp on narrow screens cannot break the aspect ratio.
       const scale = Math.max(1, Math.floor(Math.min(640 / width, 480 / height)));
-      canvas.style.width  = (width  * scale) + 'px';
-      canvas.style.height = (height * scale) + 'px';
+      canvas.style.width = (width * scale) + 'px';
+      canvas.style.removeProperty('height');
 
       const bytesMismatch = raw.length !== expectedBytes ? ` ⚠ decoded ${raw.length} (expected ${expectedBytes})` : '';
       document.getElementById('fb-info').textContent = `${width} × ${height} px · scale ×${scale} · decoded ${raw.length} bytes${bytesMismatch}`;
@@ -966,6 +973,15 @@ export function initApp({
     });
   });
 
+  document.getElementById('btn-copy-text').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(document.getElementById('fb-text').value);
+      showToast('Text copied to clipboard', 'success');
+    } catch (e) {
+      showToast('Copy failed: ' + e.message, 'error');
+    }
+  });
+
   document.getElementById('btn-save').addEventListener('click', () => {
     canvas.toBlob(blob => {
       const url = URL.createObjectURL(blob);
@@ -980,14 +996,46 @@ export function initApp({
   const autoReloadCheck = document.getElementById('auto-reload');
   const autoReloadIntervalSel = document.getElementById('auto-reload-interval');
 
+  // Keep the screen awake while Auto Reload runs. Best effort: the Wake Lock
+  // API needs a secure context, so it is unavailable on the device's
+  // plain-HTTP web UI (works on GitHub Pages / localhost).
+  let wakeLock = null;
+
+  async function acquireWakeLock() {
+    if (!('wakeLock' in navigator) || wakeLock) return;
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      // The browser drops the lock on its own when the page is hidden; track
+      // that so the visibilitychange handler below can re-acquire it.
+      lock.addEventListener('release', () => {
+        if (wakeLock === lock) wakeLock = null;
+      });
+      // Auto Reload may have been stopped while the request was in flight
+      if (!autoReloadTimer) { lock.release().catch(() => {}); return; }
+      wakeLock = lock;
+    } catch (e) {
+      console.warn('Wake lock failed:', e.message);
+    }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && autoReloadTimer) acquireWakeLock();
+  });
+
   function stopAutoReload() {
     if (autoReloadTimer) { clearInterval(autoReloadTimer); autoReloadTimer = null; }
     autoReloadCheck.checked = false;
+    releaseWakeLock();
   }
 
   autoReloadCheck.addEventListener('change', () => {
     if (autoReloadCheck.checked) {
       autoReloadTimer = setInterval(captureFramebuffer, parseInt(autoReloadIntervalSel.value));
+      acquireWakeLock();
     } else {
       stopAutoReload();
     }
