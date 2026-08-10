@@ -4,7 +4,8 @@
 ; No external shift registers or counters are required.
 ;
 ; Pin mapping (configure SM before enabling):
-;   CS   → GPIO 1   (chip select, active low; must match PAR_CS_PIN)
+;   CS   → GPIO 1   (8080: chip select, active low; 6800: R/W line.
+;                    Must match PAR_CS_PIN and EXECCTRL_JMP_PIN.)
 ;   WR#  → GPIO 2   (write strobe, active low; must match PAR_WR_PIN)
 ;   D[0] → GPIO 3   (IN_BASE + 0)
 ;   D[1] → GPIO 4   (IN_BASE + 1)
@@ -27,22 +28,29 @@
 ;   bit [8]    = DC   (0 = command, 1 = data)
 ;   bits[7:0]  = received byte  (D7=bit7, D0=bit0)
 ;
-; Startup sync:
-;   The SM waits for CS LOW before entering the byte loop.  When the SM is
-;   reset by the CS-rising-edge IRQ, it returns here and waits for the next
-;   transaction.
-;
-; CS de-assertion (rising edge) handling:
-;   Same as SPI modes: a GPIO IRQ resets the SM and jumps PC to program start
-;   so it waits for the next CS LOW.
+; CS / R-W gating (issue 0014):
+;   EXECCTRL_JMP_PIN must be configured to the CS pin.  After sampling, the
+;   captured word is discarded when that pin is high:
+;     - 8080 hosts: CS high means the strobe was not addressed to us.
+;     - 6800 hosts (HD44780/ST7032 E-clocked, R/W wired to the CS input):
+;       R/W high means a READ cycle — busy-flag / address-counter polling —
+;       whose response bytes must never enter the command stream.
+;   The gating is done here, inside the SM, because it is race-free: the pin
+;   is checked one cycle after the data sample, while the host still holds
+;   CS / R/W valid.  The previous approach (a CS-rise GPIO IRQ parking the
+;   SM) depended on interrupt latency and leaked read bytes under cross-core
+;   XIP contention.
 
 .define public PAR_CS_PIN  1
 .define public PAR_WR_PIN  2
 
 .program parallel_8bit
 
-    ; Startup/reset sync: wait for CS LOW before entering the byte loop.
-    wait 0 gpio PAR_CS_PIN
+; Discard path: MOV to ISR clears its contents and resets the shift counter.
+; Placed at the program start so it doubles as a harmless entry point for SM
+; resets (spiSlaveResetSm jumps to the program start).
+drop:
+    mov  isr, null
 
 ; ---- per-byte loop ----------------------------------------------------------
 .wrap_target
@@ -58,10 +66,13 @@
     nop
     nop
     nop
-    
+
     ; Sample D[7:0] (IN_BASE+0..7 = GPIO3..10) and DC (IN_BASE+8 = GPIO11)
     ; simultaneously.  LEFT shift: ISR[8]=DC, ISR[7]=D7, ..., ISR[0]=D0.
     in   pins, 9
+
+    ; CS (8080) / R/W (6800) high: not a write addressed to us — discard.
+    jmp  pin, drop
 
     ; Push the completed 9-bit word.  noblock drops the word if the FIFO is
     ; full rather than stalling, preventing the SM from falling behind the

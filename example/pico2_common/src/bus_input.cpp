@@ -63,6 +63,10 @@ static void parSlaveInit(const BusInputContext& ctx, uint progOffset) {
   sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
                          /*push_threshold=*/32);
   sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+  // CS (8080) / R/W (6800): the SM samples this pin at each strobe via
+  // JMP PIN and discards the capture while it is high, filtering host READ
+  // cycles (busy-flag polling) race-free (issue 0014).
+  sm_config_set_jmp_pin(&c, cfg.pinCs);
 
   pio_sm_init(cfg.pio, cfg.sm, progOffset, &c);
   pio_sm_set_enabled(cfg.pio, cfg.sm, true);
@@ -122,7 +126,9 @@ void busInputSwitch(const BusInputContext& ctx, LcdTap* inst, BusType* current,
       parSlaveInit(ctx, ctx.spi->progOffset);
       ctx.spi->inst = inst;
       spiSlaveInitDma(ctx.spi);
-      gpio_set_irq_enabled(ctx.spi->cfg.pinCs, GPIO_IRQ_EDGE_RISE, true);
+      // No CS-rise IRQ here: the PIO program gates every capture on the
+      // CS / R/W level itself (issue 0014). The IRQ-based SM parking lost
+      // the race against read strobes under cross-core XIP contention.
       break;
     }
   }

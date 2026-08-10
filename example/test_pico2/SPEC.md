@@ -120,7 +120,9 @@ is kept high-impedance.
   registers accepting the divider. Validate on hardware; the vector can
   be treated as expected-fail if the silicon disagrees.
 - CS is asserted for the whole test sequence and released at the end
-  (the CS rising edge resets the target's capture state machine).
+  (SPI modes: the CS rising edge resets the target's capture state
+  machine; parallel mode: the target discards strobes while CS is high,
+  issue 0014).
 
 ## Test vectors
 

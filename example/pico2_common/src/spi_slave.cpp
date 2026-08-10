@@ -129,7 +129,9 @@ void spiSlaveDeinit(SpiSlaveState *s) {
   s->readIdx = 0;
 }
 
-void spiSlaveResetSm(SpiSlaveState *s) {
+// Called from the CS-rise GPIO IRQ in the SPI modes; kept in RAM so the
+// reset latency stays bounded even under cross-core XIP flash contention.
+void __not_in_flash_func(spiSlaveResetSm)(SpiSlaveState *s) {
   pio_sm_set_enabled(s->cfg.pio, s->cfg.sm, false);
   pio_sm_clear_fifos(s->cfg.pio, s->cfg.sm);
   pio_sm_restart(s->cfg.pio, s->cfg.sm);

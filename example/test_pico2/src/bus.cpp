@@ -185,7 +185,9 @@ void busDeselect() {
     i2c_deinit(BUS_I2C);
   } else {
     pioDrain();
-    gpio_put(PIN_TGT_CS, 1);  // CS rising edge resets the target's SM
+    // SPI modes: the CS rising edge resets the target's SM. Parallel mode:
+    // the target discards strobes while CS is high (issue 0014).
+    gpio_put(PIN_TGT_CS, 1);
     sleep_us(10);
   }
   unloadProgram();
