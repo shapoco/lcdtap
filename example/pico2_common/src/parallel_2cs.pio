@@ -1,0 +1,51 @@
+; 8-bit parallel slave receiver for dual-chip-select 6800-style hosts
+; (KS0108 / SG12864: two controller chips with separate high-active CS).
+;
+; Wiring (a single 74HC00 provides the two gates):
+;   GPIO 0   CS1  (raw, high active; pull-down)
+;   GPIO 1   CS2  (raw, high active; pull-down)
+;   GPIO 2   /EW = NAND(E, /R/W), /R/W = NAND(R/W, R/W)
+;            LOW only during a WRITE cycle while E is high; the E falling
+;            edge appears as the /EW rising edge. READ cycles (busy-flag
+;            polling) produce no strobe at all. Pull-up; the pad input is
+;            inverted (gpio_set_inover) so this program sees an active-HIGH
+;            strobe. Must match PAR2CS_E_PIN and EXECCTRL_JMP_PIN.
+;   GPIO 3   D[0]  (IN_BASE + 0)
+;   ...
+;   GPIO 10  D[7]  (IN_BASE + 7)
+;   GPIO 11  D/I   (IN_BASE + 8; 0 = command, 1 = data)
+;   /RES     not connected (GPIO 0 is CS1 in this mode; no reset input)
+;
+; Capture method: while the strobe is active the pins are sampled
+; continuously into ISR; when the strobe deasserts (= E falling edge) the
+; last capture — taken at most 2 sysclk (~6 ns) before the edge, inside the
+; guaranteed setup window (tDSW >= 200 ns, tAS2 >= 140 ns) — is pushed.
+; This satisfies the 10 ns CS / D/I hold time, which the post-edge sampling
+; of parallel_8bit.pio only meets for slow hosts.
+;
+; 'mov isr, pins' reads 32 pins starting at IN_BASE (mod 32), so with
+; IN_BASE = GPIO 3 the pushed word contains:
+;   bits[7:0] = D[7:0]   (byte-aligned: the stride-4 zero-copy path applies)
+;   bit [8]   = D/I      (same position as the other capture programs)
+;   bit [29]  = CS1  (GPIO 0)
+;   bit [30]  = CS2  (GPIO 1)
+;   bit [31]  = strobe (GPIO 2; always 1 in a captured word)
+;   bits[28:9] = GPIO 12..28 readback — garbage, masked by the consumer
+;
+; AUTOPUSH: disabled   FIFO join: RX only (8-deep receive FIFO)
+;
+; Throughput: the KS0108 E cycle is >= 1 us (~1 MB/s max), far below the
+; SPI paths; no filtering is needed in the SM. Words with neither CS bit
+; set are discarded by the consumer (spiSlaveProcess2Cs).
+
+.define public PAR2CS_E_PIN 2
+
+.program parallel_2cs
+
+.wrap_target
+    wait 1 gpio PAR2CS_E_PIN  ; wait for strobe assert (write cycle, E high)
+loop:
+    mov  isr, pins            ; sample continuously while the strobe is active
+    jmp  pin, loop            ; jmp_pin = PAR2CS_E_PIN
+    push noblock              ; strobe fell: last capture is the latched word
+.wrap

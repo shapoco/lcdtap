@@ -40,14 +40,15 @@ inline bool outputInterfaceIsComposite(OutputInterface v) {
   return v == OutputInterface::NTSC || v == OutputInterface::PAL;
 }
 
-// Everything except DVI-D conflicts with the PARALLEL bus: composite output
-// drives GPIO5-11, which in PARALLEL mode are data and D/C# lines driven by
-// the external host controller, and the DisplayLink USB host owns GPIO10/11
-// (= D[7] and D/C#). Selecting them there would be an output-vs-output
-// conflict, so it is forbidden rather than merely unsupported.
+// Everything except DVI-D conflicts with the parallel buses (PARALLEL and
+// PARALLEL_2CS): composite output drives GPIO5-11, which in these modes are
+// data and D/C# (D/I) lines driven by the external host controller, and the
+// DisplayLink USB host owns GPIO10/11 (= D[7] and D/C#). Selecting them
+// there would be an output-vs-output conflict, so it is forbidden rather
+// than merely unsupported.
 inline bool outputInterfaceAllowed(OutputInterface v, lcdtap::BusType bus) {
   if (v == OutputInterface::DVI_D) return true;
-  return bus != lcdtap::BusType::PARALLEL;
+  return bus < lcdtap::BusType::PARALLEL;
 }
 
 // Clamp a value that may have come from flash, a UART client, or an OSD item

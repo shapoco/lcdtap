@@ -59,6 +59,32 @@ static constexpr uint PIN_PAR_DATA_BASE = 3u;
 static constexpr uint PIN_PAR_DC = 11u;
 
 // =============================================================================
+// Dual-chip-select parallel slave pins (parallel_2cs.pio, PIO1 SM0)
+//
+// For KS0108 / SG12864-style hosts (two controller chips, high-active CS1
+// and CS2). One 74HC00 provides the strobe gating; read cycles (busy-flag
+// polling) never strobe:
+//   CS1  → GPIO 0   (raw, high active; shared with PIN_RST — no reset input
+//                    in this mode, the RST GPIO IRQ must be disabled)
+//   CS2  → GPIO 1   (raw, high active; shared with PIN_SPI_CS)
+//   /EW  → GPIO 2   (= NAND(E, /R/W), /R/W = NAND(R/W, R/W); LOW only while
+//                    E is high in a WRITE cycle; shared with PIN_PAR_WR)
+//   D[0] → GPIO 3   ... D[7] → GPIO 10  (shared with the parallel bus)
+//   D/I  → GPIO 11  (0 = command, 1 = data; shared with PIN_PAR_DC)
+//   /RES   not connected
+// =============================================================================
+
+// CS1, high active (shared with PIN_RST)
+static constexpr uint PIN_PAR2CS_CS1 = 0u;
+
+// CS2, high active (shared with PIN_SPI_CS)
+static constexpr uint PIN_PAR2CS_CS2 = 1u;
+
+// /EW write strobe (shared with PIN_PAR_WR; must match PAR2CS_E_PIN defined
+// in parallel_2cs.pio)
+static constexpr uint PIN_PAR2CS_E = 2u;
+
+// =============================================================================
 // I2C slave pins (I2C0, software slave mode)
 //
 //   SDA → GPIO 8

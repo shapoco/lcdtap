@@ -13,6 +13,7 @@
 
 #include "controller_base.hpp"
 #include "ili9341_controller.hpp"
+#include "ks0108_controller.hpp"
 #include "ssd1306_controller.hpp"
 #include "ssd1331_controller.hpp"
 #include "st7032_controller.hpp"
@@ -854,6 +855,9 @@ LcdTap::LcdTap(const LcdTapConfig& configIn, const HostInterface& host)
     case ControllerFamily::ST7032:
       ctrl = new (std::nothrow) St7032Controller();
       break;
+    case ControllerFamily::KS0108:
+      ctrl = new (std::nothrow) Ks0108Controller();
+      break;
     default: break;
   }
   if (!ctrl) return;
@@ -913,21 +917,23 @@ void LcdTap::inputReset(bool assert) {
   }
 }
 
-void LcdTap::inputCommand(uint8_t byte) {
+void LcdTap::inputCommand(uint8_t byte, uint8_t cs) {
   if (!impl_) return;
   ++rxCmdBytes_;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || ctrl->hwReset) return;
+  ctrl->inputCs = cs;
   ctrl->dispatchCommand(byte);
   if (dumpState_ == DumpState::ACTIVE) dumpPush(byte);
 }
 
-void LcdTap::inputData(const uint8_t* data, uint32_t numBytes,
-                       uint32_t stride) {
+void LcdTap::inputData(const uint8_t* data, uint32_t numBytes, uint32_t stride,
+                       uint8_t cs) {
   if (!impl_) return;
   rxDataBytes_ += numBytes;
   ControllerBase* ctrl = static_cast<ControllerBase*>(impl_);
   if (ctrl->status != Status::OK || ctrl->hwReset) return;
+  ctrl->inputCs = cs;
   ctrl->feedData(data, numBytes, stride);
   if (dumpState_ == DumpState::ACTIVE) {
     const uint32_t s = (stride == 0) ? 1u : stride;
@@ -1203,6 +1209,9 @@ Status LcdTap::updateConfig(const LcdTapConfig& cfgIn) {
         break;
       case ControllerFamily::ST7032:
         ctrl = new (std::nothrow) St7032Controller();
+        break;
+      case ControllerFamily::KS0108:
+        ctrl = new (std::nothrow) Ks0108Controller();
         break;
       default: return Status::OUT_OF_MEMORY;
     }

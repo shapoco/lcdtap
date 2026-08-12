@@ -185,7 +185,7 @@ static void onOsdMenuOpen(lcdtap::Osd *osd, void * /*userData*/) {
   out.config.enableKeyValueMax =
       static_cast<int16_t>(lcdtap::BusType::SPI_3LINE);
   // insertItem() does not run updateItemEnables(), so seed isEnabled here.
-  out.isEnabled = (gCurrentIface != lcdtap::BusType::PARALLEL);
+  out.isEnabled = (gCurrentIface < lcdtap::BusType::PARALLEL);
 
   lcdtap::OsdMenuItem dac = {};
   dac.id = OSD_ITEM_ID_CVBS_DAC;
@@ -236,6 +236,7 @@ static lcdtap::pico2::BusInputContext gBusCtx = {
     I2C_RING_BUF_WORDS,
     PIN_PAR_WR,
     PIN_PAR_DATA_BASE,
+    PIN_PAR2CS_CS1,
     /*parWrInvert=*/false,
 };
 
@@ -269,8 +270,18 @@ static void switchInterface(lcdtap::BusType newIface) {
     gBusCtx.parWrInvert =
         (cfg.controllerFamily == lcdtap::ControllerFamily::ST7032);
   }
+  // PARALLEL_2CS repurposes the RST pin as the CS1 input: keep the RST IRQ
+  // off across the switch and restore the pin only when it is RST again.
+  gpio_set_irq_enabled(PIN_RST, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, false);
   lcdtap::pico2::busInputSwitch(gBusCtx, gInst, &gCurrentIface, &gIfaceActive,
                                 newIface);
+  if (newIface != lcdtap::BusType::PARALLEL_2CS) {
+    gpio_init(PIN_RST);
+    gpio_set_dir(PIN_RST, GPIO_IN);
+    gpio_pull_up(PIN_RST);
+    gpio_set_irq_enabled(PIN_RST, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
+                         true);
+  }
 }
 
 // =============================================================================
@@ -534,8 +545,8 @@ int main() {
     // neither may be enabled there. outputInterfaceSanitize() already covers
     // this; the check stays because the failure mode is an output-vs-output
     // conflict, not a blank screen.
-    if (gCurrentIface == lcdtap::BusType::PARALLEL) {
-      panic("composite output is not available on the parallel bus");
+    if (gCurrentIface >= lcdtap::BusType::PARALLEL) {
+      panic("composite output is not available on the parallel buses");
     }
     const lcdtap::pico2::CompositeDacProfile *dac =
         (gCvbsDac == CompositeDacKind::R2R)
@@ -555,8 +566,8 @@ int main() {
     // lines driven by the external host controller.
     // outputInterfaceSanitize() already covers this; the check stays because
     // the failure mode is driving against an external output.
-    if (gCurrentIface == lcdtap::BusType::PARALLEL) {
-      panic("DisplayLink output is not available on the parallel bus");
+    if (gCurrentIface >= lcdtap::BusType::PARALLEL) {
+      panic("DisplayLink output is not available on the parallel buses");
     }
     inst.setDirtyTracking(true);
     DisplaylinkOutConfig dlCfg = {PIN_LED,

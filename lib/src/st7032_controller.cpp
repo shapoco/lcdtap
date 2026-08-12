@@ -51,7 +51,8 @@ void St7032Controller::softReset() {
 // their upper nibbles (D[7:4]), high nibble first. Only meaningful on the
 // parallel bus; I2C and serial transfers are always 8-bit.
 bool St7032Controller::nibbleMode() const {
-  return !funcDL && config.busInterface == BusType::PARALLEL;
+  return !funcDL && (config.busInterface == BusType::PARALLEL ||
+                     config.busInterface == BusType::PARALLEL_2CS);
 }
 
 void St7032Controller::dispatchCommand(uint8_t cmd) {

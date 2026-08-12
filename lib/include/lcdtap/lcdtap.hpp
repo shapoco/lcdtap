@@ -130,10 +130,15 @@ class LcdTap {
   void inputReset(bool assert);
 
   // Command byte input (D/CX=Low)
-  void inputCommand(uint8_t byte);
+  // cs: chip-select bitmask for multi-chip controllers (bit0 = chip 0,
+  // bit1 = chip 1; 3 = both). Single-chip controllers ignore it.
+  void inputCommand(uint8_t byte, uint8_t cs = 1);
 
   // Data byte stream input (D/CX=High)
-  void inputData(const uint8_t* data, uint32_t numBytes, uint32_t stride = 1);
+  // cs: see inputCommand(). With cs = 3 each byte is duplicated to both
+  // chips on multi-chip controllers.
+  void inputData(const uint8_t* data, uint32_t numBytes, uint32_t stride = 1,
+                 uint8_t cs = 1);
 
   // Periodic service hook. Drives time-dependent controller behaviour such
   // as the ST7032 cursor blink; a no-op for other controllers. Call from the

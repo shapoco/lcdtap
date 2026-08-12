@@ -1,8 +1,8 @@
 #pragma once
 
 // Input bus management shared by the pico2 examples: switching between the
-// four capture interfaces (I2C, 4-line SPI, 3-line SPI, 8-bit parallel) and
-// draining the active ring buffer.
+// capture interfaces (I2C, 4-line SPI, 3-line SPI, 8-bit parallel, 8-bit
+// parallel with dual chip select) and draining the active ring buffer.
 
 #include "lcdtap/lcdtap.hpp"
 #include "lcdtap/pico2/i2c_slave.hpp"
@@ -21,6 +21,11 @@ struct BusInputContext {
   uint32_t i2cRingWords;
   uint pinParWr;        // parallel write strobe (shares the SPI SCLK pin)
   uint pinParDataBase;  // D[0]; D/C# is pinParDataBase + 8
+
+  // PARALLEL_2CS only: raw CS1 input (high active). Shares the RST pin, so
+  // the example must disable its RST GPIO IRQ while this mode is active.
+  // CS2 shares spi->cfg.pinCs and the strobe (/EW) shares pinParWr.
+  uint pinPar2csCs1;
 
   // Invert the WR# input (PARALLEL only). 6800-style hosts (ST7032 E signal)
   // latch on the falling edge; inverting the pad input lets the 8080-style

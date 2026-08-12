@@ -58,6 +58,10 @@ void getDefaultConfig(ControllerFamily type, LcdTapConfig* cfg) {
       cfg->busInterface = BusType::I2C;
       cfg->i2cSlaveAddr = 0x3E;
       break;
+    case ControllerFamily::KS0108:
+      cfg->outputRotation = 0;
+      cfg->busInterface = BusType::PARALLEL_2CS;
+      break;
     default: break;
   }
   normalizeConfig(cfg);
@@ -76,12 +80,19 @@ InterfaceFormat getDefaultInterfaceFormat(ControllerFamily type) {
     case ControllerFamily::ILI9341: return InterfaceFormat::RGB565_BE;
     // ST7032 carries character codes, not pixels; value is unused.
     case ControllerFamily::ST7032: return InterfaceFormat::GRAY1_VPACK8_H2L;
+    case ControllerFamily::KS0108: return InterfaceFormat::GRAY1_VPACK8_H2L;
     default: return InterfaceFormat::RGB565_BE;
   }
 }
 
 void normalizeConfig(LcdTapConfig* cfg) {
   cfg->i2cSlaveAddr &= 0x7F;
+  if (cfg->controllerFamily == ControllerFamily::KS0108) {
+    // Fixed geometry: two 64x64 controller chips side by side.
+    cfg->buffWidth = 128;
+    cfg->buffHeight = 64;
+    return;
+  }
   if (cfg->controllerFamily != ControllerFamily::ST7032) return;
 
   uint8_t cols = cfg->textCols & ~1u;  // even only
@@ -482,6 +493,10 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
 
     case ConfigPreset::SSD1331:
       getDefaultConfig(ControllerFamily::SSD1331, cfg);
+      break;
+
+    case ConfigPreset::SG12864:
+      getDefaultConfig(ControllerFamily::KS0108, cfg);
       break;
 
     case ConfigPreset::TEXT_0802:

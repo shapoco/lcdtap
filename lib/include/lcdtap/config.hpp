@@ -15,11 +15,12 @@ enum class ControllerFamily : uint8_t {
   SSD1331,
   ILI9341,
   ST7032,
+  KS0108,
   NUM_CONTROLLERS,
 };
 
-static const char* CONTROLLER_NAMES[] = {"ST7789", "SSD1306", "SSD1331",
-                                         "ILI9341", "ST7032"};
+static const char* CONTROLLER_NAMES[] = {"ST7789",  "SSD1306", "SSD1331",
+                                         "ILI9341", "ST7032",  "KS0108"};
 static_assert(sizeof(CONTROLLER_NAMES) / sizeof(CONTROLLER_NAMES[0]) ==
                   static_cast<size_t>(ControllerFamily::NUM_CONTROLLERS),
               "CONTROLLER_NAMES size must match ControllerFamily enum");
@@ -33,16 +34,17 @@ enum class BusType : uint8_t {
   SPI_4LINE,
   SPI_3LINE,
   PARALLEL,
+  PARALLEL_2CS,
   NUM_BUSES,
 };
 
 static const char* BUS_NAMES[] = {"I2C", "4-Line SPI", "3-Line SPI",
-                                  "Parallel8"};
+                                  "Parallel8", "Para8 Dual CS"};
 static_assert(sizeof(BUS_NAMES) / sizeof(BUS_NAMES[0]) ==
                   static_cast<size_t>(BusType::NUM_BUSES),
               "BUS_NAMES size must match lcdtap::BusType enum");
 
-static const char* BUS_SHORT_NAMES[] = {"I2C", "SPI4", "SPI3", "PAR8"};
+static const char* BUS_SHORT_NAMES[] = {"I2C", "SPI4", "SPI3", "PAR8", "P8C2"};
 static_assert(sizeof(BUS_SHORT_NAMES) / sizeof(BUS_SHORT_NAMES[0]) ==
                   static_cast<size_t>(BusType::NUM_BUSES),
               "BUS_SHORT_NAMES size must match lcdtap::BusType enum");
@@ -149,6 +151,7 @@ enum class ConfigPreset : uint8_t {
   ILI9488,
   SSD1306,
   SSD1331,
+  SG12864,
   ST7735,
   ST7789,
   TEXT_0802,
@@ -168,10 +171,11 @@ enum class ConfigPreset : uint8_t {
 };
 
 static const char* CONFIG_PRESET_NAMES[] = {
-    "ILI9341",    "ILI9342", "ILI9488",    "SSD1306",        "SSD1331",
-    "ST7735",     "ST7789",  "Text 8x2",   "Text 16x2",      "Text 16x4",
-    "Text 20x4",  "Arduboy", "ESPboy",     "M5Stack CoreS3", "PicoPad",
-    "PicoSystem", "Thumby",  "TinyJoypad", "Wio Terminal",   "Xiamocon",
+    "ILI9341",   "ILI9342",    "ILI9488", "SSD1306",    "SSD1331",
+    "SG12864",   "ST7735",     "ST7789",  "Text 8x2",   "Text 16x2",
+    "Text 16x4", "Text 20x4",  "Arduboy", "ESPboy",     "M5Stack CoreS3",
+    "PicoPad",   "PicoSystem", "Thumby",  "TinyJoypad", "Wio Terminal",
+    "Xiamocon",
 };
 static_assert(sizeof(CONFIG_PRESET_NAMES) / sizeof(CONFIG_PRESET_NAMES[0]) ==
                   static_cast<size_t>(ConfigPreset::NUM_PRESETS),

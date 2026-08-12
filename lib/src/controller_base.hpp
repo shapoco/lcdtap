@@ -35,6 +35,11 @@ class ControllerBase {
   uint8_t currentCmd;
   uint8_t cmdDataLen;  // number of data bytes received for the current command
 
+  // Chip-select bitmask of the current inputCommand()/inputData() call
+  // (bit0 = chip 0, bit1 = chip 1). Only multi-chip controllers (KS0108)
+  // consult it; single-chip controllers ignore it entirely.
+  uint8_t inputCs = 1;
+
   // RAMWR addressing
   uint16_t casetXS;     // CASET start column (logical coordinate)
   uint16_t casetXE;     // CASET end column   (logical coordinate, inclusive)

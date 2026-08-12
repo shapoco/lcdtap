@@ -69,4 +69,9 @@ void spiSlaveResetSm(SpiSlaveState *s);
 // Drain the DMA ring buffer and dispatch commands/data to s->inst.
 void __not_in_flash_func(spiSlaveProcess)(SpiSlaveState *s);
 
+// Variant for the dual-chip-select parallel capture (parallel_2cs.pio):
+// extracts the CS1/CS2 bits from each ring word and forwards them as the
+// cs mask of inputCommand()/inputData().
+void __not_in_flash_func(spiSlaveProcess2Cs)(SpiSlaveState *s);
+
 }  // namespace lcdtap::pico2

@@ -106,6 +106,7 @@ static lcdtap::pico2::BusInputContext gBusCtx = {
     I2C_RING_BUF_WORDS,
     PIN_PAR_WR,
     PIN_PAR_DATA_BASE,
+    PIN_PAR2CS_CS1,
     /*parWrInvert=*/false,
 };
 
@@ -119,6 +120,23 @@ static void syncBusCtxFromConfig() {
   // edge); every other supported controller writes 8080-style.
   gBusCtx.parWrInvert =
       (cfg.controllerFamily == lcdtap::ControllerFamily::ST7032);
+}
+
+// Bus switch on Core 1 with the RST-pin handover: PARALLEL_2CS repurposes
+// the RST pin as the CS1 input, so the RST IRQ stays off across the switch
+// and the pin is restored only when it is RST again.
+static void switchBusOnCore1(lcdtap::BusType next) {
+  syncBusCtxFromConfig();
+  gpio_set_irq_enabled(PIN_RST, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, false);
+  lcdtap::pico2::busInputSwitch(gBusCtx, gInst, &gCurrentIface, &gIfaceActive,
+                                next);
+  if (next != lcdtap::BusType::PARALLEL_2CS) {
+    gpio_init(PIN_RST);
+    gpio_set_dir(PIN_RST, GPIO_IN);
+    gpio_pull_up(PIN_RST);
+    gpio_set_irq_enabled(PIN_RST, GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
+                         true);
+  }
 }
 
 // =============================================================================
@@ -167,9 +185,7 @@ static void core1Main() {
                                      /*enabled=*/true, &gpioIrqHandler);
   irq_set_priority(IO_IRQ_BANK0, 0x00);
 
-  syncBusCtxFromConfig();
-  lcdtap::pico2::busInputSwitch(gBusCtx, gInst, &gCurrentIface, &gIfaceActive,
-                                gCurrentIface);
+  switchBusOnCore1(gCurrentIface);
   __dmb();
   gCore1Ready = true;
 
@@ -186,9 +202,7 @@ static void core1Main() {
     if (gFlashParkReq) core1FlashParkLoop();
     if (gBusSwitchReq) {
       lcdtap::BusType next = static_cast<lcdtap::BusType>(gBusSwitchReq - 1u);
-      syncBusCtxFromConfig();
-      lcdtap::pico2::busInputSwitch(gBusCtx, gInst, &gCurrentIface,
-                                    &gIfaceActive, next);
+      switchBusOnCore1(next);
       __dmb();
       gBusSwitchReq = 0;
     }

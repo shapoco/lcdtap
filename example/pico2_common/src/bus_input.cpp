@@ -5,6 +5,7 @@
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 
+#include "parallel_2cs.pio.h"
 #include "parallel_8bit.pio.h"
 #include "spi_3line_mode0.pio.h"
 
@@ -73,6 +74,46 @@ static void parSlaveInit(const BusInputContext& ctx, uint progOffset) {
 }
 
 // =============================================================================
+// Dual-chip-select parallel slave init (program already added at progOffset)
+// =============================================================================
+static void par2csSlaveInit(const BusInputContext& ctx, uint progOffset) {
+  const SpiSlaveConfig& cfg = ctx.spi->cfg;
+
+  // CS1 (RST pin) / CS2 (SPI CS pin): raw high-active chip selects;
+  // pull-down so a disconnected host reads as "no chip selected".
+  for (uint pin : {ctx.pinPar2csCs1, cfg.pinCs}) {
+    gpio_init(pin);
+    gpio_set_dir(pin, GPIO_IN);
+    gpio_pull_down(pin);
+  }
+
+  // /EW strobe (WR#/SCLK pin): LOW only during a write cycle while E is
+  // high. Invert the pad input so the PIO program sees an active-high
+  // strobe; pull-up so a disconnected host reads as inactive.
+  gpio_init(ctx.pinParWr);
+  gpio_set_dir(ctx.pinParWr, GPIO_IN);
+  gpio_pull_up(ctx.pinParWr);
+  gpio_set_inover(ctx.pinParWr, GPIO_OVERRIDE_INVERT);
+
+  for (uint pin = ctx.pinParDataBase; pin < ctx.pinParDataBase + 9u; ++pin) {
+    gpio_init(pin);
+    gpio_set_dir(pin, GPIO_IN);
+  }
+
+  pio_sm_config c = parallel_2cs_program_get_default_config(progOffset);
+  // IN_BASE = D[0]; 'mov isr, pins' wraps mod 32, placing CS1/CS2 at
+  // bits[30:29] (see parallel_2cs.pio for the full word layout).
+  sm_config_set_in_pins(&c, ctx.pinParDataBase);
+  sm_config_set_in_shift(&c, /*shift_direction=*/false, /*autopush=*/false,
+                         /*push_threshold=*/32);
+  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+  sm_config_set_jmp_pin(&c, ctx.pinParWr);
+
+  pio_sm_init(cfg.pio, cfg.sm, progOffset, &c);
+  pio_sm_set_enabled(cfg.pio, cfg.sm, true);
+}
+
+// =============================================================================
 // Interface switching (teardown current, setup new)
 // =============================================================================
 void busInputSwitch(const BusInputContext& ctx, LcdTap* inst, BusType* current,
@@ -91,11 +132,13 @@ void busInputSwitch(const BusInputContext& ctx, LcdTap* inst, BusType* current,
   *active = true;
 
   // Undo any parallel-mode pad overrides before the new interface claims the
-  // pins (WR# shares the SPI SCLK pin). parSlaveInit re-applies them.
+  // pins (WR# shares the SPI SCLK pin). parSlaveInit / par2csSlaveInit
+  // re-apply them.
   gpio_set_inover(ctx.pinParWr, GPIO_OVERRIDE_NORMAL);
   for (uint pin = ctx.pinParDataBase; pin < ctx.pinParDataBase + 4u; ++pin) {
     gpio_disable_pulls(pin);
   }
+  gpio_disable_pulls(ctx.pinPar2csCs1);
 
   switch (next) {
     case BusType::I2C: {
@@ -131,6 +174,17 @@ void busInputSwitch(const BusInputContext& ctx, LcdTap* inst, BusType* current,
       // the race against read strobes under cross-core XIP contention.
       break;
     }
+    case BusType::PARALLEL_2CS: {
+      ctx.spi->progOffset =
+          pio_add_program(ctx.spi->cfg.pio, &parallel_2cs_program);
+      ctx.spi->pioProgram = &parallel_2cs_program;
+      par2csSlaveInit(ctx, ctx.spi->progOffset);
+      ctx.spi->inst = inst;
+      spiSlaveInitDma(ctx.spi);
+      // No CS-rise IRQ: CS1/CS2 are captured with every strobe and read
+      // cycles never strobe at all (/EW is gated by R/W in hardware).
+      break;
+    }
   }
   *current = next;
 }
@@ -141,6 +195,8 @@ void busInputSwitch(const BusInputContext& ctx, LcdTap* inst, BusType* current,
 void busInputProcess(const BusInputContext& ctx, BusType current) {
   if (current == BusType::I2C) {
     i2cSlaveProcess(ctx.i2c);
+  } else if (current == BusType::PARALLEL_2CS) {
+    spiSlaveProcess2Cs(ctx.spi);
   } else {
     spiSlaveProcess(ctx.spi);
   }

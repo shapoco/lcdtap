@@ -33,6 +33,9 @@ pico_generate_pio_header(pico2_common
 pico_generate_pio_header(pico2_common
     ${CMAKE_CURRENT_LIST_DIR}/src/parallel_8bit.pio
 )
+pico_generate_pio_header(pico2_common
+    ${CMAKE_CURRENT_LIST_DIR}/src/parallel_2cs.pio
+)
 
 target_include_directories(pico2_common
     PUBLIC  include

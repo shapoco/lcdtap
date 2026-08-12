@@ -139,10 +139,11 @@ void __not_in_flash_func(spiSlaveResetSm)(SpiSlaveState *s) {
   pio_sm_set_enabled(s->cfg.pio, s->cfg.sm, true);
 }
 
-void __not_in_flash_func(spiSlaveProcess)(SpiSlaveState *s) {
-  dma_channel_hw_t *dmaHw = dma_channel_hw_addr((uint)s->dmaCh);
-
-  // --- Ring overrun detection (once per call, outside the data loop) ---
+// Ring accounting shared by the process variants: tracks received words,
+// detects full ring laps (overruns) and resynchronizes on one. Called once
+// per process call, outside the data loop.
+static void __not_in_flash_func(spiRingAccount)(SpiSlaveState *s,
+                                                dma_channel_hw_t *dmaHw) {
   {
     const uint32_t chBit = 1u << (uint)s->dmaCh;
     uint32_t wrap, pend, writeIdxNow;
@@ -193,6 +194,11 @@ void __not_in_flash_func(spiSlaveProcess)(SpiSlaveState *s) {
     }
     if (backlog > s->backlogMaxWords) s->backlogMaxWords = backlog;
   }
+}
+
+void __not_in_flash_func(spiSlaveProcess)(SpiSlaveState *s) {
+  dma_channel_hw_t *dmaHw = dma_channel_hw_addr((uint)s->dmaCh);
+  spiRingAccount(s, dmaHw);
 
   for (int i = 0; i < 3; i++) {
     uint32_t writeAddr = dmaHw->write_addr;
@@ -238,6 +244,78 @@ void __not_in_flash_func(spiSlaveProcess)(SpiSlaveState *s) {
     if (dataLen != 0) {
       s->inst->inputData((uint8_t *)&s->ringBuf[dataStart], dataLen,
                          sizeof(uint32_t));
+    }
+    s->readIdx = readIdx;
+    s->totalConsumedWords += (readIdx - iterStartIdx) & (s->ringWords - 1u);
+  }
+}
+
+// Ring consumer for the dual-chip-select parallel capture (parallel_2cs.pio).
+// Word layout: bits[7:0] = data byte, bit8 = D/I (1 = data), bits[30:29] =
+// CS2:CS1 (high active); the remaining bits are pin readback garbage.
+// Consecutive data words are batched into one zero-copy inputData() call as
+// long as their cs mask stays the same.
+void __not_in_flash_func(spiSlaveProcess2Cs)(SpiSlaveState *s) {
+  dma_channel_hw_t *dmaHw = dma_channel_hw_addr((uint)s->dmaCh);
+  spiRingAccount(s, dmaHw);
+
+  for (int i = 0; i < 3; i++) {
+    uint32_t writeAddr = dmaHw->write_addr;
+    uint32_t writeIdx =
+        (writeAddr - reinterpret_cast<uint32_t>(s->ringBuf)) / sizeof(uint32_t);
+    writeIdx &= (s->ringWords - 1u);
+
+    if (!s->inst) {
+      s->totalConsumedWords += (writeIdx - s->readIdx) & (s->ringWords - 1u);
+      s->readIdx = writeIdx;
+      return;
+    }
+
+    const uint32_t iterStartIdx = s->readIdx;
+
+    uint32_t readIdx = s->readIdx;
+    uint32_t dataStart = 0;  // only meaningful while dataCs != 0
+    uint8_t dataCs = 0;      // cs of the pending data batch; 0 = none
+    while (readIdx != writeIdx) {
+      const uint32_t lastReadIdx = readIdx;
+      const uint32_t word = s->ringBuf[readIdx];
+      readIdx = (readIdx + 1u) & (s->ringWords - 1u);
+      const uint8_t cs = (word >> 29) & 3u;
+      const bool isData = (word & 0x100u) != 0u;
+
+      // The pending batch ends when this word cannot extend it.
+      if (dataCs != 0u && (!isData || cs != dataCs)) {
+        s->inst->inputData((uint8_t *)&s->ringBuf[dataStart],
+                           lastReadIdx - dataStart, sizeof(uint32_t), dataCs);
+        dataCs = 0u;
+        s->readIdx = lastReadIdx;
+      }
+
+      if (!isData) {
+        if (cs != 0u) s->inst->inputCommand(static_cast<uint8_t>(word), cs);
+        s->readIdx = readIdx;
+      } else if (cs == 0u) {
+        // Strobe with no chip selected: discard.
+        s->readIdx = readIdx;
+      } else {
+        if (dataCs == 0u) {
+          dataCs = cs;
+          dataStart = lastReadIdx;
+        }
+        if (readIdx == 0u) {
+          // Ring wrap: flush the batch including this word.
+          s->inst->inputData((uint8_t *)&s->ringBuf[dataStart],
+                             s->ringWords - dataStart, sizeof(uint32_t),
+                             dataCs);
+          dataCs = 0u;
+          s->readIdx = 0u;
+        }
+      }
+    }
+
+    if (dataCs != 0u && readIdx != dataStart) {
+      s->inst->inputData((uint8_t *)&s->ringBuf[dataStart], readIdx - dataStart,
+                         sizeof(uint32_t), dataCs);
     }
     s->readIdx = readIdx;
     s->totalConsumedWords += (readIdx - iterStartIdx) & (s->ringWords - 1u);

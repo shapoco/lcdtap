@@ -19,6 +19,7 @@
 //       ../../../lib/src/ssd1306_controller.cpp
 //       ../../../lib/src/ssd1331_controller.cpp
 //       ../../../lib/src/st7032_controller.cpp
+//       ../../../lib/src/ks0108_controller.cpp
 //   /tmp/lcdtap_ramwr_test
 
 #include <cstdint>

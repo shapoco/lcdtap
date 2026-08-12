@@ -17,6 +17,7 @@ if(ESP_PLATFORM)
             src/ssd1306_controller.cpp
             src/ssd1331_controller.cpp
             src/st7032_controller.cpp
+            src/ks0108_controller.cpp
         INCLUDE_DIRS include
     )
     target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_17)
@@ -55,6 +56,7 @@ add_library(lcdtap STATIC
     src/ssd1306_controller.cpp
     src/ssd1331_controller.cpp
     src/st7032_controller.cpp
+    src/ks0108_controller.cpp
 )
 
 target_include_directories(lcdtap
