@@ -4,7 +4,7 @@
 
 namespace lcdtap {
 
-// KS0108 (SBN0064G-compatible) dual-chip graphic LCD controller (SG12864).
+// KS0108 (SBN0064G-compatible) dual-chip graphic LCD controller (KS0108).
 //
 // Key differences from SSD1306:
 // - Two 64x64 chips side by side; inputCs selects the target chip(s)

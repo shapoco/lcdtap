@@ -1,5 +1,5 @@
 ; 8-bit parallel slave receiver for dual-chip-select 6800-style hosts
-; (KS0108 / SG12864: two controller chips with separate high-active CS).
+; (KS0108: two controller chips with separate high-active CS).
 ;
 ; Wiring (a single 74HC00 provides the two gates):
 ;   GPIO 0   CS1  (raw, high active; pull-down)

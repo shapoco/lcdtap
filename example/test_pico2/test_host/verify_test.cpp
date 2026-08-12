@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "lcdtap/devices/ili9341.hpp"
+#include "lcdtap/devices/ks0108.hpp"
 #include "lcdtap/devices/ssd1306.hpp"
 #include "lcdtap/devices/ssd1331.hpp"
 #include "lcdtap/devices/st7032.hpp"
@@ -171,6 +172,10 @@ struct Harness {
   }
   void data(const uint8_t* d, size_t n) {
     tap.inputData(d, static_cast<uint32_t>(n));
+  }
+  void cmdCs(uint8_t c, uint8_t cs) { tap.inputCommand(c, cs); }
+  void dataCs(const uint8_t* d, size_t n, uint8_t cs) {
+    tap.inputData(d, static_cast<uint32_t>(n), 1, cs);
   }
 };
 
@@ -431,6 +436,55 @@ static void testSsd1306() {
 }
 
 // ---------------------------------------------------------------------------
+// KS0108: the exact per-chip page streams the rig's executor sends
+// (sendPatternFrameKs0108), in both the normal and the cs-interleaved order
+// ---------------------------------------------------------------------------
+static void testKs0108() {
+  printf("testKs0108\n");
+  for (int interleave = 0; interleave < 2; interleave++) {
+    LcdTapConfig cfg;
+    getDefaultConfig(ControllerFamily::KS0108, &cfg);
+    Harness h(cfg);
+    const uint16_t w = cfg.buffWidth;  // 128, two 64-wide chips
+
+    h.cmdCs(ks0108::CMD_DISPLAY_ONOFF_BASE | ks0108::CMD_DISPLAY_ONOFF_MASK, 3);
+    h.cmdCs(ks0108::CMD_SET_START_LINE_BASE, 3);
+
+    PatternParams pat{InterfaceFormat::GRAY1_VPACK8_H2L, w,
+                      0x9000u + static_cast<uint32_t>(interleave)};
+    uint8_t chipBuf[2][64];
+    for (uint8_t page = 0; page < 8; page++) {
+      for (int chip = 0; chip < 2; chip++) {
+        buildWireRect(pat, static_cast<uint16_t>(chip * 64), page * 8u, 64, 8,
+                      chipBuf[chip]);
+      }
+      if (interleave) {
+        // One cs=3 page/column set, then the chips' bytes alternate per
+        // byte relying on the independent column counters.
+        h.cmdCs(ks0108::CMD_SET_PAGE_BASE | page, 3);
+        h.cmdCs(ks0108::CMD_SET_COL_BASE, 3);
+        for (uint16_t x = 0; x < 64; x++) {
+          for (int chip = 0; chip < 2; chip++) {
+            h.dataCs(&chipBuf[chip][x], 1, static_cast<uint8_t>(1 << chip));
+          }
+        }
+      } else {
+        for (int chip = 0; chip < 2; chip++) {
+          const uint8_t cs = static_cast<uint8_t>(1 << chip);
+          h.cmdCs(ks0108::CMD_SET_PAGE_BASE | page, cs);
+          h.cmdCs(ks0108::CMD_SET_COL_BASE, cs);
+          h.dataCs(chipBuf[chip], 64, cs);
+        }
+      }
+    }
+
+    char what[64];
+    snprintf(what, sizeof(what), "KS0108 interleave=%d", interleave);
+    runVerify(h.tap, pat, cfg.swapRB, what);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // ST7032: text pattern round trip through the DDRAM path
 // ---------------------------------------------------------------------------
 static void testSt7032Text() {
@@ -514,6 +568,7 @@ int main() {
   testIli9341Formats();
   testSsd1331Formats();
   testSsd1306();
+  testKs0108();
   testSt7032Text();
   testCorruptionDetected();
   if (gFailures == 0) {

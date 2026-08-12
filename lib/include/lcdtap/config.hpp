@@ -151,7 +151,7 @@ enum class ConfigPreset : uint8_t {
   ILI9488,
   SSD1306,
   SSD1331,
-  SG12864,
+  KS0108,
   ST7735,
   ST7789,
   TEXT_0802,
@@ -172,7 +172,7 @@ enum class ConfigPreset : uint8_t {
 
 static const char* CONFIG_PRESET_NAMES[] = {
     "ILI9341",   "ILI9342",    "ILI9488", "SSD1306",    "SSD1331",
-    "SG12864",   "ST7735",     "ST7789",  "Text 8x2",   "Text 16x2",
+    "KS0108",   "ST7735",     "ST7789",  "Text 8x2",   "Text 16x2",
     "Text 16x4", "Text 20x4",  "Arduboy", "ESPboy",     "M5Stack CoreS3",
     "PicoPad",   "PicoSystem", "Thumby",  "TinyJoypad", "Wio Terminal",
     "Xiamocon",

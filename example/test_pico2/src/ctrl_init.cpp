@@ -3,6 +3,7 @@
 #include <initializer_list>
 
 #include "lcdtap/devices/ili9341.hpp"
+#include "lcdtap/devices/ks0108.hpp"
 #include "lcdtap/devices/ssd1306.hpp"
 #include "lcdtap/devices/ssd1331.hpp"
 #include "lcdtap/devices/st7032.hpp"
@@ -98,6 +99,16 @@ void ctrlInitDisplay(ControllerFamily fam, const TestVector& vec,
       break;
     }
 
+    case ControllerFamily::KS0108:
+      // Both chips at once: display on, start line 0, page 0, column 0.
+      busSetCs2(3);
+      busWriteCommand(lcdtap::ks0108::CMD_DISPLAY_ONOFF_BASE |
+                      lcdtap::ks0108::CMD_DISPLAY_ONOFF_MASK);
+      busWriteCommand(lcdtap::ks0108::CMD_SET_START_LINE_BASE);
+      busWriteCommand(lcdtap::ks0108::CMD_SET_PAGE_BASE);
+      busWriteCommand(lcdtap::ks0108::CMD_SET_COL_BASE);
+      break;
+
     default: break;
   }
 }
@@ -145,6 +156,14 @@ void ctrlBeginFrame(ControllerFamily fam, const TestVector& vec, uint16_t x0,
     default: break;
   }
   (void)vec;
+}
+
+void ctrlKs0108SetPageCol(uint8_t csMask, uint8_t page, uint8_t col) {
+  busSetCs2(csMask);
+  busWriteCommand(lcdtap::ks0108::CMD_SET_PAGE_BASE |
+                  (page & lcdtap::ks0108::CMD_SET_PAGE_MASK));
+  busWriteCommand(lcdtap::ks0108::CMD_SET_COL_BASE |
+                  (col & lcdtap::ks0108::CMD_SET_COL_MASK));
 }
 
 void ctrlSetTextRow(uint16_t row, uint16_t cols) {

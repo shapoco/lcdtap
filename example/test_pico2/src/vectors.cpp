@@ -53,6 +53,8 @@ const TestVector TEST_VECTORS[] = {
     {"TEXT_16x4",      ConfigPreset::TEXT_1604, BusType::I2C,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
     {"TEXT_20x4",      ConfigPreset::TEXT_2004, BusType::I2C,   0,   0, FMT_NONE,                               0, TrimMode::OFF,    0, 0, 0, 0},
     {"TEXT_Par8",      ConfigPreset::TEXT_2004, BusType::PARALLEL, 0, 0, FMT_NONE,                             0, TrimMode::OFF,    0, 0, 0, 0},
+    {"KS0108_P8C2",   ConfigPreset::KS0108,   BusType::PARALLEL_2CS, 128, 64, InterfaceFormat::GRAY1_VPACK8_H2L, 0, TrimMode::OFF, 0, 0, 0, 0},
+    {"KS0108_CsMix",  ConfigPreset::KS0108,   BusType::PARALLEL_2CS, 128, 64, InterfaceFormat::GRAY1_VPACK8_H2L, 0, TrimMode::OFF, 0, 0, 0, 0, VEC_FLAG_KS_INTERLEAVE},
 };
 // clang-format on
 
@@ -72,6 +74,7 @@ lcdtap::ControllerFamily presetFamily(ConfigPreset preset) {
     case ConfigPreset::TEXT_1602:
     case ConfigPreset::TEXT_1604:
     case ConfigPreset::TEXT_2004: return ControllerFamily::ST7032;
+    case ConfigPreset::KS0108: return ControllerFamily::KS0108;
     default: return ControllerFamily::ST7789;
   }
 }
@@ -91,6 +94,7 @@ int allowedBuses(ControllerFamily fam, BusType* out, int cap) {
       add(BusType::I2C);
       add(BusType::PARALLEL);
       break;
+    case ControllerFamily::KS0108: add(BusType::PARALLEL_2CS); break;
     default:  // ST7789 / ILI9341
       add(BusType::SPI_4LINE);
       add(BusType::PARALLEL);
@@ -104,12 +108,15 @@ int freqChoices(ControllerFamily fam, BusType bus, uint32_t* out, int cap) {
   static const uint32_t SPI_FREQS[] = {10000000, 20000000, 40000000, 60000000};
   static const uint32_t PAR_FREQS[] = {1000000, 2500000, 5000000, 10000000};
   static const uint32_t PAR_TEXT_FREQS[] = {2000, 5000, 10000, 20000};
+  // KS0108 spec tops out at tCYC = 1 us (1 MB/s).
+  static const uint32_t PAR_2CS_FREQS[] = {100000, 250000, 500000, 1000000};
   const uint32_t* src;
   switch (bus) {
     case BusType::I2C: src = I2C_FREQS; break;
     case BusType::PARALLEL:
       src = (fam == ControllerFamily::ST7032) ? PAR_TEXT_FREQS : PAR_FREQS;
       break;
+    case BusType::PARALLEL_2CS: src = PAR_2CS_FREQS; break;
     default: src = SPI_FREQS; break;
   }
   int n = 0;
@@ -143,7 +150,8 @@ int resolutionChoices(ControllerFamily fam, uint16_t* w, uint16_t* h, int cap) {
       break;
     case ControllerFamily::SSD1331: add(96, 64); break;
     case ControllerFamily::ST7032: break;  // derived from textCols/textRows
-    default:                               // ST7789 / ILI9341
+    case ControllerFamily::KS0108: add(128, 64); break;  // fixed geometry
+    default:                                             // ST7789 / ILI9341
       add(128, 160);
       add(240, 240);
       add(240, 320);
@@ -160,6 +168,7 @@ int formatChoices(ControllerFamily fam, InterfaceFormat* out, int cap) {
   };
   switch (fam) {
     case ControllerFamily::SSD1306:
+    case ControllerFamily::KS0108:
       add(InterfaceFormat::GRAY1_VPACK8_H2L);
       break;
     case ControllerFamily::SSD1331:

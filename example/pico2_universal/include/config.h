@@ -61,7 +61,7 @@ static constexpr uint PIN_PAR_DC = 11u;
 // =============================================================================
 // Dual-chip-select parallel slave pins (parallel_2cs.pio, PIO1 SM0)
 //
-// For KS0108 / SG12864-style hosts (two controller chips, high-active CS1
+// For KS0108-style hosts (two controller chips, high-active CS1
 // and CS2). One 74HC00 provides the strobe gating; read cycles (busy-flag
 // polling) never strobe:
 //   CS1  → GPIO 0   (raw, high active; shared with PIN_RST — no reset input

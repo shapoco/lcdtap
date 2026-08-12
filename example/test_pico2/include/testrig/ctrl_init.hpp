@@ -23,4 +23,9 @@ void ctrlBeginFrame(lcdtap::ControllerFamily fam, const TestVector& vec,
 // Character LCDs: set the DDRAM address to the start of a visible row.
 void ctrlSetTextRow(uint16_t row, uint16_t cols);
 
+// KS0108: select the chips of csMask (busSetCs2) and set their page and
+// column address. The caller streams the page data afterwards; the cs
+// selection stays in effect until the next busSetCs2().
+void ctrlKs0108SetPageCol(uint8_t csMask, uint8_t page, uint8_t col);
+
 }  // namespace testrig

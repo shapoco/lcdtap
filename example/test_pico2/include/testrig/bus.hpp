@@ -24,7 +24,13 @@ bool busSelect(lcdtap::BusType type, uint32_t freqHz, uint8_t i2cAddr,
 void busDeselect();
 
 // Hardware reset pulse to the target's LCD front end.
+// Not available in PARALLEL_2CS mode (the RST line is the CS1 select).
 void busResetPulse(uint32_t lowMs, uint32_t settleMs);
+
+// PARALLEL_2CS only: drive the high-active chip selects (bit0 = CS1 on the
+// RST line, bit1 = CS2 on the CS line). Drains the PIO first so the levels
+// only change at a byte boundary. No-op on other buses.
+void busSetCs2(uint8_t mask);
 
 // One command byte (DC=0 / I2C control 0x00 framing).
 void busWriteCommand(uint8_t cmd);

@@ -8,6 +8,11 @@
 
 namespace testrig {
 
+// KS0108 vectors only: write the pattern frame with the cs mask alternating
+// per data byte (no commands in between), exercising the bare cs-change
+// batch split in the target's spiSlaveProcess2Cs.
+constexpr uint8_t VEC_FLAG_KS_INTERLEAVE = 0x01;
+
 struct TestVector {
   const char* name;
   lcdtap::ConfigPreset preset;
@@ -17,6 +22,7 @@ struct TestVector {
   uint8_t outputRot;
   lcdtap::TrimMode trimMode;
   uint16_t trimX, trimY, trimWidth, trimHeight;
+  uint8_t flags;  // VEC_FLAG_*; existing rows default to 0
 };
 
 // Global bus clock speed classes: index into the per-family/bus frequency

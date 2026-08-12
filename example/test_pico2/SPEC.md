@@ -62,9 +62,9 @@ GPIO N−10**.
 | 6 | Back key (low active, pull-up) | — |
 | 8 | USB host D+ (Pico-PIO-USB) | target USB D+ |
 | 9 | USB host D− | target USB D− |
-| 10 | RST (active low) | 0 |
-| 11 | CS (active low) | 1 |
-| 12 | WR# / SCLK | 2 |
+| 10 | RST (active low) / 2CS: CS1 (high active) | 0 |
+| 11 | CS (active low) / 2CS: CS2 (high active) | 1 |
+| 12 | WR# / SCLK / 2CS: /EW strobe | 2 |
 | 13 | D0 / SPI MOSI | 3 |
 | 14 | D1 / SPI DC | 4 |
 | 15–17 | D2–D4 | 5–7 |
@@ -75,6 +75,12 @@ GPIO N−10**.
 
 Only the pins of the active bus are driven; everything else on GPIO11–21
 is kept high-impedance.
+
+In PARALLEL_2CS (KS0108/KS0108) mode the same wires change roles: the
+rig drives the raw high-active CS1/CS2 selects and the /EW strobe
+directly (the target expects /EW = NAND(E, /R/W); the 8080 WR# waveform
+of `par8_master.pio` is exactly that pulse), so no external gate logic
+is needed. There is no reset input in this mode.
 
 ### External components (required)
 
@@ -126,15 +132,23 @@ is kept high-impedance.
 
 ## Test vectors
 
-31 built-in vectors plus the **ALL** entry (runs every vector, continues
+33 built-in vectors plus the **ALL** entry (runs every vector, continues
 on failure). Defaults use the "Fast" clock (third choice of each
 family/bus list: I2C 1 MHz, SPI 40 MHz, parallel 5 MHz — 10 kHz for
-character LCDs). See `src/vectors.cpp` for the
+character LCDs, 500 kHz for the dual-CS parallel bus). See
+`src/vectors.cpp` for the
 full table: SSD1306 (I2C rot 0–3, SPI), SSD1331 (RGB332 rot 0–3,
 RGB565, RGB666-RA), ST7789 (RGB444 rot 0–3, RGB565, RGB666-LA),
 ILI9341, ILI9488 (RGB111 rot 0–3, RGB565, RGB666-LA, trim CUSTOM/AUTO,
-parallel), and ST7032 text presets (8x2/16x2/16x4/20x4 I2C, 20x4
-parallel).
+parallel), ST7032 text presets (8x2/16x2/16x4/20x4 I2C, 20x4
+parallel), and KS0108/KS0108 on the dual-CS parallel bus
+(`KS0108_P8C2` per-chip page streams; `KS0108_CsMix` alternates the
+cs mask per data byte with no commands in between, covering the bare
+cs-change batch split in the target's `spiSlaveProcess2Cs`). KS0108
+behaviours already proven by the host test
+`example/pico2_common/test_host/ks0108_test.cpp` (start-line scroll,
+column wrap, flip, per-chip display off, cs=3 data duplication) are not
+re-tested on the rig.
 
 Customization (per selected vector, volatile): bus interface,
 resolution, pixel format, rotation, trim (Off / Custom / Auto with
@@ -161,8 +175,15 @@ Everything else is selected through real COLMOD / SETREMAP commands.
 3. Wait 300 ms, `statsreset`.
 4. Select the bus, pulse RST (10 ms low, 120 ms settle), send the
    controller init sequence (SWRESET/SLPOUT/COLMOD/MADCTL/DISPON etc.).
+   PARALLEL_2CS vectors skip the RST pulse — the RST line is the CS1
+   select in that mode; the target's `inputReset` on the `setparams`
+   bus switch provides the state init instead.
 5. Send 10 solid-color dummy frames (one row built once, resent per
-   line), then immediately one PRNG compare frame.
+   line), then immediately one PRNG compare frame. KS0108: dummy pages
+   are written to both chips at once (cs=3); after the compare frame a
+   few data bytes and a garbage command are sent with **no** chip
+   selected — the discard is verified by the unchanged compare result
+   and the zero `Unknown Commands` delta.
 6. `getframebuffer {"writeProtected": true}` — the Base64/RLE stream is
    decoded and compared on the fly (below). Character LCD vectors send
    dummy text then per-row pattern text and compare via

@@ -495,7 +495,7 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
       getDefaultConfig(ControllerFamily::SSD1331, cfg);
       break;
 
-    case ConfigPreset::SG12864:
+    case ConfigPreset::KS0108:
       getDefaultConfig(ControllerFamily::KS0108, cfg);
       break;
 

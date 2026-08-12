@@ -179,6 +179,67 @@ void sendDummyFrame(ControllerFamily fam, const TestVector& vec,
   }
 }
 
+// --- KS0108 (PARALLEL_2CS) frame senders -----------------------------------
+// The two 64x64 chips are addressed page by page with the cs selects driven
+// between drained byte boundaries (busSetCs2 / ctrlKs0108SetPageCol).
+
+constexpr uint16_t KS_CHIP_W = 64;
+constexpr uint16_t KS_PAGES = 8;
+
+// Dummy fill: both chips at once (cs=3) with the solid GRAY1 page.
+void sendDummyFrameKs0108() {
+  static uint8_t rowBuf[KS_CHIP_W];
+  size_t n =
+      buildSolidRow(InterfaceFormat::GRAY1_VPACK8_H2L, KS_CHIP_W, rowBuf);
+  for (uint8_t page = 0; page < KS_PAGES; page++) {
+    ctrlKs0108SetPageCol(3, page, 0);
+    busWriteData(rowBuf, n);
+  }
+}
+
+// Pattern frame. interleave=false: per page, chip 0's 64 bytes then chip 1's
+// 64 bytes, each addressed with its own cs (data batches delimited by the
+// page/column commands). interleave=true: per page, one cs=3 page/column
+// set, then the two chips' bytes alternate per byte with no commands in
+// between — exercising the bare cs-change batch split in the target's
+// spiSlaveProcess2Cs and the independent per-chip column counters.
+void sendPatternFrameKs0108(uint32_t seed, bool interleave) {
+  PatternParams pat{InterfaceFormat::GRAY1_VPACK8_H2L, 128, seed};
+  static uint8_t chipBuf[2][KS_CHIP_W];
+  for (uint8_t page = 0; page < KS_PAGES; page++) {
+    for (int chip = 0; chip < 2; chip++) {
+      buildWireRect(pat, static_cast<uint16_t>(chip * KS_CHIP_W),
+                    static_cast<uint16_t>(page * 8u), KS_CHIP_W, 8,
+                    chipBuf[chip]);
+    }
+    if (interleave) {
+      ctrlKs0108SetPageCol(3, page, 0);
+      for (uint16_t x = 0; x < KS_CHIP_W; x++) {
+        for (int chip = 0; chip < 2; chip++) {
+          busSetCs2(static_cast<uint8_t>(1u << chip));
+          busWriteData(&chipBuf[chip][x], 1);
+        }
+      }
+    } else {
+      for (int chip = 0; chip < 2; chip++) {
+        ctrlKs0108SetPageCol(static_cast<uint8_t>(1u << chip), page, 0);
+        busWriteData(chipBuf[chip], KS_CHIP_W);
+      }
+    }
+  }
+}
+
+// Strobes with neither chip selected must be discarded by the target: the
+// garbage data would otherwise corrupt the just-sent pattern (detected by
+// the framebuffer compare) and the garbage command byte 0x00 would count as
+// an Unknown Command (detected by the stats check).
+void sendCs0Garbage() {
+  static const uint8_t garbage[4] = {0xDE, 0xAD, 0xBE, 0xEF};
+  busSetCs2(0);
+  busWriteData(garbage, sizeof(garbage));
+  busWriteCommand(0x00);
+}
+
 }  // namespace
 
 bool executorRunVector(const TestVector& vec, JsonClient& client,
@@ -261,7 +322,11 @@ bool executorRunVector(const TestVector& vec, JsonClient& client,
                  fam == ControllerFamily::ST7032)) {
     return fail("bus-select");
   }
-  busResetPulse(10, 120);
+  if (vec.busInterface != lcdtap::BusType::PARALLEL_2CS) {
+    // PARALLEL_2CS has no reset input (the RST line is CS1); the target's
+    // inputReset on the setparams bus switch covers the state init.
+    busResetPulse(10, 120);
+  }
   ctrlInitDisplay(fam, vec, textRows);
   if (!step(20)) return fail("cancel");
 
@@ -281,6 +346,13 @@ bool executorRunVector(const TestVector& vec, JsonClient& client,
       buildTextRow(seed, row, textCols, line);
       busWriteData(reinterpret_cast<uint8_t*>(line), textCols);
     }
+  } else if (fam == ControllerFamily::KS0108) {
+    for (int f = 0; f < NUM_DUMMY_FRAMES; f++) {
+      sendDummyFrameKs0108();
+      if (!step(20 + 5 * f)) return fail("cancel");
+    }
+    sendPatternFrameKs0108(seed, (vec.flags & VEC_FLAG_KS_INTERLEAVE) != 0);
+    sendCs0Garbage();
   } else {
     FrameRect r = frameRect(vec);
     for (int f = 0; f < NUM_DUMMY_FRAMES; f++) {

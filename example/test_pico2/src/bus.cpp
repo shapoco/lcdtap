@@ -83,8 +83,10 @@ void pioWriteDma(const uint8_t* data, size_t len) {
 }
 
 void setDc(bool high) {
-  uint pin =
-      (gMode == lcdtap::BusType::PARALLEL) ? PIN_TGT_PAR_DC : PIN_TGT_SPI_DC;
+  uint pin = (gMode == lcdtap::BusType::PARALLEL ||
+              gMode == lcdtap::BusType::PARALLEL_2CS)
+                 ? PIN_TGT_PAR_DC
+                 : PIN_TGT_SPI_DC;
   gpio_put(pin, high);
 }
 
@@ -155,6 +157,30 @@ bool busSelect(lcdtap::BusType type, uint32_t freqHz, uint8_t i2cAddr,
       break;
     }
 
+    case lcdtap::BusType::PARALLEL_2CS: {
+      // KS0108-style dual chip select. The 8080 WR# waveform of par8_master
+      // (idle high, active-low pulse, data latched on the rising edge) is
+      // exactly the /EW strobe the target expects — no inversion needed.
+      // 3 cycles/byte.
+      float div = static_cast<float>(clock_get_hz(clk_sys)) /
+                  (3.0f * static_cast<float>(freqHz));
+      gProgramOffset = pio_add_program(BUS_PIO, &par8_master_program);
+      gLoadedProgram = &par8_master_program;
+      par8_master_program_init(BUS_PIO, BUS_SM, gProgramOffset, PIN_TGT_D0,
+                               PIN_TGT_WR_SCLK, div);
+      gpio_init(PIN_TGT_PAR_DC);  // D/I
+      gpio_put(PIN_TGT_PAR_DC, 1);
+      gpio_set_dir(PIN_TGT_PAR_DC, GPIO_OUT);
+      // CS1 (the RST line — no reset input in this mode) and CS2 are raw
+      // high-active selects, both deselected until busSetCs2().
+      gpio_put(PIN_TGT_RST, 0);
+      gpio_init(PIN_TGT_CS);
+      gpio_put(PIN_TGT_CS, 0);
+      gpio_set_dir(PIN_TGT_CS, GPIO_OUT);
+      // The common active-low CS assert below does not apply here.
+      return true;
+    }
+
     case lcdtap::BusType::I2C: {
       i2c_init(BUS_I2C, freqHz);
       gpio_set_function(PIN_TGT_I2C_SDA, GPIO_FUNC_I2C);
@@ -183,6 +209,15 @@ void busDeselect() {
   if (gMode == lcdtap::BusType::NUM_BUSES) return;
   if (gMode == lcdtap::BusType::I2C) {
     i2c_deinit(BUS_I2C);
+  } else if (gMode == lcdtap::BusType::PARALLEL_2CS) {
+    pioDrain();
+    // Deselect both high-active chip selects, then hand the RST line back
+    // to its idle level. While the target is still in 2CS mode a high CS1
+    // is harmless without strobes, and once it switches away the high
+    // level is exactly the deasserted RST it expects.
+    gpio_put(PIN_TGT_CS, 0);
+    gpio_put(PIN_TGT_RST, 1);
+    sleep_us(10);
   } else {
     pioDrain();
     // SPI modes: the CS rising edge resets the target's SM. Parallel mode:
@@ -202,11 +237,21 @@ void busResetPulse(uint32_t lowMs, uint32_t settleMs) {
   sleep_ms(settleMs);
 }
 
+void busSetCs2(uint8_t mask) {
+  if (gMode != lcdtap::BusType::PARALLEL_2CS) return;
+  // Only change the selects at a drained byte boundary so a level change
+  // can never race an in-flight strobe.
+  pioDrain();
+  gpio_put(PIN_TGT_RST, (mask & 1u) != 0u);  // CS1
+  gpio_put(PIN_TGT_CS, (mask & 2u) != 0u);   // CS2
+}
+
 void busWriteCommand(uint8_t cmd) {
   switch (gMode) {
     case lcdtap::BusType::I2C: i2cWriteFramed(0x00, &cmd, 1); break;
     case lcdtap::BusType::SPI_4LINE:
     case lcdtap::BusType::PARALLEL:
+    case lcdtap::BusType::PARALLEL_2CS:
       pioDrain();
       setDc(false);
       pioPutByte(cmd);
@@ -225,6 +270,7 @@ void busWriteParams(const uint8_t* params, size_t len, bool asData) {
       break;
     case lcdtap::BusType::SPI_4LINE:
     case lcdtap::BusType::PARALLEL:
+    case lcdtap::BusType::PARALLEL_2CS:
       pioDrain();
       setDc(asData);
       for (size_t i = 0; i < len; i++) pioPutByte(params[i]);
@@ -241,6 +287,7 @@ void busWriteData(const uint8_t* data, size_t len) {
     case lcdtap::BusType::I2C: i2cWriteFramed(0x40, data, len); break;
     case lcdtap::BusType::SPI_4LINE:
     case lcdtap::BusType::PARALLEL:
+    case lcdtap::BusType::PARALLEL_2CS:
       setDc(true);
       pioWriteDma(data, len);
       break;

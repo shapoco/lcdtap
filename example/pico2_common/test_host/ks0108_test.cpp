@@ -118,7 +118,7 @@ struct Harness {
 
 LcdTapConfig makeConfig() {
   LcdTapConfig cfg;
-  getPresetConfig(ConfigPreset::SG12864, &cfg);
+  getPresetConfig(ConfigPreset::KS0108, &cfg);
   cfg.dviWidth = 640;
   cfg.dviHeight = 480;
   return cfg;
