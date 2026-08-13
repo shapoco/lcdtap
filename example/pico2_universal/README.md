@@ -69,6 +69,7 @@ For text displays, connect the R/W signal to CS and the E signal to WR.
 
 For KS0108-compatible displays (such as SG12864), connect CS1 to RST,
 CS2 to CS, and AND the inverted R/W signal with the E signal to connect to WR.
+If R/W is fixed to Low, you can connect the E signal directly to the WR terminal.
 
 ![](../../docs/cases/ks0108//we-gen.png)
 
