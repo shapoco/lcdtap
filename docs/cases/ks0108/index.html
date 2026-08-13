@@ -7,10 +7,10 @@
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@shapoco" />
-  <meta property="og:url" content="https://shapoco.github.io/lcdtap/cases/tinyjoypad/" />
-  <meta property="og:title" content="Capturing Screen of TinyJoyPad | LcdTap" />
-  <meta property="og:description" content="How to capture the screen of TinyJoyPad using LcdTap." />
-  <meta property="og:image" content="https://shapoco.github.io/lcdtap/cases/tinyjoypad/thumb.jpg" />
+  <meta property="og:url" content="https://shapoco.github.io/lcdtap/cases/text-display/" />
+  <meta property="og:title" content="Capturing Screen of KS0108 (SG12864) | LcdTap" />
+  <meta property="og:description" content="How to capture the screen of KS0108 (SG12864) using LcdTap." />
+  <meta property="og:image" content="https://shapoco.github.io/lcdtap/cases/text-display/thumb.jpg" />
 
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
@@ -28,7 +28,7 @@
   </script>
 
   <link rel="stylesheet" href="../../style.css">
-  <title>Capturing Screen of TinyJoyPad | LcdTap</title>
+  <title>Capturing Screen of KS0108 (SG12864) | LcdTap</title>
   <link rel="icon" type="image/png" href="../../favicon.png">
   <link rel="shortcut icon" href="../../favicon.ico">
 </head>
@@ -39,40 +39,70 @@
     <a href="../../#cases">Cases</a>
   </header>
   <main>
-    <h1>Capturing Screen of TinyJoyPad</h1>
+    <h1>Capturing Screen of KS0108 (SG12864)</h1>
     
     <div id="shpcstamp_wrap"></div>
     <script async src="/lcdtap/stamp/v1/widget.js?202606212157"></script>
 
     <p><img src="./thumb.jpg" class="large-img" /></p>
-    <p>See also: <a href="https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/">LcdTap:
-        TinyJoyPad や Arduboy を大画面で遊ぶ</a></p>
+    
     <h2>Using LcdTap-Pico2 Universal</h2>
+
     <h3>Connection</h3>
+
+    <p>
+      The KS0108 has two CS signals, but LcdTap has only one, so we use the RST pin as CS instead.
+    </p>
+    <p>
+      Also, LcdTap does not have an R/W signal, so we take the logic of R/W and E signals and input them to the WE pin.
+      If R/W is fixed Low, you can connect the E signal directly to the WE pin.
+    </p>
+    <p>
+      <img src="we-gen.png" class="large-img" />
+    </p>
+    <p>
+      <strong>For displays with 5V interface, a 5V-3.3V level converter is required.</strong>
+    </p>
+
     <table>
       <thead>
         <tr>
           <th>LcdTap (Pico2)</th>
-          <th>Connection</th>
+          <th>KS0108 (SG12864)</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td>GND</td>
-          <td>TinyJoyPad’s GND</td>
+          <td>GND</td>
         </tr>
         <tr>
-          <td>GPIO8 (SDA)</td>
-          <td>TinyJoyPad’s SDA</td>
+          <td>GPIO0 (RST)</td>
+          <td>CS1</td>
         </tr>
         <tr>
-          <td>GPIO9 (SCL)</td>
-          <td>TinyJoyPad’s SCL</td>
+          <td>GPIO1 (CS)</td>
+          <td>CS2</td>
+        </tr>
+        <tr>
+          <td>GPIO2 (WR)</td>
+          <td>E and not R/W</td>
+        </tr>
+        <tr>
+          <td>GPIO3-10 (D0-D7)</td>
+          <td>D0-D7</td>
+        </tr>
+        <tr>
+          <td>GPIO11 (DC)</td>
+          <td>I/D (R/S)</td>
         </tr>
       </tbody>
     </table>
+
     <h3>Configuration</h3>
-    <p>Load preset for TinyJoyPad.</p>
+    <p>
+      Load the "KS0108" preset.
+    </p>
   </main>
 
   <footer>

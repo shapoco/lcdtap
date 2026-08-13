@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
 
   <meta name="keywords"
-    content="LcdTap, LcdTap-Pico2, Raspberry Pi Pico 2, PicoDVI, DVHSTX, DVI for HSTX, LCD Controller, ST7735, ST7789, ILI9341, ILI9342, ILI9488, SSD1306, SSD1309, SSD1331" />
+    content="LcdTap, LcdTap-Pico2, Raspberry Pi Pico 2, PicoDVI, DVHSTX, DVI for HSTX, LCD Controller, ST7735, ST7789, ILI9341, ILI9342, ILI9488, SSD1306, SSD1309, SSD1331, HD44780, AQM0802, SC1602, SC2004, KS0108, SG12864" />
   <meta name="description"
     content="LcdTap is a library and its implementation that receives LCD controller commands and outputs the framebuffer as a DVI-D signal.">
 
@@ -82,6 +82,7 @@
         ST7735, ST7789,
         ILI9341, ILI9342, ILI9488,
         SSD1306, SSD1309, SSD1331,
+        HD44780 (AQM0802, SC1602, SC2004), KS0108 (SG12864),
         and some variants
       </li>
       <li>Supported Pixel Formats: Monochrome, RGB111, RGB332, RGB444, RGB565, RGB666</li>
@@ -95,7 +96,7 @@
     <p>
       <img src="image/pico2-universal-boards.jpg" class="large-img" />
     </p>
-    
+
     <h3>Features</h3>
     <ul>
       <li>DVI-D Video Output (640x480@60Hz, 1280x720@30Hz)</li>
@@ -193,6 +194,12 @@
         </a>
       </li>
       <li>
+        <a href="./cases/ks0108/"><img src="./cases/ks0108/thumb.jpg" /><br>
+          KS0108<br>
+          (SG12864)
+        </a>
+      </li>
+      <li>
         <a href="./cases/kws-x1/"><img src="./cases/kws-x1/thumb.jpg" /><br>
           KWS-X1<br>
           (USB Tester)
@@ -220,6 +227,11 @@
         </a>
       </li>
       <li>
+        <a href="./cases/text-display/"><img src="./cases/text-display/thumb.jpg" /><br>
+          Text Display
+        </a>
+      </li>
+      <li>
         <a href="./cases/thumby/"><img src="./cases/thumby/thumb.jpg" /><br>
           Thumby
         </a>
@@ -237,6 +249,14 @@
     </ul>
 
     <h2>Other Implementations</h2>
+
+    <h3>LcdTap-Pico2W Remote</h3>
+    <p>
+      LcdTap implementation for Raspberry Pi Pico 2 W. Using the same input interface as
+      LcdTap-Pico2 Universal (I2C / 4-wire SPI / 3-wire SPI / 8-bit parallel with identical pin layout),
+      it captures LCD controller traffic and reads the screen without video output via WiFi.
+      See <a href="https://github.com/shapoco/lcdtap/blob/main/example/pico2w_remote">example/pico2w_remote</a>.
+    </p>
 
     <h3>LcdTap-Tab5</h3>
     <p>

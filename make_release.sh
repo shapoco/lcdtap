@@ -5,14 +5,11 @@ set -eu
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RELEASE_NAME="lcdtap_v$(date +%Y%m%d%H%M)"
 RELEASE_DIR="${SCRIPT_DIR}/release/${RELEASE_NAME}"
+APP_NAMES=("pico2_universal" "pico2w_remote")
 
 # Build all example programs
-for example_dir in "${SCRIPT_DIR}/example"/*/; do
-    dir_name="$(basename "${example_dir}")"
-    if [ "${dir_name}" = "pico2_common" ] || [ "${dir_name}" = "m5tab5" ]; then
-        continue
-    fi
-
+for dir_name in "${APP_NAMES[@]}"; do
+    example_dir="${SCRIPT_DIR}/example/${dir_name}"
     echo "=== Building ${example_dir} ==="
     (cd "${example_dir}" && bash build.sh)
 done
@@ -26,14 +23,9 @@ cp "${SCRIPT_DIR}/LICENSE" "${RELEASE_DIR}/"
 cp -r "${SCRIPT_DIR}/image" "${RELEASE_DIR}/"
 
 # Copy per-example artifacts
-for example_dir in "${SCRIPT_DIR}/example"/*/; do
-    dir_name="$(basename "${example_dir}")"
-    if [ "${dir_name}" = "pico2_common" ] || [ "${dir_name}" = "m5tab5" ]; then
-        continue
-    fi
-    
-    example_name="$(basename "${example_dir}")"
-    dest="${RELEASE_DIR}/${example_name}"
+for dir_name in "${APP_NAMES[@]}"; do
+    example_dir="${SCRIPT_DIR}/example/${dir_name}"
+    dest="${RELEASE_DIR}/${dir_name}"
     mkdir -p "${dest}"
 
     cp "${example_dir}/README.md" "${dest}/"

@@ -1,49 +1,36 @@
 # LcdTap pico2w_remote
 
-Raspberry Pi Pico 2 W 向けの LcdTap 実装例。pico2_universal と同じ入力
-インターフェース (I2C / 4線SPI / 3線SPI / 8bitパラレル、同一ピン配置) で
-LCD コントローラのトラフィックをキャプチャし、**映像出力なし** で WiFi
-経由の HTTP JSON API とデバイス内蔵 Web UI から画面を読み取ります。
+![](../../docs/image/pico2w-remote-cover.jpg)
 
-## 機能
+LcdTap implementation for Raspberry Pi Pico 2 W. Using the same input interface as
+pico2_universal (I2C / 4-wire SPI / 3-wire SPI / 8-bit parallel with identical pin layout),
+it captures LCD controller traffic and reads the screen **without video output** via WiFi
+through HTTP JSON API and built-in Web UI on the device.
 
-- HTTP サーバ (ポート 80)
-  - `GET /` — LcdTap Monitor と同一 UI の Web ページ (ファーム内蔵)
-  - `POST /api` — pico2_universal の UART I/F と同一の JSON コマンド
-- USB CDC シリアル — 同じ JSON コマンド一式 + WiFi セットアップ
+## Features
+
+- HTTP Server (port 80)
+  - `GET /` — Web page with the same UI as LcdTap Monitor (firmware built-in)
+  - `POST /api` — Same JSON command set as pico2_universal's UART I/F
+- USB CDC Serial — Same JSON command set + WiFi setup
   (`getnetconfig` / `setnetconfig` / `netstatus`)
-- mDNS — `http://<hostname>.local/` (デフォルト `lcdtap.local`)
-- 設定は Flash に保存される
+- mDNS — `http://<hostname>.local/` (default `lcdtap.local`)
+- Settings are stored in Flash
 
-## セットアップ
+## Setup
 
-1. `build.sh` でビルドし、`build/lcdtap_pico2w_remote.uf2` を書き込む。
-2. ブラウザで [LcdTap Remote Setup](https://shapoco.github.io/lcdtap/remote/)
-   を開き、WebSerial で接続して SSID / パスフレーズ等を書き込む。
-3. Pico2W が再起動して WiFi 接続が試行される。接続に成功すると
-   LED が常時点灯になり、`http://lcdtap.local/` (または IP アドレス) で Web UI が開ける。
+1. Download the latest zip file from [releases](https://github.com/shapoco/lcdtap/releases), and extract `lcdtap_pico2w_remote.uf2`.
+2. Connect Raspberry Pi Pico 2 W to your PC while holding the BOOTSEL button, and copy the uf2 file to the mounted drive.
+3. Open [LcdTap Remote Setup](https://shapoco.github.io/lcdtap/remote/) in your browser,
+   connect via WebSerial, and write SSID / passphrase, etc.
+4. Pico2W reboots and attempts WiFi connection. When connection succeeds,
+   LED stays on, and you can open Web UI at `http://lcdtap.local/` (or IP address).
 
 ## LED
 
-| 状態 | パターン |
+| State | Pattern |
 |---|---|
-| WiFi 未設定 | 0.25 s 点灯 / 0.75 s 消灯 |
-| 接続試行中 | 0.25 s 点灯 / 0.25 s 消灯 |
-| 接続失敗 (リトライ待ち) | 0.5 s 点灯 / 0.5 s 消灯 |
-| 接続中 | 常時点灯 + アクセス時に 50 ms 消灯パルス |
-
-## ピン配置
-
-入力ピンは pico2_universal と同一 (GPIO0–11)。GPIO23/24/25/29 は Pico 2 W
-の CYW43 (WiFi/LED) が使用するため空けてある。映像出力・キー入力は無し。
-
-| 信号 | GPIO |
-|---|---|
-| RST | 0 |
-| CS (SPI/パラレル) | 1 |
-| SCLK / WR# | 2 |
-| MOSI / D[0] | 3 |
-| DC (4線SPI) / D[1] | 4 |
-| D[2..7] | 5–10 |
-| DC (パラレル) | 11 |
-| I2C SDA / SCL | 8 / 9 |
+| WiFi Not Configured | 0.25 s on / 0.75 s off |
+| Connecting | 0.25 s on / 0.25 s off |
+| Connection Failed (Retry Waiting) | 0.5 s on / 0.5 s off |
+| Connected | Always on + 50 ms off pulse on access |

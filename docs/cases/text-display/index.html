@@ -7,10 +7,10 @@
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@shapoco" />
-  <meta property="og:url" content="https://shapoco.github.io/lcdtap/cases/tinyjoypad/" />
-  <meta property="og:title" content="Capturing Screen of TinyJoyPad | LcdTap" />
-  <meta property="og:description" content="How to capture the screen of TinyJoyPad using LcdTap." />
-  <meta property="og:image" content="https://shapoco.github.io/lcdtap/cases/tinyjoypad/thumb.jpg" />
+  <meta property="og:url" content="https://shapoco.github.io/lcdtap/cases/text-display/" />
+  <meta property="og:title" content="Capturing Screen of Text Display | LcdTap" />
+  <meta property="og:description" content="How to capture the screen of Text Display using LcdTap." />
+  <meta property="og:image" content="https://shapoco.github.io/lcdtap/cases/text-display/thumb.jpg" />
 
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
@@ -28,7 +28,7 @@
   </script>
 
   <link rel="stylesheet" href="../../style.css">
-  <title>Capturing Screen of TinyJoyPad | LcdTap</title>
+  <title>Capturing Screen of Text Display | LcdTap</title>
   <link rel="icon" type="image/png" href="../../favicon.png">
   <link rel="shortcut icon" href="../../favicon.ico">
 </head>
@@ -39,40 +39,88 @@
     <a href="../../#cases">Cases</a>
   </header>
   <main>
-    <h1>Capturing Screen of TinyJoyPad</h1>
+    <h1>Capturing Screen of Text Display</h1>
     
     <div id="shpcstamp_wrap"></div>
     <script async src="/lcdtap/stamp/v1/widget.js?202606212157"></script>
 
     <p><img src="./thumb.jpg" class="large-img" /></p>
-    <p>See also: <a href="https://blog.shapoco.net/2026/0514-tinyjoypad-with-large-monitor/">LcdTap:
-        TinyJoyPad や Arduboy を大画面で遊ぶ</a></p>
+    
     <h2>Using LcdTap-Pico2 Universal</h2>
-    <h3>Connection</h3>
+
+    <h3>Connection for 8bit/4bit Parallel</h3>
+
+    <p>
+      <strong>For displays with 5V interface, a 5V-3.3V level converter is required.</strong>
+    </p>
+
     <table>
       <thead>
         <tr>
           <th>LcdTap (Pico2)</th>
-          <th>Connection</th>
+          <th>Text Display</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td>GND</td>
-          <td>TinyJoyPad’s GND</td>
+          <td>GND</td>
         </tr>
         <tr>
-          <td>GPIO8 (SDA)</td>
-          <td>TinyJoyPad’s SDA</td>
+          <td>GPIO0 (RST)</td>
+          <td>Open or 3V3</td>
         </tr>
         <tr>
-          <td>GPIO9 (SCL)</td>
-          <td>TinyJoyPad’s SCL</td>
+          <td>GPIO1 (CS)</td>
+          <td>R/W</td>
+        </tr>
+        <tr>
+          <td>GPIO2 (WR)</td>
+          <td>E</td>
+        </tr>
+        <tr>
+          <td>GPIO3-10 (D0-D7)</td>
+          <td>D0-D7</td>
+        </tr>
+        <tr>
+          <td>GPIO11 (DC)</td>
+          <td>R/S</td>
         </tr>
       </tbody>
     </table>
+
+    <h3>Connection for I2C</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>LcdTap (Pico2)</th>
+          <th>Text Display</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GND</td>
+          <td>GND</td>
+        </tr>
+        <tr>
+          <td>GPIO0 (RST)</td>
+          <td>/RES</td>
+        </tr>
+        <tr>
+          <td>GPIO8 (SDA)</td>
+          <td>SDA</td>
+        </tr>
+        <tr>
+          <td>GPIO9 (SCL)</td>
+          <td>SCL</td>
+        </tr>
+      </tbody>
+    </table>
+
     <h3>Configuration</h3>
-    <p>Load preset for TinyJoyPad.</p>
+    <p>
+      Load a preset according to the display size and select the bus interface (8-bit Parallel or I2C).
+    </p>
   </main>
 
   <footer>
