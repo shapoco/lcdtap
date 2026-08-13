@@ -65,6 +65,13 @@ A universal LCD-to-DVI converter example for Raspberry Pi Pico 2. With an OSD (O
 | 3–10 | IN | D[0..7] | | | parallel data |
 | 11 | IN | DC | | | D/C# signal |
 
+テキストディスプレイにおいては R/W 信号を CS に、E 信号を WR に接続します。
+
+KS0108 互換ディスプレイ (SG12864 等) においては、CS1 を RST に、
+CS2 を CS に接続し、R/W の反転と E 信号を AND して WR に接続します。
+
+![](../../docs/cases/ks0108//we-gen.png)
+
 ## Composite Video Output (NTSC/PAL)
 
 The HDMI connector occupies GPIO12–19, so composite video uses the GPIOs that
