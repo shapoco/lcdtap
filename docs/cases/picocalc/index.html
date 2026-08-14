@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@shapoco" />
+  <meta property="og:url" content="https://shapoco.github.io/lcdtap/cases/picocalc/" />
+  <meta property="og:title" content="Capturing Screen of PicoCalc | LcdTap" />
+  <meta property="og:description" content="How to capture the screen of PicoCalc using LcdTap." />
+  <meta property="og:image" content="https://shapoco.github.io/lcdtap/cases/picocalc/thumb.jpg" />
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-KJ53WNQ22G"></script>
+  <script>
+    var remoteHost = window.location.hostname;
+    if (remoteHost == "localhost") {
+      console.log(`Google Analytics disabled on: '${remoteHost}'`);
+    }
+    else {
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-KJ53WNQ22G');
+    }
+  </script>
+
+  <link rel="stylesheet" href="../../style.css">
+  <title>Capturing Screen of PicoCalc | LcdTap</title>
+  <link rel="icon" type="image/png" href="../../favicon.png">
+  <link rel="shortcut icon" href="../../favicon.ico">
+</head>
+
+<body>
+  <header>
+    <a href="../../"><img src="../../image/logo.png" class="logo" />LcdTap</a> |
+    <a href="../../#cases">Cases</a>
+  </header>
+  <main>
+    <h1>Capturing Screen of PicoCalc</h1>
+
+    <div id="shpcstamp_wrap"></div>
+    <script async src="/lcdtap/stamp/v1/widget.js?202606212157"></script>
+
+    <p><img src="./thumb.jpg" class="large-img" /></p>
+    <h2>Using LcdTap-Pico2 Universal</h2>
+    <h3>Connection</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>LcdTap (Pico2)</th>
+          <th>PicoCalc (Pico/Pico2)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>GND</td>
+          <td>GND</td>
+        </tr>
+        <tr>
+          <td>GPIO0 (RST)</td>
+          <td>GPIO15 (LCD_RST)</td>
+        </tr>
+        <tr>
+          <td>GPIO1 (CS)</td>
+          <td>GPIO13 (SPI1_CS)</td>
+        </tr>
+        <tr>
+          <td>GPIO2 (SCLK)</td>
+          <td>GPIO10 (SPI1_SCK)</td>
+        </tr>
+        <tr>
+          <td>GPIO3 (MOSI)</td>
+          <td>GPIO11 (SPI1_MOSI)</td>
+        </tr>
+        <tr>
+          <td>GPIO4 (DC)</td>
+          <td>GPIO14 (LCD_DC)</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3>Configuration</h3>
+    <p>Load the "PicoCalc" preset or import the following settings via the <a href="../../monitor/" target="_blank">Web I/F</a>.</p>
+    <pre>
+{
+  "config": {
+    "ctrlFamily": 0,
+    "busInterface": 1,
+    "buffWidth": 320,
+    "buffHeight": 320,
+    "trimMode": 0,
+    "flipMode": 1,
+    "inverted": true,
+    "swapRB": true,
+    "forcePwrOn": false,
+    "intfFmtOvr": -1,
+    "outputRot": 0,
+    "scaleMode": 2
+  }
+}
+</pre>
+  </main>
+
+  <footer>
+    <a href="/">LcdTap</a> by <a href="https://x.com/shapoco" target="_blank">@shapoco</a>
+  </footer>
+</body>
+
+</html>

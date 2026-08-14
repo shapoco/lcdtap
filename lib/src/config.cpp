@@ -556,6 +556,15 @@ void getPresetConfig(ConfigPreset preset, LcdTapConfig* cfg) {
       cfg->outputRotation = 2;
       break;
 
+    case ConfigPreset::PICOCALC:
+      getDefaultConfig(ControllerFamily::ST7789, cfg);
+      cfg->buffWidth = 320;
+      cfg->buffHeight = 320;
+      cfg->outputRotation = 0;
+      cfg->flipMode = FlipMode::FLIP_H;
+      cfg->swapRB = true;
+      break;
+
     case ConfigPreset::PICOPAD:
       getDefaultConfig(ControllerFamily::ST7789, cfg);
       cfg->outputRotation = 3;

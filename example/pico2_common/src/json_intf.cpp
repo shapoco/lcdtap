@@ -449,7 +449,7 @@ static void execCommand(JsonIntf& ji, const JsonParser& p) {
 
   // ----- getpresets -----
   if (strcmp(cmd, "getpresets") == 0) {
-    char presetResp[256];
+    char presetResp[512];
     int pos = snprintf(presetResp, sizeof(presetResp), "{\"presets\":[");
     for (int i = 0; i < static_cast<int>(lcdtap::ConfigPreset::NUM_PRESETS);
          ++i) {
